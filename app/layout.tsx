@@ -1,6 +1,8 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Geist } from "next/font/google"
+import { Toaster } from "@/components/ui/sonner"
+import { QueryProvider } from "@/lib/providers/query-provider"
 import "./globals.css"
 
 const geist = Geist({ subsets: ["latin"] })
@@ -18,7 +20,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
-      <body className={`${geist.className} antialiased`}>{children}</body>
+      <body className={`${geist.className} antialiased`}>
+        <QueryProvider>
+          {children}
+          <Toaster />
+        </QueryProvider>
+      </body>
     </html>
   )
 }

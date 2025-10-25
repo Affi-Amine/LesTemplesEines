@@ -20,24 +20,43 @@ export default function AdminLogin() {
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
-  // Static credentials for testing
-  const ADMIN_EMAIL = "admin@lestemples.fr"
-  const ADMIN_PASSWORD = "admin123"
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setIsLoading(true)
 
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    try {
+      // Call the real API
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      })
 
-    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      // Store auth token in localStorage (will be replaced with real auth later)
-      localStorage.setItem("adminToken", "temp-token-" + Date.now())
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || t("admin.invalid_credentials"))
+        setIsLoading(false)
+        return
+      }
+
+      // Store auth token in localStorage
+      localStorage.setItem("adminToken", "authenticated")
+
+      // Store staff info
+      localStorage.setItem("adminUser", JSON.stringify(data.staff))
+
+      // Small delay to ensure localStorage is written before redirect
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Redirect to admin dashboard
       router.push("/admin")
-    } else {
-      setError(t("admin.invalid_credentials"))
+    } catch (err) {
+      console.error("Login error:", err)
+      setError("Erreur de connexion. Veuillez réessayer.")
     }
 
     setIsLoading(false)
@@ -125,7 +144,7 @@ export default function AdminLogin() {
             {/* Test Credentials Info */}
             <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-xs text-muted-foreground">
               <p className="font-semibold text-foreground mb-1">Identifiants de test:</p>
-              <p>Email: admin@lestemples.fr</p>
+              <p>Email: test@lestemples.fr</p>
               <p>Mot de passe: admin123</p>
             </div>
 

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { verifyPassword } from "@/lib/auth/password"
 import { generateAccessToken, generateRefreshToken } from "@/lib/auth/jwt"
 import { type NextRequest, NextResponse } from "next/server"
@@ -14,20 +15,40 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { email, password } = LoginSchema.parse(body)
 
-    const supabase = await createClient()
+    console.log("[v0] Login attempt for:", email)
+
+    const supabase = createAdminClient()
 
     // Get staff member by email
-    const { data: staff, error } = await supabase.from("staff").select("*").eq("email", email).single()
+    const { data: staffArray, error } = await supabase.from("staff").select("*").eq("email", email)
 
-    if (error || !staff) {
+    console.log("[v0] Database query result:", {
+      found: !!staffArray && staffArray.length > 0,
+      error: error?.message,
+      staffCount: staffArray?.length || 0,
+      staffId: staffArray?.[0]?.id,
+      hasPasswordHash: !!staffArray?.[0]?.password_hash
+    })
+
+    if (error || !staffArray || staffArray.length === 0) {
+      console.log("[v0] Staff not found or error:", error?.message)
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
     }
+
+    // Get the first staff member (should be unique by email)
+    const staff = staffArray[0]
 
     // Verify password
+    console.log("[v0] Verifying password...")
     const isPasswordValid = await verifyPassword(password, staff.password_hash)
+    console.log("[v0] Password verification result:", isPasswordValid)
+
     if (!isPasswordValid) {
+      console.log("[v0] Password verification failed")
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
     }
+
+    console.log("[v0] Login successful for:", email)
 
     // Generate tokens
     const accessToken = generateAccessToken({

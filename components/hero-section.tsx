@@ -5,9 +5,19 @@ import Link from "next/link"
 import Image from "next/image"
 import { ArrowRight } from "lucide-react"
 import { useTranslations } from "@/lib/i18n/use-translations"
+import { useQuery } from "@tanstack/react-query"
+import { fetchAPI } from "@/lib/api/client"
 
 export function HeroSection() {
   const { t, mounted } = useTranslations()
+
+  // Fetch therapist count
+  const { data: staff } = useQuery({
+    queryKey: ["staff-count"],
+    queryFn: () => fetchAPI<any[]>("/staff"),
+  })
+
+  const therapistCount = staff?.filter((s: any) => s.role === "therapist" && s.is_active).length || 15
 
   if (!mounted) return null
 
@@ -69,7 +79,7 @@ export function HeroSection() {
                 <p className="text-sm text-muted-foreground">{t("home.clients")}</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">15+</p>
+                <p className="text-2xl font-bold text-foreground">{therapistCount}+</p>
                 <p className="text-sm text-muted-foreground">{t("home.therapists")}</p>
               </div>
             </div>

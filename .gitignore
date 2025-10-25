@@ -9,6 +9,7 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+pnpm-lock.yaml
 
 # testing
 /coverage
@@ -32,6 +33,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # vercel
 .vercel
@@ -39,3 +44,37 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation files (temporary/generated)
+FIXES_APPLIED.md
+CLAUDE.md
+PROJECT_SUMMARY.md
+FRONTEND_ANALYSIS.md
+FRONTEND_SUMMARY.md
+IMPLEMENTATION_ROADMAP.md
+CHANGELOG.md
+DOCUMENTATION_INDEX.md
+ARCHITECTURE_DIAGRAMS.md
+API_ENDPOINTS.md
+STRUCTURE.md
+project-context.md
+
+# Old/backup files
+*.old
+*.backup
+*-old.*
+app/page-old.tsx
+
+# Scripts (utility scripts not needed in production)
+scripts/create-admin.ts
+scripts/hash-password.js
+scripts/test-login.js
+scripts/apply-rls-policies.js

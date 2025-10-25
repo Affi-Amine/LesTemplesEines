@@ -5,46 +5,194 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ClientSearch } from "@/components/client-search"
 import { ClientDetailsModal } from "@/components/client-details-modal"
-import { clients } from "@/lib/mock-data"
-import { Mail, Phone, TrendingUp } from "lucide-react"
+import { Mail, Phone, TrendingUp, User, Plus, Edit, Trash2 } from "lucide-react"
 import { useState, useMemo } from "react"
 import { useTranslations } from "@/lib/i18n/use-translations"
+import { useQuery } from "@tanstack/react-query"
+import { fetchAPI } from "@/lib/api/client"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "sonner"
+import { Icon } from "@iconify/react"
 
 export default function ClientsPage() {
   const { t } = useTranslations()
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedClient, setSelectedClient] = useState<(typeof clients)[0] | null>(null)
+  const [selectedClient, setSelectedClient] = useState<any | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingClient, setEditingClient] = useState<any | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Form state
+  const [formData, setFormData] = useState({
+    first_name: "",
+    last_name: "",
+    phone: "",
+    email: "",
+    internal_notes: "",
+  })
+
+  // Fetch clients from API
+  const { data: clients, isLoading, refetch } = useQuery({
+    queryKey: ["clients"],
+    queryFn: () => fetchAPI<any[]>("/clients"),
+  })
 
   const filteredClients = useMemo(() => {
+    if (!clients) return []
     return clients.filter(
       (client) =>
-        client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        `${client.first_name} ${client.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (client.email && client.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
         client.phone.includes(searchQuery),
     )
-  }, [searchQuery])
+  }, [clients, searchQuery])
 
-  const handleClientClick = (client: (typeof clients)[0]) => {
+  const handleClientClick = (client: any) => {
     setSelectedClient(client)
     setModalOpen(true)
   }
 
-  const totalRevenue = clients.reduce((sum, client) => sum + client.totalSpent, 0)
-  const avgSpent = Math.round(totalRevenue / clients.length)
+  const handleEdit = (client: any, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingClient(client)
+    setFormData({
+      first_name: client.first_name,
+      last_name: client.last_name,
+      phone: client.phone,
+      email: client.email || "",
+      internal_notes: client.internal_notes || "",
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleCreate = () => {
+    setEditingClient(null)
+    setFormData({
+      first_name: "",
+      last_name: "",
+      phone: "",
+      email: "",
+      internal_notes: "",
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleSave = async () => {
+    // Validation
+    if (!formData.first_name || !formData.last_name || !formData.phone) {
+      toast.error("Erreur", {
+        description: "Veuillez remplir tous les champs obligatoires",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const endpoint = editingClient ? `/api/clients/${editingClient.id}` : "/api/clients"
+      const method = editingClient ? "PUT" : "POST"
+
+      const payload = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        phone: formData.phone,
+        email: formData.email || undefined,
+        internal_notes: formData.internal_notes || undefined,
+      }
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to save client")
+      }
+
+      toast.success(editingClient ? "Client mis à jour" : "Client créé", {
+        description: `${formData.first_name} ${formData.last_name} a été ${editingClient ? "mis à jour" : "créé"} avec succès`,
+        icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
+      })
+
+      setIsEditDialogOpen(false)
+      refetch()
+    } catch (error: any) {
+      toast.error("Erreur", {
+        description: error.message || "Impossible de sauvegarder le client",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDelete = async (client: any, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer ${client.first_name} ${client.last_name} ?`)) return
+
+    try {
+      const response = await fetch(`/api/clients/${client.id}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) throw new Error("Failed to delete")
+
+      toast.success("Client supprimé", {
+        description: `${client.first_name} ${client.last_name} a été supprimé`,
+        icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
+      })
+
+      refetch()
+    } catch (error) {
+      toast.error("Erreur", {
+        description: "Impossible de supprimer le client",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+    }
+  }
+
+  // Calculate stats from real data
+  const totalClients = clients?.length || 0
+  const totalRevenue = 0 // Will be calculated from appointments in future
+  const avgSpent = totalClients > 0 ? Math.round(totalRevenue / totalClients) : 0
 
   return (
     <div className="min-h-screen bg-background">
       <AdminHeader title={t("admin.clients")} description={t("admin.clients")} />
 
       <div className="p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">{t("admin.clients")}</h2>
+          <Button onClick={handleCreate} className="gap-2 cursor-pointer">
+            <Plus className="w-4 h-4" />
+            {t("common.add")}
+          </Button>
+        </div>
+
         {/* Stats */}
         <div className="grid md:grid-cols-3 gap-6">
           <Card className="p-6">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">{t("admin.total_clients")}</p>
-                <p className="text-3xl font-bold">{clients.length}</p>
+                {isLoading ? (
+                  <div className="h-9 w-16 bg-muted rounded animate-pulse" />
+                ) : (
+                  <p className="text-3xl font-bold">{totalClients}</p>
+                )}
               </div>
               <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-primary" />
@@ -55,7 +203,11 @@ export default function ClientsPage() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">{t("admin.total_revenue")}</p>
-                <p className="text-3xl font-bold">€{totalRevenue}</p>
+                {isLoading ? (
+                  <div className="h-9 w-20 bg-muted rounded animate-pulse" />
+                ) : (
+                  <p className="text-3xl font-bold">€{totalRevenue}</p>
+                )}
               </div>
               <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-primary" />
@@ -66,7 +218,11 @@ export default function ClientsPage() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Average Spent</p>
-                <p className="text-3xl font-bold">€{avgSpent}</p>
+                {isLoading ? (
+                  <div className="h-9 w-16 bg-muted rounded animate-pulse" />
+                ) : (
+                  <p className="text-3xl font-bold">€{avgSpent}</p>
+                )}
               </div>
               <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-primary" />
@@ -79,58 +235,179 @@ export default function ClientsPage() {
         <ClientSearch onSearch={setSearchQuery} />
 
         {/* Client List */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredClients.length > 0 ? (
-            filteredClients.map((client) => (
-              <Card
-                key={client.id}
-                className="p-6 cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => handleClientClick(client)}
-              >
-                <h3 className="font-semibold text-lg mb-2">{client.name}</h3>
-                <div className="space-y-2 text-sm text-muted-foreground mb-4">
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4" />
-                    <a href={`tel:${client.phone}`} onClick={(e) => e.stopPropagation()} className="hover:text-primary">
-                      {client.phone}
-                    </a>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4" />
-                    <a
-                      href={`mailto:${client.email}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="hover:text-primary"
-                    >
-                      {client.email}
-                    </a>
-                  </div>
+        {isLoading ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Card key={i} className="p-6 animate-pulse">
+                <div className="h-6 bg-muted rounded w-2/3 mb-2" />
+                <div className="space-y-2 mb-4">
+                  <div className="h-4 bg-muted rounded w-1/2" />
+                  <div className="h-4 bg-muted rounded w-3/4" />
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-sm mb-4 p-3 bg-muted rounded">
-                  <div>
-                    <p className="text-muted-foreground text-xs">Visits</p>
-                    <p className="font-semibold">{client.visitCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs">Total Spent</p>
-                    <p className="font-semibold">€{client.totalSpent}</p>
-                  </div>
+                <div className="grid grid-cols-2 gap-2 mb-4 p-3 bg-muted rounded">
+                  <div className="h-8 bg-background rounded" />
+                  <div className="h-8 bg-background rounded" />
                 </div>
-                <Button variant="outline" className="w-full bg-transparent">
-                  {t("common.edit")}
-                </Button>
+                <div className="h-10 bg-muted rounded" />
               </Card>
-            ))
-          ) : (
-            <div className="col-span-full text-center py-8">
-              <p className="text-muted-foreground">No clients found matching your search</p>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredClients.length > 0 ? (
+              filteredClients.map((client) => (
+                <Card
+                  key={client.id}
+                  className="p-6 cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => handleClientClick(client)}
+                >
+                  <h3 className="font-semibold text-lg mb-2">
+                    {client.first_name} {client.last_name}
+                  </h3>
+                  <div className="space-y-2 text-sm text-muted-foreground mb-4">
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4" />
+                      <a href={`tel:${client.phone}`} onClick={(e) => e.stopPropagation()} className="hover:text-primary">
+                        {client.phone}
+                      </a>
+                    </div>
+                    {client.email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4" />
+                        <a
+                          href={`mailto:${client.email}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:text-primary"
+                        >
+                          {client.email}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm mb-4 p-3 bg-muted rounded">
+                    <div>
+                      <p className="text-muted-foreground text-xs">Visits</p>
+                      <p className="font-semibold">{client.visitCount || 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Total Spent</p>
+                      <p className="font-semibold">€{client.totalSpent || 0}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => handleEdit(client, e)}
+                      className="flex-1 cursor-pointer"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      {t("common.edit")}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => handleDelete(client, e)}
+                      className="text-destructive hover:bg-destructive/10 cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </Card>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-8">
+                <p className="text-muted-foreground">No clients found matching your search</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Client Details Modal */}
       <ClientDetailsModal open={modalOpen} onOpenChange={setModalOpen} client={selectedClient} />
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingClient ? "Modifier le client" : "Nouveau client"}</DialogTitle>
+            <DialogDescription>
+              {editingClient ? "Modifiez les informations du client" : "Ajoutez un nouveau client à votre base"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="first_name">
+                  Prénom <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="first_name"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                  placeholder="Marie"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="last_name">
+                  Nom <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="last_name"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                  placeholder="Dupont"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">
+                Téléphone <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="phone"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="+33 1 23 45 67 89"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="marie.dupont@example.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="internal_notes">Notes internes</Label>
+              <Textarea
+                id="internal_notes"
+                value={formData.internal_notes}
+                onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })}
+                placeholder="Notes privées concernant le client..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="cursor-pointer">
+              Annuler
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving} className="cursor-pointer">
+              {isSaving ? "Enregistrement..." : editingClient ? "Mettre à jour" : "Créer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -15,7 +15,7 @@ interface SalonHeaderProps {
 
 export function SalonHeader({ name, city, address, phone, image, slug, hours }: SalonHeaderProps) {
   const today = new Date().toLocaleDateString("en-US", { weekday: "long" }).toLowerCase()
-  const todayHours = hours[today as keyof typeof hours]
+  const todayHours = hours && hours[today as keyof typeof hours]
 
   return (
     <div className="w-full">

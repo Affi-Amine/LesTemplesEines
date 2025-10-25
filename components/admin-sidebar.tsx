@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Calendar, Users, BarChart3, Settings, LogOut, Menu, X } from "lucide-react"
+import { Calendar, Users, BarChart3, Settings, LogOut, Menu, X, Building2, Scissors } from "lucide-react"
 import { useState } from "react"
 import { useTranslations } from "@/lib/i18n/use-translations"
 
@@ -13,16 +13,14 @@ export function AdminSidebar() {
   const { t, mounted } = useTranslations()
 
   const navItems = [
-    { href: "/admin", label: t("admin.dashboard"), icon: BarChart3 },
-    { href: "/admin/appointments", label: t("admin.appointments"), icon: Calendar },
-    { href: "/admin/clients", label: t("admin.clients"), icon: Users },
-    { href: "/admin/staff", label: t("admin.staff"), icon: Users },
-    { href: "/admin/settings", label: t("admin.settings"), icon: Settings },
+    { href: "/admin", label: mounted ? t("admin.dashboard") : "Dashboard", icon: BarChart3 },
+    { href: "/admin/appointments", label: mounted ? t("admin.appointments") : "Appointments", icon: Calendar },
+    { href: "/admin/clients", label: mounted ? t("admin.clients") : "Clients", icon: Users },
+    { href: "/admin/staff", label: mounted ? t("admin.staff") : "Staff", icon: Users },
+    { href: "/admin/salons", label: "Salons", icon: Building2 },
+    { href: "/admin/services", label: "Services", icon: Scissors },
+    { href: "/admin/settings", label: mounted ? t("admin.settings") : "Settings", icon: Settings },
   ]
-
-  if (!mounted) {
-    return null
-  }
 
   return (
     <>
@@ -46,8 +44,8 @@ export function AdminSidebar() {
 
         <nav className="p-4 space-y-2">
           {navItems.map((item) => {
-            const Icon = item.icon
             const isActive = pathname === item.href
+            const IconComponent = item.icon
             return (
               <Link key={item.href} href={item.href}>
                 <Button
@@ -55,7 +53,7 @@ export function AdminSidebar() {
                   className="w-full justify-start gap-3"
                   onClick={() => setIsOpen(false)}
                 >
-                  <Icon className="w-4 h-4" />
+                  {IconComponent && <IconComponent className="w-4 h-4" />}
                   {item.label}
                 </Button>
               </Link>
@@ -64,9 +62,9 @@ export function AdminSidebar() {
         </nav>
 
         <div className="absolute bottom-4 left-4 right-4">
-          <Button variant="outline" className="w-full justify-start gap-3 bg-transparent">
+          <Button variant="outline" className="w-full justify-start gap-3 bg-transparent cursor-pointer">
             <LogOut className="w-4 h-4" />
-            {t("admin.logout")}
+            {mounted ? t("admin.logout") : "Logout"}
           </Button>
         </div>
       </aside>

@@ -17,6 +17,11 @@ export function SalonHours({ hours }: SalonHoursProps) {
     sunday: "Sunday",
   }
 
+  // If hours is not provided or is empty, don't render the section
+  if (!hours || Object.keys(hours).length === 0) {
+    return null
+  }
+
   return (
     <section className="py-16 bg-muted/30">
       <div className="max-w-7xl mx-auto px-4">
@@ -31,14 +36,19 @@ export function SalonHours({ hours }: SalonHoursProps) {
             <div>
               <h3 className="font-semibold text-lg mb-4">Weekly Schedule</h3>
               <div className="grid md:grid-cols-2 gap-6">
-                {daysOrder.map((day) => (
-                  <div key={day} className="flex justify-between items-center pb-3 border-b">
-                    <span className="font-medium">{dayLabels[day]}</span>
-                    <span className="text-muted-foreground">
-                      {hours[day].open} - {hours[day].close}
-                    </span>
-                  </div>
-                ))}
+                {daysOrder.map((day) => {
+                  const dayHours = hours[day]
+                  if (!dayHours) return null
+
+                  return (
+                    <div key={day} className="flex justify-between items-center pb-3 border-b">
+                      <span className="font-medium">{dayLabels[day]}</span>
+                      <span className="text-muted-foreground">
+                        {dayHours.open} - {dayHours.close}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>

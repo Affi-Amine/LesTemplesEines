@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -13,11 +13,16 @@ const UpdateServiceSchema = z.object({
   is_active: z.boolean().optional(),
 })
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    const supabase = await createClient()
+interface RouteContext {
+  params: Promise<{ id: string }>
+}
 
-    const { data: service, error } = await supabase.from("services").select("*").eq("id", params.id).single()
+export async function GET(request: NextRequest, context: RouteContext) {
+  try {
+    const { id } = await context.params
+    const supabase = await createAdminClient()
+
+    const { data: service, error } = await supabase.from("services").select("*").eq("id", id).single()
 
     if (error) throw error
 
@@ -32,15 +37,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, context: RouteContext) {
   try {
+    const { id } = await context.params
     const body = await request.json()
     const serviceData = UpdateServiceSchema.parse(body)
 
-    const supabase = await createClient()
+    const supabase = await createAdminClient()
 
     // Check if service exists
-    const { data: existing } = await supabase.from("services").select("id").eq("id", params.id).single()
+    const { data: existing } = await supabase.from("services").select("id").eq("id", id).single()
 
     if (!existing) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 })
@@ -50,7 +56,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const { data: service, error } = await supabase
       .from("services")
       .update(serviceData)
-      .eq("id", params.id)
+      .eq("id", id)
       .select()
       .single()
 
@@ -66,19 +72,20 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    const supabase = await createClient()
+    const { id } = await context.params
+    const supabase = await createAdminClient()
 
     // Check if service exists
-    const { data: existing } = await supabase.from("services").select("id").eq("id", params.id).single()
+    const { data: existing } = await supabase.from("services").select("id").eq("id", id).single()
 
     if (!existing) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 })
     }
 
     // Soft delete by setting is_active to false
-    const { error } = await supabase.from("services").update({ is_active: false }).eq("id", params.id)
+    const { error } = await supabase.from("services").update({ is_active: false }).eq("id", id)
 
     if (error) throw error
 

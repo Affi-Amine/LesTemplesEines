@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -8,14 +8,14 @@ const SalonSchema = z.object({
   address: z.string().min(1),
   city: z.string().min(1),
   phone: z.string().optional(),
-  email: z.string().email().optional(),
+  email: z.union([z.string().email(), z.literal("")]).optional().transform((v) => (v === "" ? undefined : v)),
   siret: z.string().optional(),
   opening_hours: z.record(z.string(), z.object({ open: z.string(), close: z.string() })).optional(),
 })
 
 export async function GET() {
   try {
-    const supabase = await createClient()
+    const supabase = await createAdminClient()
 
     const { data: salons, error } = await supabase.from("salons").select("*").eq("is_active", true)
 
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const salonData = SalonSchema.parse(body)
 
-    const supabase = await createClient()
+    const supabase = await createAdminClient()
 
     const { data: salon, error } = await supabase.from("salons").insert([salonData]).select().single()
 

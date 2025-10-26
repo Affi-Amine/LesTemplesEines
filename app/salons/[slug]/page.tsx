@@ -70,7 +70,7 @@ export default async function SalonPage({ params }: SalonPageProps) {
     name: service.name,
     description: service.description || "",
     duration: service.duration_minutes,
-    price: (service.price_cents / 100).toFixed(2),
+    price: service.price_cents / 100,
     category: service.category || "Services",
     image: service.image_url || "/placeholder.svg?height=160&width=300&query=massage therapy",
   }))

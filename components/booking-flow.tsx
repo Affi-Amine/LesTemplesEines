@@ -57,7 +57,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   // Fetch data using hooks
   const { data: salons, isLoading: salonsLoading } = useSalons()
   const { data: services, isLoading: servicesLoading } = useServices(data.salon || undefined)
-  const { data: staff, isLoading: staffLoading } = useStaff(data.salon || undefined, 'therapist')
+  const { data: staff, isLoading: staffLoading } = useStaff(data.salon || undefined)
   const createAppointment = useCreateAppointment()
 
   // Find current selections

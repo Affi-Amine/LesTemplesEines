@@ -31,17 +31,7 @@ import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 import { Switch } from "@/components/ui/switch"
 
-type Service = {
-  id: string
-  salon_id: string
-  name: string
-  description?: string
-  duration_minutes: number
-  price_cents: number
-  category?: string
-  image_url?: string
-  is_active: boolean
-}
+import type { Service } from "@/lib/types/database"
 
 export default function ServicesPage() {
   const { t } = useTranslations()

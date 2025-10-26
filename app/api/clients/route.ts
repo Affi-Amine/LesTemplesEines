@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   try {
     const search = request.nextUrl.searchParams.get("search")
 
-    const supabase = await createClient()
+    const supabase = await createAdminClient()
 
     let query = supabase.from("clients").select("*")
 
@@ -23,6 +23,9 @@ export async function GET(request: NextRequest) {
         `first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone.ilike.%${search}%,email.ilike.%${search}%`,
       )
     }
+
+    // Newest first
+    query = query.order("created_at", { ascending: false })
 
     const { data: clients, error } = await query
 
@@ -40,10 +43,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const clientData = ClientSchema.parse(body)
 
-    const supabase = await createClient()
+    const supabase = await createAdminClient()
 
     // Check if client already exists
-    const { data: existingClient } = await supabase.from("clients").select("id").eq("phone", clientData.phone).single()
+    const { data: existingClient } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("phone", clientData.phone)
+      .single()
 
     if (existingClient) {
       return NextResponse.json(existingClient, { status: 200 })

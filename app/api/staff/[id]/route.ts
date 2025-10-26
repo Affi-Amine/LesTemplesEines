@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { hashPassword } from "@/lib/auth/password"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
@@ -16,14 +16,19 @@ const UpdateStaffSchema = z.object({
   is_active: z.boolean().optional(),
 })
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+interface RouteContext {
+  params: Promise<{ id: string }>
+}
+
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const supabase = await createClient()
+    const { id } = await context.params
+    const supabase = await createAdminClient()
 
     const { data: staff, error } = await supabase
       .from("staff")
       .select("id, salon_id, email, first_name, last_name, phone, role, photo_url, specialties, is_active, created_at, updated_at")
-      .eq("id", params.id)
+      .eq("id", id)
       .single()
 
     if (error) throw error
@@ -39,15 +44,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, context: RouteContext) {
   try {
+    const { id } = await context.params
     const body = await request.json()
     const staffData = UpdateStaffSchema.parse(body)
 
-    const supabase = await createClient()
+    const supabase = await createAdminClient()
 
     // Check if staff exists
-    const { data: existing } = await supabase.from("staff").select("id").eq("id", params.id).single()
+    const { data: existing } = await supabase.from("staff").select("id").eq("id", id).single()
 
     if (!existing) {
       return NextResponse.json({ error: "Staff member not found" }, { status: 404 })
@@ -59,7 +65,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         .from("staff")
         .select("id")
         .eq("email", staffData.email)
-        .neq("id", params.id)
+        .neq("id", id)
         .single()
 
       if (emailExists) {
@@ -80,7 +86,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const { data: staff, error } = await supabase
       .from("staff")
       .update(updateData)
-      .eq("id", params.id)
+      .eq("id", id)
       .select("id, salon_id, email, first_name, last_name, phone, role, photo_url, specialties, is_active, created_at, updated_at")
       .single()
 
@@ -96,19 +102,20 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    const supabase = await createClient()
+    const { id } = await context.params
+    const supabase = await createAdminClient()
 
     // Check if staff exists
-    const { data: existing } = await supabase.from("staff").select("id").eq("id", params.id).single()
+    const { data: existing } = await supabase.from("staff").select("id").eq("id", id).single()
 
     if (!existing) {
       return NextResponse.json({ error: "Staff member not found" }, { status: 404 })
     }
 
     // Soft delete by setting is_active to false
-    const { error } = await supabase.from("staff").update({ is_active: false }).eq("id", params.id)
+    const { error } = await supabase.from("staff").update({ is_active: false }).eq("id", id)
 
     if (error) throw error
 

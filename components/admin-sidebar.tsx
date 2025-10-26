@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Calendar, Users, BarChart3, Settings, LogOut, Menu, X, Building2, Scissors } from "lucide-react"
 import { useState } from "react"
@@ -9,6 +9,7 @@ import { useTranslations } from "@/lib/i18n/use-translations"
 
 export function AdminSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const { t, mounted } = useTranslations()
 
@@ -21,6 +22,27 @@ export function AdminSidebar() {
     { href: "/admin/services", label: "Services", icon: Scissors },
     { href: "/admin/settings", label: mounted ? t("admin.settings") : "Settings", icon: Settings },
   ]
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+    } catch (e) {
+      // Even if API fails, still clear client state
+      console.error("Logout API error:", e)
+    }
+
+    // Clear local auth state
+    try {
+      localStorage.removeItem("adminToken")
+      localStorage.removeItem("adminUser")
+    } catch (e) {
+      console.warn("Failed to clear localStorage", e)
+    }
+
+    // Close sidebar on mobile and redirect to login
+    setIsOpen(false)
+    router.push("/admin/login")
+  }
 
   return (
     <>
@@ -62,7 +84,11 @@ export function AdminSidebar() {
         </nav>
 
         <div className="absolute bottom-4 left-4 right-4">
-          <Button variant="outline" className="w-full justify-start gap-3 bg-transparent cursor-pointer">
+          <Button
+            variant="outline"
+            className="w-full justify-start gap-3 bg-transparent cursor-pointer"
+            onClick={handleLogout}
+          >
             <LogOut className="w-4 h-4" />
             {mounted ? t("admin.logout") : "Logout"}
           </Button>

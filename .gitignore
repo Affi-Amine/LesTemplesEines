@@ -78,3 +78,10 @@ scripts/create-admin.ts
 scripts/hash-password.js
 scripts/test-login.js
 scripts/apply-rls-policies.js
+
+# Root-level utility scripts with secrets/credentials
+create-admin-simple.js
+populate-database.js
+test-db-connection.js
+test-login-fix.js
+verify-database-data.js

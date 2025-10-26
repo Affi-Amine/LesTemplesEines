@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { hashPassword } from "@/lib/auth/password"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
@@ -21,9 +21,11 @@ export async function GET(request: NextRequest) {
     const role = request.nextUrl.searchParams.get("role")
     const isActive = request.nextUrl.searchParams.get("is_active")
 
-    const supabase = await createClient()
+    const supabase = await createAdminClient()
 
-    let query = supabase.from("staff").select("id, salon_id, email, first_name, last_name, phone, role, photo_url, specialties, is_active, created_at, updated_at")
+    let query = supabase
+      .from("staff")
+      .select("id, salon_id, email, first_name, last_name, phone, role, photo_url, specialties, is_active, created_at, updated_at")
 
     if (salonId) query = query.eq("salon_id", salonId)
     if (role) query = query.eq("role", role)
@@ -45,7 +47,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const staffData = StaffSchema.parse(body)
 
-    const supabase = await createClient()
+    const supabase = await createAdminClient()
 
     // Check if email already exists
     const { data: existing } = await supabase.from("staff").select("id").eq("email", staffData.email).single()

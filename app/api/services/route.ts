@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   try {
     const salonId = request.nextUrl.searchParams.get("salon_id")
 
-    const supabase = await createClient()
+    const supabase = await createAdminClient()
 
     let query = supabase.from("services").select("*").eq("is_active", true)
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const serviceData = ServiceSchema.parse(body)
 
-    const supabase = await createClient()
+    const supabase = await createAdminClient()
 
     const { data: service, error } = await supabase.from("services").insert([serviceData]).select().single()
 

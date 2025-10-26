@@ -31,18 +31,7 @@ import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 import { Switch } from "@/components/ui/switch"
 
-type Staff = {
-  id: string
-  salon_id: string
-  email: string
-  first_name: string
-  last_name: string
-  phone?: string
-  role: "therapist" | "assistant" | "manager" | "admin"
-  photo_url?: string
-  specialties?: string[]
-  is_active: boolean
-}
+import type { Staff } from "@/lib/types/database"
 
 export default function StaffPage() {
   const { t } = useTranslations()

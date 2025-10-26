@@ -6,14 +6,23 @@ import { toast } from "sonner"
 import type { Appointment } from "@/lib/types/database"
 import { Icon } from "@iconify/react"
 
+interface ClientData {
+  first_name: string
+  last_name: string
+  phone: string
+  email?: string
+}
+
 interface CreateAppointmentData {
   salon_id: string
-  client_id: string
   staff_id: string
   service_id: string
   start_time: string
-  end_time: string
+  end_time?: string
+  client_id?: string
+  client_data?: ClientData
   client_notes?: string
+  notes?: string
   status?: "confirmed" | "pending"
 }
 
@@ -30,6 +39,7 @@ export function useCreateAppointment() {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["appointments"] })
       queryClient.invalidateQueries({ queryKey: ["availability"] })
+      queryClient.invalidateQueries({ queryKey: ["clients"] })
 
       toast.success("Rendez-vous créé avec succès !", {
         description: "Le client recevra un SMS de confirmation.",

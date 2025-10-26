@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
+import { useCreateClient } from "@/lib/hooks/use-create-client"
 
 export default function ClientsPage() {
   const { t } = useTranslations()
@@ -46,15 +47,22 @@ export default function ClientsPage() {
   const { data: clients, isLoading, refetch } = useQuery({
     queryKey: ["clients"],
     queryFn: () => fetchAPI<any[]>("/clients"),
+    refetchOnMount: "always",
   })
+
+  const createClient = useCreateClient()
 
   const filteredClients = useMemo(() => {
     if (!clients) return []
-    return clients.filter(
+    const filtered = clients.filter(
       (client) =>
         `${client.first_name} ${client.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (client.email && client.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
         client.phone.includes(searchQuery),
+    )
+    // Newest first by created_at
+    return filtered.sort(
+      (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     )
   }, [clients, searchQuery])
 
@@ -99,9 +107,43 @@ export default function ClientsPage() {
     }
 
     setIsSaving(true)
+
+    if (!editingClient) {
+      // Use React Query mutation for create to auto-invalidate and refresh
+      createClient.mutate(
+        {
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          phone: formData.phone,
+          email: formData.email || undefined,
+          internal_notes: formData.internal_notes || undefined,
+        },
+        {
+          onSuccess: () => {
+            toast.success("Client créé", {
+              description: `${formData.first_name} ${formData.last_name} a été créé avec succès`,
+              icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
+            })
+            setIsEditDialogOpen(false)
+            setIsSaving(false)
+            // Explicit refetch to ensure immediate UI update
+            refetch()
+          },
+          onError: (error: any) => {
+            toast.error("Erreur", {
+              description: error.message || "Impossible de sauvegarder le client",
+              icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+            })
+            setIsSaving(false)
+          },
+        }
+      )
+      return
+    }
+
     try {
-      const endpoint = editingClient ? `/api/clients/${editingClient.id}` : "/api/clients"
-      const method = editingClient ? "PUT" : "POST"
+      const endpoint = `/api/clients/${editingClient.id}`
+      const method = "PUT"
 
       const payload = {
         first_name: formData.first_name,
@@ -122,8 +164,8 @@ export default function ClientsPage() {
         throw new Error(error.error || "Failed to save client")
       }
 
-      toast.success(editingClient ? "Client mis à jour" : "Client créé", {
-        description: `${formData.first_name} ${formData.last_name} a été ${editingClient ? "mis à jour" : "créé"} avec succès`,
+      toast.success("Client mis à jour", {
+        description: `${formData.first_name} ${formData.last_name} a été mis à jour avec succès`,
         icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
       })
 
@@ -248,166 +290,122 @@ export default function ClientsPage() {
                   <div className="h-8 bg-background rounded" />
                   <div className="h-8 bg-background rounded" />
                 </div>
-                <div className="h-10 bg-muted rounded" />
               </Card>
             ))}
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredClients.length > 0 ? (
-              filteredClients.map((client) => (
-                <Card
-                  key={client.id}
-                  className="p-6 cursor-pointer hover:shadow-lg transition-shadow"
-                  onClick={() => handleClientClick(client)}
-                >
-                  <h3 className="font-semibold text-lg mb-2">
-                    {client.first_name} {client.last_name}
-                  </h3>
-                  <div className="space-y-2 text-sm text-muted-foreground mb-4">
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4" />
-                      <a href={`tel:${client.phone}`} onClick={(e) => e.stopPropagation()} className="hover:text-primary">
-                        {client.phone}
-                      </a>
-                    </div>
-                    {client.email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="w-4 h-4" />
-                        <a
-                          href={`mailto:${client.email}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="hover:text-primary"
-                        >
-                          {client.email}
-                        </a>
-                      </div>
-                    )}
+            {filteredClients.map((client: any) => (
+              <Card
+                key={client.id}
+                className="p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => handleClientClick(client)}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                    <User className="w-5 h-5 text-primary" />
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm mb-4 p-3 bg-muted rounded">
-                    <div>
-                      <p className="text-muted-foreground text-xs">Visits</p>
-                      <p className="font-semibold">{client.visitCount || 0}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Total Spent</p>
-                      <p className="font-semibold">€{client.totalSpent || 0}</p>
-                    </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      {client.first_name} {client.last_name}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">Client depuis {new Date(client.created_at).toLocaleDateString()}</p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => handleEdit(client, e)}
-                      className="flex-1 cursor-pointer"
-                    >
-                      <Edit className="w-4 h-4 mr-2" />
-                      {t("common.edit")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => handleDelete(client, e)}
-                      className="text-destructive hover:bg-destructive/10 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <p className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-muted-foreground" /> {client.phone}
+                  </p>
+                  {client.email && (
+                    <p className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-muted-foreground" /> {client.email}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-4 p-3 bg-muted rounded">
+                  <div>
+                    <p className="text-muted-foreground text-xs">Visits</p>
+                    <p className="font-semibold">{client.visitCount || 0}</p>
                   </div>
-                </Card>
-              ))
-            ) : (
-              <div className="col-span-full text-center py-8">
-                <p className="text-muted-foreground">No clients found matching your search</p>
-              </div>
-            )}
+                  <div>
+                    <p className="text-muted-foreground text-xs">Total Spent</p>
+                    <p className="font-semibold">€{client.totalSpent || 0}</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-4">
+                  <Button variant="outline" size="sm" className="gap-2 cursor-pointer" onClick={(e) => handleEdit(client, e)}>
+                    <Edit className="w-4 h-4" /> Edit
+                  </Button>
+                  <Button variant="destructive" size="sm" className="gap-2 cursor-pointer" onClick={(e) => handleDelete(client, e)}>
+                    <Trash2 className="w-4 h-4" /> Delete
+                  </Button>
+                </div>
+              </Card>
+            ))}
           </div>
         )}
+
+        {/* Client Details Modal */}
+        {selectedClient && (
+          <ClientDetailsModal open={modalOpen} onOpenChange={setModalOpen} client={selectedClient} />
+        )}
+
+        {/* Edit/Create Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={(open) => setIsEditDialogOpen(open)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingClient ? "Modifier le client" : "Ajouter un client"}</DialogTitle>
+              <DialogDescription>
+                {editingClient
+                  ? "Mettez à jour les informations du client"
+                  : "Ajoutez un nouveau client à votre base de données"}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="firstName">Prénom</Label>
+                  <Input
+                    id="firstName"
+                    value={formData.first_name}
+                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="lastName">Nom</Label>
+                  <Input id="lastName" value={formData.last_name} onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="phone">Téléphone</Label>
+                <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+              </div>
+
+              <div>
+                <Label htmlFor="email">Email (optionnel)</Label>
+                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+              </div>
+
+              <div>
+                <Label htmlFor="notes">Notes internes (optionnel)</Label>
+                <Textarea id="notes" value={formData.internal_notes} onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })} />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="cursor-pointer">Annuler</Button>
+              <Button onClick={handleSave} className="cursor-pointer" disabled={isSaving}>
+                {isSaving ? "Sauvegarde..." : editingClient ? "Sauvegarder" : "Créer"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
-
-      {/* Client Details Modal */}
-      <ClientDetailsModal open={modalOpen} onOpenChange={setModalOpen} client={selectedClient} />
-
-      {/* Create/Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editingClient ? "Modifier le client" : "Nouveau client"}</DialogTitle>
-            <DialogDescription>
-              {editingClient ? "Modifiez les informations du client" : "Ajoutez un nouveau client à votre base"}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="first_name">
-                  Prénom <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="first_name"
-                  value={formData.first_name}
-                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                  placeholder="Marie"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="last_name">
-                  Nom <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="last_name"
-                  value={formData.last_name}
-                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  placeholder="Dupont"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone">
-                Téléphone <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="+33 1 23 45 67 89"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="marie.dupont@example.com"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="internal_notes">Notes internes</Label>
-              <Textarea
-                id="internal_notes"
-                value={formData.internal_notes}
-                onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })}
-                placeholder="Notes privées concernant le client..."
-                rows={3}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="cursor-pointer">
-              Annuler
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving} className="cursor-pointer">
-              {isSaving ? "Enregistrement..." : editingClient ? "Mettre à jour" : "Créer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

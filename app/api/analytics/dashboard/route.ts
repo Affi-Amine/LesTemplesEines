@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     const uniqueClients = new Set(appointmentsWithClients?.map((a) => a.client_id) || [])
 
     // 3. Total Revenue (from payments)
-    let paymentsQuery = supabase
+    let paymentsQuery: any = supabase
       .from("payments")
       .select("amount_cents")
       .gte("created_at", start.toISOString())
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: payments } = await paymentsQuery
-    const totalRevenueCents = payments?.reduce((sum, p) => sum + p.amount_cents, 0) || 0
+    const totalRevenueCents = payments?.reduce((sum: number, p: { amount_cents: number }) => sum + p.amount_cents, 0) || 0
 
     // 4. Pending Bookings
     let pendingQuery = supabase
@@ -136,16 +136,20 @@ export async function GET(request: NextRequest) {
     serviceAppointments?.forEach((apt) => {
       if (!apt.service_id || !apt.services) return
 
+      const svcSrc = apt.services as any
+      const svc: { name: string; price_cents: number } = Array.isArray(svcSrc) ? svcSrc[0] : svcSrc
+      if (!svc) return
+
       const existing = servicesMap.get(apt.service_id)
       if (existing) {
         existing.booking_count++
-        existing.revenue_cents += apt.services.price_cents
+        existing.revenue_cents += svc.price_cents
       } else {
         servicesMap.set(apt.service_id, {
           service_id: apt.service_id,
-          service_name: apt.services.name,
+          service_name: svc.name,
           booking_count: 1,
-          revenue_cents: apt.services.price_cents,
+          revenue_cents: svc.price_cents,
         })
       }
     })

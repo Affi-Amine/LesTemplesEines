@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -10,7 +10,7 @@ import { useTranslations } from "@/lib/i18n/use-translations"
 import { CheckCircle, Calendar, Clock, MapPin, User, Phone, Mail, ArrowLeft, Plus } from "lucide-react"
 import Link from "next/link"
 
-export default function BookingSuccessPage() {
+function BookingSuccessContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { t } = useTranslations()
@@ -240,5 +240,32 @@ export default function BookingSuccessPage() {
       
       <Footer />
     </main>
+  )
+}
+
+function LoadingFallback() {
+  return (
+    <main className="min-h-screen bg-background">
+      <Navbar />
+      <div className="py-12">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="text-center">
+            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+              <CheckCircle className="w-12 h-12 text-gray-400" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-400 mb-4">Loading...</h1>
+          </div>
+        </div>
+      </div>
+      <Footer />
+    </main>
+  )
+}
+
+export default function BookingSuccessPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <BookingSuccessContent />
+    </Suspense>
   )
 }

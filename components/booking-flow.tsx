@@ -108,7 +108,24 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
         notes: data.notes || undefined,
       },
       {
-        onSuccess: () => {
+        onSuccess: (appointment) => {
+          // Store booking details for success page
+          const bookingDetails = {
+            reference: appointment.id,
+            salon: currentSalon,
+            service: currentService,
+            staff: currentEmployee,
+            start_time: startTime,
+            client: {
+              first_name: data.firstName,
+              last_name: data.lastName,
+              phone: data.phone,
+              email: data.email,
+            },
+            notes: data.notes,
+          }
+          localStorage.setItem("lastBooking", JSON.stringify(bookingDetails))
+
           toast.success(t(locale, "booking.booking_confirmed"), {
             description: "Un SMS de confirmation sera envoyé à " + data.phone,
             icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,

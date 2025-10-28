@@ -52,8 +52,16 @@ export default function AdminLogin() {
       // Small delay to ensure localStorage is written before redirect
       await new Promise(resolve => setTimeout(resolve, 100))
 
-      // Redirect to admin dashboard
-      router.push("/admin")
+      // Redirect based on user role
+      const userRole = data.staff.role
+      if (userRole === 'admin' || userRole === 'manager') {
+        router.push("/admin")
+      } else if (userRole === 'therapist' || userRole === 'assistant') {
+        router.push("/employee")
+      } else {
+        // Fallback to admin for unknown roles
+        router.push("/admin")
+      }
     } catch (err) {
       console.error("Login error:", err)
       setError("Erreur de connexion. Veuillez réessayer.")

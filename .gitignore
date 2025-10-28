@@ -85,3 +85,9 @@ populate-database.js
 test-db-connection.js
 test-login-fix.js
 verify-database-data.js
+
+# Debug and development files
+debug-*.js
+debug-*.ts
+*.debug.js
+*.debug.ts

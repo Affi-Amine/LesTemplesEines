@@ -1,109 +1,163 @@
 "use client"
 
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts"
 import { Card } from "@/components/ui/card"
+import { BarChart3, PieChart as PieChartIcon, TrendingUp } from "lucide-react"
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts"
 
-const revenueData = [
-  { month: "Jan", revenue: 2400, bookings: 24 },
-  { month: "Feb", revenue: 1398, bookings: 22 },
-  { month: "Mar", revenue: 9800, bookings: 29 },
-  { month: "Apr", revenue: 3908, bookings: 20 },
-  { month: "May", revenue: 4800, bookings: 22 },
-  { month: "Jun", revenue: 3800, bookings: 25 },
-]
+export function RevenueChart({ data }: { data?: { total_revenue_cents: number; total_appointments: number; period: { start: string; end: string } } }) {
+  if (!data) {
+    return (
+      <Card className="p-6">
+        <h3 className="font-semibold text-lg mb-4">Revenue & Bookings</h3>
+        <div className="flex items-center justify-center h-[300px] bg-muted/20 rounded-lg">
+          <div className="text-center">
+            <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading revenue data...</p>
+          </div>
+        </div>
+      </Card>
+    )
+  }
 
-const serviceData = [
-  { name: "Massage Relaxant", value: 35, fill: "hsl(var(--primary))" },
-  { name: "Massage Sportif", value: 25, fill: "hsl(var(--secondary))" },
-  { name: "Soin du Visage", value: 20, fill: "hsl(var(--accent))" },
-  { name: "Massage Duo", value: 15, fill: "hsl(var(--chart-4))" },
-  { name: "Pierres Chaudes", value: 5, fill: "hsl(var(--chart-5))" },
-]
+  const chartData = [
+    {
+      name: 'Current Period',
+      revenue: data.total_revenue_cents / 100, // Convert cents to euros
+      bookings: data.total_appointments,
+    }
+  ]
 
-const clientRetentionData = [
-  { month: "Jan", newClients: 40, returning: 24 },
-  { month: "Feb", newClients: 30, returning: 13 },
-  { month: "Mar", newClients: 20, returning: 98 },
-  { month: "Apr", newClients: 27, returning: 39 },
-  { month: "May", newClients: 20, returning: 48 },
-  { month: "Jun", newClients: 30, returning: 40 },
-]
-
-export function RevenueChart() {
   return (
     <Card className="p-6">
       <h3 className="font-semibold text-lg mb-4">Revenue & Bookings</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={revenueData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="month" />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey="revenue" fill="hsl(var(--primary))" />
-          <Bar dataKey="bookings" fill="hsl(var(--secondary))" />
-        </BarChart>
-      </ResponsiveContainer>
+      <div className="h-[300px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis yAxisId="left" orientation="left" />
+            <YAxis yAxisId="right" orientation="right" />
+            <Tooltip 
+              formatter={(value: number, name: string) => {
+                if (name === 'revenue') return [`€${value.toFixed(2)}`, 'Revenue']
+                if (name === 'bookings') return [value, 'Bookings']
+                return [value, name]
+              }}
+            />
+            <Legend />
+            <Bar yAxisId="left" dataKey="revenue" fill="hsl(160, 60%, 50%)" name="Revenue (€)" />
+            <Bar yAxisId="right" dataKey="bookings" fill="hsl(200, 60%, 60%)" name="Bookings" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </Card>
   )
 }
 
-export function ServiceDistributionChart() {
+export function ServiceDistributionChart({ data }: { data?: Array<{ service_name: string; booking_count: number; revenue_cents: number }> }) {
+  if (!data || data.length === 0) {
+    return (
+      <Card className="p-6">
+        <h3 className="font-semibold text-lg mb-4">Service Distribution</h3>
+        <div className="flex items-center justify-center h-[300px] bg-muted/20 rounded-lg">
+          <div className="text-center">
+            <PieChartIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">No service data available</p>
+          </div>
+        </div>
+      </Card>
+    )
+  }
+
+  const chartData = data.map((service, index) => ({
+    name: service.service_name,
+    value: service.booking_count,
+    revenue: service.revenue_cents / 100, // Convert cents to euros
+    fill: `hsl(${160 + index * 40}, 60%, ${50 + index * 10}%)` // Generate colors based on the theme
+  }))
+
   return (
     <Card className="p-6">
       <h3 className="font-semibold text-lg mb-4">Service Distribution</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
-          <Pie
-            data={serviceData}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            label={({ name, value }) => `${name}: ${value}%`}
-            outerRadius={80}
-            fill="#8884d8"
-            dataKey="value"
-          >
-            {serviceData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.fill} />
-            ))}
-          </Pie>
-          <Tooltip />
-        </PieChart>
-      </ResponsiveContainer>
+      <div className="h-[300px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              outerRadius={80}
+              fill="#8884d8"
+              dataKey="value"
+            >
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.fill} />
+              ))}
+            </Pie>
+            <Tooltip 
+              formatter={(value: number, name: string, props: any) => [
+                `${value} bookings`,
+                name
+              ]}
+              labelFormatter={(label) => `Service: ${label}`}
+            />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
     </Card>
   )
 }
 
-export function ClientRetentionChart() {
+export function ClientRetentionChart({ data }: { data?: { total_clients: number } }) {
+  if (!data) {
+    return (
+      <Card className="p-6">
+        <h3 className="font-semibold text-lg mb-4">Client Retention</h3>
+        <div className="flex items-center justify-center h-[300px] bg-muted/20 rounded-lg">
+          <div className="text-center">
+            <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading client data...</p>
+          </div>
+        </div>
+      </Card>
+    )
+  }
+
+  // For now, create a simple visualization showing client metrics
+  // In the future, this could be enhanced with time-series data
+  const chartData = [
+    {
+      name: 'Total Clients',
+      value: data.total_clients,
+      fill: 'hsl(160, 60%, 50%)'
+    },
+    {
+      name: 'Active Period',
+      value: data.total_clients,
+      fill: 'hsl(200, 60%, 60%)'
+    }
+  ]
+
   return (
     <Card className="p-6">
       <h3 className="font-semibold text-lg mb-4">Client Retention</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={clientRetentionData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="month" />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Line type="monotone" dataKey="newClients" stroke="hsl(var(--primary))" strokeWidth={2} />
-          <Line type="monotone" dataKey="returning" stroke="hsl(var(--secondary))" strokeWidth={2} />
-        </LineChart>
-      </ResponsiveContainer>
+      <div className="h-[300px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis />
+            <Tooltip formatter={(value: number) => [value, 'Clients']} />
+            <Bar dataKey="value" fill="hsl(160, 60%, 50%)" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-4 text-sm text-muted-foreground">
+        <p>Showing unique clients for the selected period. Enhanced retention metrics coming soon.</p>
+      </div>
     </Card>
   )
 }

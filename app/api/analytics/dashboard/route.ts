@@ -1,70 +1,75 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
-import { startOfDay, endOfDay } from "date-fns"
+import { startOfDay, endOfDay, format } from "date-fns"
 
 export async function GET(request: NextRequest) {
   try {
     const salonId = request.nextUrl.searchParams.get("salon_id")
+    const staffId = request.nextUrl.searchParams.get("staff_id")
     const startDate = request.nextUrl.searchParams.get("start_date")
     const endDate = request.nextUrl.searchParams.get("end_date")
+    const startHour = request.nextUrl.searchParams.get("start_hour")
+    const endHour = request.nextUrl.searchParams.get("end_hour")
 
     const supabase = await createClient()
 
-    // Default to current month if no dates provided
-    const start = startDate ? new Date(startDate) : startOfDay(new Date(new Date().setDate(1)))
-    const end = endDate ? new Date(endDate) : endOfDay(new Date())
+    // Default to last 30 days if no dates provided
+    const start = startDate ? startOfDay(new Date(startDate)) : startOfDay(new Date(new Date().setDate(new Date().getDate() - 30)))
+    const end = endDate ? endOfDay(new Date(endDate)) : endOfDay(new Date())
 
-    // Build base query filters
-    const appointmentFilters = {
-      ...(salonId && { salon_id: salonId }),
-      start_time: { gte: start.toISOString(), lte: end.toISOString() },
+    // Helper function to apply filters to appointment queries
+    const applyFilters = (query: any) => {
+      query = query
+        .gte("start_time", start.toISOString())
+        .lte("start_time", end.toISOString())
+
+      if (salonId) query = query.eq("salon_id", salonId)
+      if (staffId) query = query.eq("staff_id", staffId)
+
+      // Apply hour filtering if specified
+      if (startHour || endHour) {
+        // For hour filtering, we need to extract the hour from start_time
+        // This is a simplified approach - in production you might want more sophisticated time filtering
+        if (startHour) {
+          const startHourInt = parseInt(startHour.split(':')[0])
+          // Filter appointments that start at or after the specified hour
+          query = query.gte("start_time", `${format(start, 'yyyy-MM-dd')}T${startHour}:00`)
+        }
+        if (endHour) {
+          const endHourInt = parseInt(endHour.split(':')[0])
+          // Filter appointments that start before the specified end hour
+          query = query.lte("start_time", `${format(end, 'yyyy-MM-dd')}T${endHour}:59`)
+        }
+      }
+
+      return query
     }
 
     // 1. Total Appointments
     let appointmentsQuery = supabase
       .from("appointments")
       .select("*", { count: "exact", head: true })
-      .gte("start_time", start.toISOString())
-      .lte("start_time", end.toISOString())
 
-    if (salonId) appointmentsQuery = appointmentsQuery.eq("salon_id", salonId)
-
+    appointmentsQuery = applyFilters(appointmentsQuery)
     const { count: totalAppointments } = await appointmentsQuery
 
     // 2. Total Clients (unique)
     let clientsQuery = supabase
       .from("appointments")
       .select("client_id")
-      .gte("start_time", start.toISOString())
-      .lte("start_time", end.toISOString())
 
-    if (salonId) clientsQuery = clientsQuery.eq("salon_id", salonId)
-
+    clientsQuery = applyFilters(clientsQuery)
     const { data: appointmentsWithClients } = await clientsQuery
     const uniqueClients = new Set(appointmentsWithClients?.map((a) => a.client_id) || [])
 
-    // 3. Total Revenue (from payments)
-    let paymentsQuery: any = supabase
-      .from("payments")
-      .select("amount_cents")
-      .gte("created_at", start.toISOString())
-      .lte("created_at", end.toISOString())
+    // 3. Total Revenue (from appointments amount_paid_cents)
+    let revenueQuery = supabase
+      .from("appointments")
+      .select("amount_paid_cents")
 
-    if (salonId) {
-      // Join with appointments to filter by salon
-      paymentsQuery = supabase
-        .from("payments")
-        .select("amount_cents, appointments!inner(salon_id)")
-        .gte("created_at", start.toISOString())
-        .lte("created_at", end.toISOString())
-
-      if (salonId) {
-        paymentsQuery = paymentsQuery.eq("appointments.salon_id", salonId)
-      }
-    }
-
-    const { data: payments } = await paymentsQuery
-    const totalRevenueCents = payments?.reduce((sum: number, p: { amount_cents: number }) => sum + p.amount_cents, 0) || 0
+    revenueQuery = applyFilters(revenueQuery)
+    const { data: revenueAppointments } = await revenueQuery
+    const totalRevenueCents = revenueAppointments?.reduce((sum: number, a: { amount_paid_cents: number }) => sum + (a.amount_paid_cents || 0), 0) || 0
 
     // 4. Pending Bookings
     let pendingQuery = supabase
@@ -74,6 +79,7 @@ export async function GET(request: NextRequest) {
       .gte("start_time", new Date().toISOString())
 
     if (salonId) pendingQuery = pendingQuery.eq("salon_id", salonId)
+    if (staffId) pendingQuery = pendingQuery.eq("staff_id", staffId)
 
     const { count: pendingBookings } = await pendingQuery
 
@@ -102,6 +108,7 @@ export async function GET(request: NextRequest) {
       .limit(10)
 
     if (salonId) upcomingQuery = upcomingQuery.eq("salon_id", salonId)
+    if (staffId) upcomingQuery = upcomingQuery.eq("staff_id", staffId)
 
     const { data: upcomingAppointments } = await upcomingQuery
 
@@ -114,12 +121,9 @@ export async function GET(request: NextRequest) {
         services(name, price_cents)
       `
       )
-      .gte("start_time", start.toISOString())
-      .lte("start_time", end.toISOString())
-      .eq("status", "completed")
+      .in("status", ["confirmed", "pending", "completed"])
 
-    if (salonId) popularServicesQuery = popularServicesQuery.eq("salon_id", salonId)
-
+    popularServicesQuery = applyFilters(popularServicesQuery)
     const { data: serviceAppointments } = await popularServicesQuery
 
     // Count and aggregate services

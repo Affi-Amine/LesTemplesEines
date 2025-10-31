@@ -9,13 +9,40 @@ import { Card } from "@/components/ui/card"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { fetchAPI } from "@/lib/api/client"
 import { useQuery } from "@tanstack/react-query"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { toast } from "sonner"
+import { Icon } from "@iconify/react"
+
+interface Appointment {
+  id: string
+  clientName: string
+  service: string
+  salon: string
+  date: string
+  time: string
+  status: "confirmed" | "pending" | "cancelled"
+  therapist: string
+}
 
 export default function AdminDashboard() {
   const { t, mounted } = useTranslations()
+  
+  // State for modals
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
+  const [editFormData, setEditFormData] = useState({
+    status: "",
+    notes: ""
+  })
 
   // Fetch appointments
-  const { data: appointments, isLoading: appointmentsLoading } = useAppointments()
+  const { data: appointments, isLoading: appointmentsLoading, refetch } = useAppointments()
 
   // Fetch clients count
   const { data: clientsData } = useQuery({
@@ -97,6 +124,83 @@ export default function AdminDashboard() {
 
   const upcomingAppointments = appointments?.slice(0, 5) || []
 
+  // Handle appointment actions
+  const handleViewAppointment = (appointment: Appointment) => {
+    setSelectedAppointment(appointment)
+    setViewDialogOpen(true)
+  }
+
+  const handleEditAppointment = (appointment: Appointment) => {
+    setSelectedAppointment(appointment)
+    setEditFormData({
+      status: appointment.status,
+      notes: ""
+    })
+    setEditDialogOpen(true)
+  }
+
+  const handleDeleteAppointment = async (appointment: Appointment) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le rendez-vous de ${appointment.clientName} ?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/appointments/${appointment.id}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        throw new Error("Échec de la suppression")
+      }
+
+      toast.success("Rendez-vous supprimé", {
+        description: `Le rendez-vous de ${appointment.clientName} a été supprimé`,
+        icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
+      })
+
+      refetch()
+    } catch (error) {
+      toast.error("Erreur lors de la suppression", {
+        description: "Impossible de supprimer le rendez-vous",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+    }
+  }
+
+  const handleSaveEdit = async () => {
+    if (!selectedAppointment) return
+
+    try {
+      const response = await fetch(`/api/appointments/${selectedAppointment.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: editFormData.status,
+          notes: editFormData.notes,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Échec de la mise à jour")
+      }
+
+      toast.success("Rendez-vous mis à jour", {
+        description: `Le rendez-vous de ${selectedAppointment.clientName} a été mis à jour`,
+        icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
+      })
+
+      setEditDialogOpen(false)
+      refetch()
+    } catch (error) {
+      toast.error("Erreur lors de la mise à jour", {
+        description: "Impossible de mettre à jour le rendez-vous",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+    }
+  }
+
   if (!mounted) return null
 
   return (
@@ -142,17 +246,21 @@ export default function AdminDashboard() {
           {appointmentsLoading ? (
             <div className="text-center py-8 text-muted-foreground">Chargement...</div>
           ) : (
-            <AppointmentsTable
-              appointments={upcomingAppointments.map((apt: any) => ({
-                id: apt.id,
-                clientName: `${apt.client?.first_name || ''} ${apt.client?.last_name || ''}`.trim() || 'Client',
-                service: apt.service?.name || 'Service',
-                date: new Date(apt.start_time).toLocaleDateString('fr-FR'),
-                time: new Date(apt.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-                status: apt.status as "confirmed" | "pending" | "cancelled",
-                therapist: apt.staff ? `${apt.staff.first_name} ${apt.staff.last_name}` : 'Thérapeute',
-              }))}
-            />
+          <AppointmentsTable
+            appointments={upcomingAppointments.map((apt: any) => ({
+              id: apt.id,
+              clientName: `${apt.client?.first_name || ''} ${apt.client?.last_name || ''}`.trim() || 'Client',
+              service: apt.service?.name || 'Service',
+              salon: apt.salon?.name || 'Salon',
+              date: new Date(apt.start_time).toLocaleDateString('fr-FR'),
+              time: new Date(apt.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+              status: apt.status as "confirmed" | "pending" | "cancelled",
+              therapist: apt.staff ? `${apt.staff.first_name} ${apt.staff.last_name}` : 'Thérapeute',
+            }))}
+            onView={handleViewAppointment}
+            onEdit={handleEditAppointment}
+            onDelete={handleDeleteAppointment}
+          />
           )}
         </div>
 
@@ -229,6 +337,97 @@ export default function AdminDashboard() {
           </Card>
         </div>
       </div>
+
+      {/* View Appointment Dialog */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Détails du rendez-vous</DialogTitle>
+          </DialogHeader>
+          {selectedAppointment && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Client</Label>
+                <p className="text-sm font-medium">{selectedAppointment.clientName}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Service</Label>
+                <p className="text-sm">{selectedAppointment.service}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Salon</Label>
+                <p className="text-sm">{selectedAppointment.salon}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Date et heure</Label>
+                <p className="text-sm">{selectedAppointment.date} à {selectedAppointment.time}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Thérapeute</Label>
+                <p className="text-sm">{selectedAppointment.therapist}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Statut</Label>
+                <p className="text-sm capitalize">{selectedAppointment.status === 'confirmed' ? 'Confirmé' : selectedAppointment.status === 'pending' ? 'En attente' : 'Annulé'}</p>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={() => setViewDialogOpen(false)}>Fermer</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Appointment Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modifier le rendez-vous</DialogTitle>
+          </DialogHeader>
+          {selectedAppointment && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Client</Label>
+                <p className="text-sm font-medium">{selectedAppointment.clientName}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Service</Label>
+                <p className="text-sm">{selectedAppointment.service}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Date et heure</Label>
+                <p className="text-sm">{selectedAppointment.date} à {selectedAppointment.time}</p>
+              </div>
+              <div>
+                <Label htmlFor="status">Statut</Label>
+                <Select value={editFormData.status} onValueChange={(value) => setEditFormData({...editFormData, status: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un statut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">En attente</SelectItem>
+                    <SelectItem value="confirmed">Confirmé</SelectItem>
+                    <SelectItem value="cancelled">Annulé</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="notes">Notes (optionnel)</Label>
+                <Input
+                  id="notes"
+                  value={editFormData.notes}
+                  onChange={(e) => setEditFormData({...editFormData, notes: e.target.value})}
+                  placeholder="Ajouter des notes..."
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Annuler</Button>
+                <Button onClick={handleSaveEdit}>Sauvegarder</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card"
 import { TrendingUp, Users, DollarSign, Calendar, Clock, MapPin } from "lucide-react"
 import { useAnalyticsData, useSalons, useStaff } from "@/lib/hooks/use-analytics-data"
 import { format, subDays } from "date-fns"
+import { fr } from "date-fns/locale"
 
 export default function AnalyticsPage() {
   const [filters, setFilters] = useState({
@@ -33,7 +34,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <AdminHeader title="Analytics" description="Business performance and insights" />
+      <AdminHeader title="Analytiques" description="Performance commerciale et insights" />
 
       <div className="p-6 space-y-6">
         {/* Filters */}
@@ -47,27 +48,27 @@ export default function AnalyticsPage() {
         {/* Key Metrics */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
-            title="Total Revenue"
+            title="Chiffre d'affaires total"
             value={analyticsData ? formatCurrency(analyticsData.kpis?.total_revenue_cents || 0) : "€0"}
-            description={`${format(new Date(filters.startDate), 'MMM d')} - ${format(new Date(filters.endDate), 'MMM d')}`}
+            description={`${format(new Date(filters.startDate), 'd MMM', { locale: fr })} - ${format(new Date(filters.endDate), 'd MMM', { locale: fr })}`}
             icon={DollarSign}
           />
           <StatCard
-            title="Total Bookings"
+            title="Total des réservations"
             value={analyticsData ? formatNumber(analyticsData.kpis?.total_appointments || 0) : "0"}
-            description={`${format(new Date(filters.startDate), 'MMM d')} - ${format(new Date(filters.endDate), 'MMM d')}`}
+            description={`${format(new Date(filters.startDate), 'd MMM', { locale: fr })} - ${format(new Date(filters.endDate), 'd MMM', { locale: fr })}`}
             icon={Calendar}
           />
           <StatCard
-            title="Unique Clients"
+            title="Clients uniques"
             value={analyticsData ? formatNumber(analyticsData.kpis?.total_clients || 0) : "0"}
-            description={`${format(new Date(filters.startDate), 'MMM d')} - ${format(new Date(filters.endDate), 'MMM d')}`}
+            description={`${format(new Date(filters.startDate), 'd MMM', { locale: fr })} - ${format(new Date(filters.endDate), 'd MMM', { locale: fr })}`}
             icon={Users}
           />
           <StatCard
-            title="Avg. Booking Value"
+            title="Valeur moy. par réservation"
             value={formatCurrency(avgBookingValue)}
-            description="Per appointment"
+            description="Par rendez-vous"
             icon={TrendingUp}
           />
         </div>
@@ -89,7 +90,7 @@ export default function AnalyticsPage() {
         {/* Additional Insights */}
         <div className="grid md:grid-cols-2 gap-6">
           <Card className="p-6">
-            <h3 className="font-semibold text-lg mb-4">Upcoming Appointments</h3>
+            <h3 className="font-semibold text-lg mb-4">Rendez-vous à venir</h3>
             <div className="space-y-3">
               {analyticsData?.upcoming_appointments?.length ? (
                 analyticsData.upcoming_appointments.slice(0, 5).map((appointment: any) => (
@@ -99,7 +100,7 @@ export default function AnalyticsPage() {
                         {appointment.client?.first_name} {appointment.client?.last_name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {format(new Date(appointment.start_time), 'MMM d, HH:mm')}
+                        {format(new Date(appointment.start_time), 'd MMM, HH:mm', { locale: fr })}
                       </p>
                     </div>
                     <div className="text-right">
@@ -109,13 +110,13 @@ export default function AnalyticsPage() {
                   </div>
                 ))
               ) : (
-                <p className="text-muted-foreground text-sm">No upcoming appointments</p>
+                <p className="text-muted-foreground text-sm">Aucun rendez-vous à venir</p>
               )}
             </div>
           </Card>
 
           <Card className="p-6">
-            <h3 className="font-semibold text-lg mb-4">Popular Services</h3>
+            <h3 className="font-semibold text-lg mb-4">Services populaires</h3>
             <div className="space-y-3">
               {analyticsData?.popular_services?.length ? (
                 analyticsData.popular_services.slice(0, 5).map((service, index) => {
@@ -125,7 +126,7 @@ export default function AnalyticsPage() {
                     <div key={service.service_name}>
                       <div className="flex justify-between mb-1">
                         <p className="text-sm font-medium">{service.service_name}</p>
-                        <p className="text-sm text-muted-foreground">{service.booking_count} bookings</p>
+                        <p className="text-sm text-muted-foreground">{service.booking_count} réservations</p>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2">
                         <div className="bg-primary h-2 rounded-full" style={{ width: `${percentage}%` }} />
@@ -134,7 +135,7 @@ export default function AnalyticsPage() {
                   )
                 })
               ) : (
-                <p className="text-muted-foreground text-sm">No service data available</p>
+                <p className="text-muted-foreground text-sm">Aucune donnée de service disponible</p>
               )}
             </div>
           </Card>

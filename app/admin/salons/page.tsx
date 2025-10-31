@@ -96,7 +96,7 @@ export default function SalonsPage() {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to save salon")
+        throw new Error("Échec de la sauvegarde du salon")
       }
 
       toast.success(editingSalon ? "Salon mis à jour" : "Salon créé", {
@@ -124,7 +124,7 @@ export default function SalonsPage() {
         method: "DELETE",
       })
 
-      if (!response.ok) throw new Error("Failed to delete")
+      if (!response.ok) throw new Error("Échec de la suppression")
 
       toast.success("Salon supprimé", {
         icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,

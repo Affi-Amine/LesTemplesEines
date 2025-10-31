@@ -16,6 +16,7 @@ import {
   Edit
 } from "lucide-react"
 import { format } from "date-fns"
+import { fr } from "date-fns/locale"
 
 interface AppointmentDetailsModalProps {
   isOpen: boolean
@@ -78,16 +79,33 @@ export function AppointmentDetailsModal({
   }
 
   const formatDate = (dateTime: string) => {
-    return format(new Date(dateTime), "EEEE, MMMM d, yyyy")
+    return format(new Date(dateTime), "EEEE d MMMM yyyy", { locale: fr })
   }
 
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60)
     const mins = minutes % 60
     if (hours > 0) {
-      return `${hours}h ${mins > 0 ? `${mins}m` : ""}`
+      return `${hours}h ${mins > 0 ? `${mins} min` : ""}`
     }
-    return `${mins}m`
+    return `${mins} min`
+  }
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "confirmed":
+        return "Confirmé"
+      case "pending":
+        return "En attente"
+      case "cancelled":
+        return "Annulé"
+      case "completed":
+        return "Terminé"
+      case "no_show":
+        return "Absence"
+      default:
+        return status
+    }
   }
 
   return (
@@ -95,9 +113,9 @@ export function AppointmentDetailsModal({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <span>Appointment Details</span>
+            <span>Détails du rendez-vous</span>
             <Badge className={getStatusColor(appointment.status)}>
-              {appointment.status}
+              {getStatusLabel(appointment.status)}
             </Badge>
           </DialogTitle>
         </DialogHeader>
@@ -107,15 +125,15 @@ export function AppointmentDetailsModal({
           <div className="space-y-3">
             <h3 className="font-semibold text-lg flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Date & Time
+              Date & Heure
             </h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-gray-600">Date:</span>
+                <span className="text-gray-600">Date :</span>
                 <p className="font-medium">{formatDate(appointment.start_time)}</p>
               </div>
               <div>
-                <span className="text-gray-600">Time:</span>
+                <span className="text-gray-600">Heure :</span>
                 <p className="font-medium">
                   {formatTime(appointment.start_time)} - {formatTime(appointment.end_time)}
                 </p>
@@ -129,7 +147,7 @@ export function AppointmentDetailsModal({
           <div className="space-y-3">
             <h3 className="font-semibold text-lg flex items-center gap-2">
               <User className="h-5 w-5" />
-              Client Information
+              Informations du client
             </h3>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
@@ -155,19 +173,19 @@ export function AppointmentDetailsModal({
           <div className="space-y-3">
             <h3 className="font-semibold text-lg flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              Service Details
+              Détails du service
             </h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-gray-600">Service:</span>
+                <span className="text-gray-600">Service :</span>
                 <p className="font-medium">{appointment.services.name}</p>
               </div>
               <div>
-                <span className="text-gray-600">Duration:</span>
+                <span className="text-gray-600">Durée :</span>
                 <p className="font-medium">{formatDuration(appointment.services.duration_minutes)}</p>
               </div>
               <div>
-                <span className="text-gray-600">Price:</span>
+                <span className="text-gray-600">Prix :</span>
                 <p className="font-medium flex items-center gap-1">
                   <DollarSign className="h-4 w-4" />
                   €{(appointment.services.price_cents / 100).toFixed(2)}
@@ -182,7 +200,7 @@ export function AppointmentDetailsModal({
           <div className="space-y-3">
             <h3 className="font-semibold text-lg flex items-center gap-2">
               <MapPin className="h-5 w-5" />
-              Location
+              Lieu
             </h3>
             <div className="text-sm">
               <p className="font-medium">{appointment.salons.name}</p>
@@ -198,7 +216,7 @@ export function AppointmentDetailsModal({
               <div className="space-y-3">
                 <h3 className="font-semibold text-lg flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Client Notes
+                  Notes
                 </h3>
                 <div className="bg-gray-50 p-3 rounded-lg text-sm">
                   {appointment.client_notes || appointment.notes}
@@ -210,11 +228,11 @@ export function AppointmentDetailsModal({
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="outline" onClick={onClose}>
-              Close
+              Fermer
             </Button>
             <Button variant="outline" className="flex items-center gap-2">
               <Edit className="h-4 w-4" />
-              Edit Notes
+              Modifier les notes
             </Button>
           </div>
         </div>

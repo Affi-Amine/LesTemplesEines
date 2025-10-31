@@ -33,14 +33,14 @@ const timeSlots = [
 ]
 
 const datePresets = [
-  { label: "Today", getValue: () => ({ start: new Date(), end: new Date() }) },
-  { label: "Yesterday", getValue: () => ({ start: subDays(new Date(), 1), end: subDays(new Date(), 1) }) },
-  { label: "Last 7 days", getValue: () => ({ start: subDays(new Date(), 7), end: new Date() }) },
-  { label: "Last 30 days", getValue: () => ({ start: subDays(new Date(), 30), end: new Date() }) },
-  { label: "This week", getValue: () => ({ start: startOfWeek(new Date(), { weekStartsOn: 1 }), end: new Date() }) },
-  { label: "This month", getValue: () => ({ start: startOfMonth(new Date()), end: new Date() }) },
-  { label: "Last month", getValue: () => ({ start: startOfMonth(subMonths(new Date(), 1)), end: startOfMonth(new Date()) }) },
-  { label: "This year", getValue: () => ({ start: startOfYear(new Date()), end: new Date() }) },
+  { label: "Aujourd'hui", getValue: () => ({ start: new Date(), end: new Date() }) },
+  { label: "Hier", getValue: () => ({ start: subDays(new Date(), 1), end: subDays(new Date(), 1) }) },
+  { label: "7 derniers jours", getValue: () => ({ start: subDays(new Date(), 7), end: new Date() }) },
+  { label: "30 derniers jours", getValue: () => ({ start: subDays(new Date(), 30), end: new Date() }) },
+  { label: "Cette semaine", getValue: () => ({ start: startOfWeek(new Date(), { weekStartsOn: 1 }), end: new Date() }) },
+  { label: "Ce mois", getValue: () => ({ start: startOfMonth(new Date()), end: new Date() }) },
+  { label: "Mois dernier", getValue: () => ({ start: startOfMonth(subMonths(new Date(), 1)), end: startOfMonth(new Date()) }) },
+  { label: "Cette année", getValue: () => ({ start: startOfYear(new Date()), end: new Date() }) },
 ]
 
 export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: AnalyticsFiltersProps) {
@@ -95,10 +95,10 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Filter className="h-5 w-5" />
-          <h3 className="font-semibold">Filters</h3>
+          <h3 className="font-semibold">Filtres</h3>
           {hasActiveFilters && (
             <span className="bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full">
-              Active
+              Actif
             </span>
           )}
         </div>
@@ -106,7 +106,7 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
               <X className="h-4 w-4 mr-1" />
-              Clear
+              Effacer
             </Button>
           )}
           <Button
@@ -114,7 +114,7 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
             size="sm"
             onClick={() => setIsExpanded(!isExpanded)}
           >
-            {isExpanded ? 'Collapse' : 'Expand'}
+            {isExpanded ? 'Réduire' : 'Développer'}
           </Button>
         </div>
       </div>
@@ -122,7 +122,7 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
       {/* Always visible: Date range */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div>
-          <Label htmlFor="startDate" className="text-sm font-medium">Start Date</Label>
+          <Label htmlFor="startDate" className="text-sm font-medium">Date de début</Label>
           <Input
             id="startDate"
             type="date"
@@ -132,7 +132,7 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
           />
         </div>
         <div>
-          <Label htmlFor="endDate" className="text-sm font-medium">End Date</Label>
+          <Label htmlFor="endDate" className="text-sm font-medium">Date de fin</Label>
           <Input
             id="endDate"
             type="date"
@@ -143,13 +143,13 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
         </div>
         <div className="flex items-end">
           <div className="w-full">
-            <Label className="text-sm font-medium">Quick Select</Label>
+            <Label className="text-sm font-medium">Sélection rapide</Label>
             <Select onValueChange={(value) => {
               const preset = datePresets.find(p => p.label === value)
               if (preset) applyDatePreset(preset)
             }}>
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Choose preset" />
+                <SelectValue placeholder="Choisir un préréglage" />
               </SelectTrigger>
               <SelectContent>
                 {datePresets.map((preset) => (
@@ -170,17 +170,17 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
           <div>
             <div className="flex items-center gap-2 mb-3">
               <Clock className="h-4 w-4" />
-              <Label className="text-sm font-medium">Time Range</Label>
+              <Label className="text-sm font-medium">Plage horaire</Label>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="startHour" className="text-sm">Start Hour</Label>
+                <Label htmlFor="startHour" className="text-sm">Heure de début</Label>
                 <Select value={localFilters.startHour || "any"} onValueChange={(value) => updateFilter('startHour', value === "any" ? "" : value)}>
                   <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Any time" />
+                    <SelectValue placeholder="N'importe quand" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="any">Any time</SelectItem>
+                    <SelectItem value="any">N'importe quand</SelectItem>
                     {timeSlots.map((time) => (
                       <SelectItem key={time} value={time}>
                         {time}
@@ -190,13 +190,13 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
                 </Select>
               </div>
               <div>
-                <Label htmlFor="endHour" className="text-sm">End Hour</Label>
+                <Label htmlFor="endHour" className="text-sm">Heure de fin</Label>
                 <Select value={localFilters.endHour || "any"} onValueChange={(value) => updateFilter('endHour', value === "any" ? "" : value)}>
                   <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Any time" />
+                    <SelectValue placeholder="N'importe quand" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="any">Any time</SelectItem>
+                    <SelectItem value="any">N'importe quand</SelectItem>
                     {timeSlots.map((time) => (
                       <SelectItem key={time} value={time}>
                         {time}
@@ -214,10 +214,10 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
               <Label htmlFor="salon" className="text-sm font-medium">Salon</Label>
               <Select value={localFilters.salonId || "all"} onValueChange={(value) => updateFilter('salonId', value === "all" ? "" : value)}>
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="All salons" />
+                  <SelectValue placeholder="Tous les salons" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All salons</SelectItem>
+                  <SelectItem value="all">Tous les salons</SelectItem>
                   {salons.map((salon) => (
                     <SelectItem key={salon.id} value={salon.id}>
                       {salon.name} - {salon.city}
@@ -227,17 +227,17 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
               </Select>
             </div>
             <div>
-              <Label htmlFor="staff" className="text-sm font-medium">Staff Member</Label>
+              <Label htmlFor="staff" className="text-sm font-medium">Membre du personnel</Label>
               <Select 
                 value={localFilters.staffId || "all"} 
                 onValueChange={(value) => updateFilter('staffId', value === "all" ? "" : value)}
                 disabled={!filteredStaff.length}
               >
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder={filteredStaff.length ? "All staff" : "Select salon first"} />
+                  <SelectValue placeholder={filteredStaff.length ? "Tout le personnel" : "Sélectionner d'abord un salon"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All staff</SelectItem>
+                  <SelectItem value="all">Tout le personnel</SelectItem>
                   {filteredStaff.map((member) => (
                     <SelectItem key={member.id} value={member.id}>
                       {member.first_name} {member.last_name}

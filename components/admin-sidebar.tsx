@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Calendar, Users, BarChart3, Settings, LogOut, Menu, X, Building2, Scissors, TrendingUp } from "lucide-react"
+import { Calendar, Users, BarChart3, Settings, LogOut, Menu, X, Building2, Scissors, TrendingUp, CalendarDays, UserCheck } from "lucide-react"
 import { useState } from "react"
 import { useTranslations } from "@/lib/i18n/use-translations"
 
@@ -17,8 +17,9 @@ export function AdminSidebar() {
     { href: "/admin", label: mounted ? t("admin.dashboard") : "Dashboard", icon: BarChart3 },
     { href: "/admin/analytics", label: "Analytics", icon: TrendingUp },
     { href: "/admin/appointments", label: mounted ? t("admin.appointments") : "Appointments", icon: Calendar },
+    { href: "/admin/calendrier", label: "Calendrier", icon: CalendarDays },
     { href: "/admin/clients", label: mounted ? t("admin.clients") : "Clients", icon: Users },
-    { href: "/admin/staff", label: mounted ? t("admin.staff") : "Staff", icon: Users },
+    { href: "/admin/staff", label: mounted ? t("admin.staff") : "Staff", icon: UserCheck },
     { href: "/admin/salons", label: "Salons", icon: Building2 },
     { href: "/admin/services", label: "Services", icon: Scissors },
     { href: "/admin/settings", label: mounted ? t("admin.settings") : "Settings", icon: Settings },

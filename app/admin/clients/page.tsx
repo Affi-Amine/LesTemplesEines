@@ -99,81 +99,72 @@ export default function ClientsPage() {
   const handleSave = async () => {
     // Validation
     if (!formData.first_name || !formData.last_name || !formData.phone) {
-      toast.error("Erreur", {
-        description: "Veuillez remplir tous les champs obligatoires",
+      toast.error("Veuillez remplir tous les champs obligatoires", {
+        description: "Le prénom, le nom et le téléphone sont requis",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
       })
       return
     }
 
     setIsSaving(true)
-
-    if (!editingClient) {
-      // Use React Query mutation for create to auto-invalidate and refresh
-      createClient.mutate(
-        {
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          phone: formData.phone,
-          email: formData.email || undefined,
-          internal_notes: formData.internal_notes || undefined,
-        },
-        {
-          onSuccess: () => {
-            toast.success("Client créé", {
-              description: `${formData.first_name} ${formData.last_name} a été créé avec succès`,
-              icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
-            })
-            setIsEditDialogOpen(false)
-            setIsSaving(false)
-            // Explicit refetch to ensure immediate UI update
-            refetch()
-          },
-          onError: (error: any) => {
-            toast.error("Erreur", {
-              description: error.message || "Impossible de sauvegarder le client",
-              icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-            })
-            setIsSaving(false)
-          },
-        }
-      )
-      return
-    }
-
     try {
-      const endpoint = `/api/clients/${editingClient.id}`
-      const method = "PUT"
+      if (!editingClient) {
+        // Use React Query mutation for create to auto-invalidate and refresh
+        createClient.mutate(
+          {
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            phone: formData.phone,
+            email: formData.email || undefined,
+            internal_notes: formData.internal_notes || undefined,
+          },
+          {
+            onSuccess: () => {
+              toast.success("Client créé avec succès", {
+                description: `${formData.first_name} ${formData.last_name} a été créé avec succès`,
+                icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
+              })
+              setIsEditDialogOpen(false)
+              refetch()
+            },
+            onError: (error: any) => {
+              toast.error("Erreur lors de la création", {
+                description: error.message || "Une erreur est survenue lors de la création du client",
+                icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+              })
+            },
+          },
+        )
+      } else {
+        // Update existing client
+        const endpoint = `/api/clients/${editingClient.id}`
+        const response = await fetch(endpoint, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            phone: formData.phone,
+            email: formData.email || undefined,
+            internal_notes: formData.internal_notes || undefined,
+          }),
+        })
 
-      const payload = {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        phone: formData.phone,
-        email: formData.email || undefined,
-        internal_notes: formData.internal_notes || undefined,
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || "Échec de la sauvegarde du client")
+        }
+
+        toast.success("Client mis à jour avec succès", {
+          description: `${formData.first_name} ${formData.last_name} a été mis à jour avec succès`,
+          icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
+        })
+        refetch()
+        setIsEditDialogOpen(false)
       }
-
-      const response = await fetch(endpoint, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Failed to save client")
-      }
-
-      toast.success("Client mis à jour", {
-        description: `${formData.first_name} ${formData.last_name} a été mis à jour avec succès`,
-        icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
-      })
-
-      setIsEditDialogOpen(false)
-      refetch()
     } catch (error: any) {
-      toast.error("Erreur", {
-        description: error.message || "Impossible de sauvegarder le client",
+      toast.error("Erreur lors de la sauvegarde", {
+        description: error.message || "Une erreur est survenue",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
       })
     } finally {
@@ -190,7 +181,7 @@ export default function ClientsPage() {
         method: "DELETE",
       })
 
-      if (!response.ok) throw new Error("Failed to delete")
+      if (!response.ok) throw new Error("Échec de la suppression")
 
       toast.success("Client supprimé", {
         description: `${client.first_name} ${client.last_name} a été supprimé`,
@@ -199,7 +190,7 @@ export default function ClientsPage() {
 
       refetch()
     } catch (error) {
-      toast.error("Erreur", {
+      toast.error("Erreur lors de la suppression", {
         description: "Impossible de supprimer le client",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
       })
@@ -259,7 +250,7 @@ export default function ClientsPage() {
           <Card className="p-6">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-muted-foreground mb-1">Average Spent</p>
+                <p className="text-sm text-muted-foreground mb-1">Dépense moyenne</p>
                 {isLoading ? (
                   <div className="h-9 w-16 bg-muted rounded animate-pulse" />
                 ) : (
@@ -276,76 +267,78 @@ export default function ClientsPage() {
         {/* Search */}
         <ClientSearch onSearch={setSearchQuery} />
 
-        {/* Client List */}
+        {/* Liste des clients */}
         {isLoading ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i} className="p-6 animate-pulse">
-                <div className="h-6 bg-muted rounded w-2/3 mb-2" />
-                <div className="space-y-2 mb-4">
-                  <div className="h-4 bg-muted rounded w-1/2" />
-                  <div className="h-4 bg-muted rounded w-3/4" />
-                </div>
-                <div className="grid grid-cols-2 gap-2 mb-4 p-3 bg-muted rounded">
-                  <div className="h-8 bg-background rounded" />
-                  <div className="h-8 bg-background rounded" />
-                </div>
-              </Card>
-            ))}
-          </div>
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-muted border-b">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Prénom</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Nom</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Téléphone</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">E-mail</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Réservations</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Dernière visite</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[1,2,3,4,5].map((i) => (
+                    <tr key={i} className="border-b">
+                      {[...Array(7)].map((_, idx) => (
+                        <td key={idx} className="px-6 py-4">
+                          <div className="h-6 w-24 bg-muted rounded animate-pulse" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredClients.map((client: any) => (
-              <Card
-                key={client.id}
-                className="p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => handleClientClick(client)}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      {client.first_name} {client.last_name}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">Client depuis {new Date(client.created_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm">
-                  <p className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-muted-foreground" /> {client.phone}
-                  </p>
-                  {client.email && (
-                    <p className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 text-muted-foreground" /> {client.email}
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mt-4 p-3 bg-muted rounded">
-                  <div>
-                    <p className="text-muted-foreground text-xs">Visits</p>
-                    <p className="font-semibold">{client.visitCount || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs">Total Spent</p>
-                    <p className="font-semibold">€{client.totalSpent || 0}</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 mt-4">
-                  <Button variant="outline" size="sm" className="gap-2 cursor-pointer" onClick={(e) => handleEdit(client, e)}>
-                    <Edit className="w-4 h-4" /> Edit
-                  </Button>
-                  <Button variant="destructive" size="sm" className="gap-2 cursor-pointer" onClick={(e) => handleDelete(client, e)}>
-                    <Trash2 className="w-4 h-4" /> Delete
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-muted border-b">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Prénom</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Nom</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Téléphone</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">E-mail</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Réservations</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Dernière visite</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredClients.map((client: any) => (
+                    <tr key={client.id} className="border-b hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => handleClientClick(client)}>
+                      <td className="px-6 py-4 text-sm font-medium">{client.first_name}</td>
+                      <td className="px-6 py-4 text-sm">{client.last_name}</td>
+                      <td className="px-6 py-4 text-sm">{client.phone}</td>
+                      <td className="px-6 py-4 text-sm">{client.email || "—"}</td>
+                      <td className="px-6 py-4 text-sm">{client.visit_count ?? 0}</td>
+                      <td className="px-6 py-4 text-sm">
+                        {client.last_visit_date ? new Date(client.last_visit_date).toLocaleDateString("fr-FR") : "—"}
+                      </td>
+                      <td className="px-6 py-4 text-sm" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="gap-2 cursor-pointer" onClick={(e) => handleEdit(client, e)}>
+                            <Edit className="w-4 h-4" /> Modifier
+                          </Button>
+                          <Button variant="destructive" size="sm" className="gap-2 cursor-pointer" onClick={(e) => handleDelete(client, e)}>
+                            <Trash2 className="w-4 h-4" /> Supprimer
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         )}
 
         {/* Client Details Modal */}

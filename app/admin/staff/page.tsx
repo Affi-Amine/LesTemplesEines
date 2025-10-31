@@ -137,7 +137,7 @@ export default function StaffPage() {
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || "Failed to save staff")
+        throw new Error(error.error || "Échec de la sauvegarde du membre")
       }
 
       toast.success(editingStaff ? "Membre mis à jour" : "Membre créé", {
@@ -165,7 +165,7 @@ export default function StaffPage() {
         method: "DELETE",
       })
 
-      if (!response.ok) throw new Error("Failed to delete")
+      if (!response.ok) throw new Error("Échec de la suppression")
 
       toast.success("Membre désactivé", {
         description: `${member.first_name} ${member.last_name} a été désactivé`,

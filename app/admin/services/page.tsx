@@ -117,7 +117,7 @@ export default function ServicesPage() {
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || "Failed to save service")
+        throw new Error(error.error || "Échec de la sauvegarde du service")
       }
 
       toast.success(editingService ? "Service mis à jour" : "Service créé", {
@@ -145,7 +145,7 @@ export default function ServicesPage() {
         method: "DELETE",
       })
 
-      if (!response.ok) throw new Error("Failed to delete")
+      if (!response.ok) throw new Error("Échec de la suppression")
 
       toast.success("Service désactivé", {
         description: `${service.name} a été désactivé`,

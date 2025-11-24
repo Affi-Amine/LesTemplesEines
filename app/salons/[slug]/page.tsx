@@ -29,10 +29,10 @@ export default async function SalonPage({ params }: SalonPageProps) {
     return (
       <main className="min-h-screen bg-background py-8">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <h1 className="text-2xl font-bold mb-4">Salon not found</h1>
-          <p className="text-muted-foreground mb-6">The salon you&apos;re looking for doesn&apos;t exist.</p>
+          <h1 className="text-2xl font-bold mb-4">Salon introuvable</h1>
+          <p className="text-muted-foreground mb-6">Le salon que vous recherchez n&apos;existe pas.</p>
           <Link href="/">
-            <Button>Back to Home</Button>
+            <Button>Retour à l&apos;accueil</Button>
           </Link>
         </div>
       </main>
@@ -88,11 +88,11 @@ export default async function SalonPage({ params }: SalonPageProps) {
       {/* CTA Section */}
       <section className="py-16 bg-primary text-primary-foreground">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold mb-4">Ready to Escape?</h2>
-          <p className="text-lg mb-8 opacity-90">Book your perfect massage experience today</p>
+          <h2 className="text-3xl font-bold mb-4">Prêt à vous évader ?</h2>
+          <p className="text-lg mb-8 opacity-90">Réservez votre expérience de massage idéale dès aujourd&apos;hui</p>
           <Link href={`/book/${salon.slug}`}>
             <Button size="lg" variant="secondary">
-              Book Your Appointment
+              Réserver un rendez-vous
             </Button>
           </Link>
         </div>

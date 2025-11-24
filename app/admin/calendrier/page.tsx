@@ -439,7 +439,7 @@ export default function CalendrierPage() {
                               onClick={() => handleAppointmentClick(appointment)}
                               title={`${format(new Date(appointment.start_time), "HH:mm")} - ${appointment.client.first_name} ${appointment.client.last_name}
 Service: ${appointment.service.name}
-Staff: ${appointment.staff.first_name} ${appointment.staff.last_name}
+Thérapeute : ${appointment.staff.first_name} ${appointment.staff.last_name}
 Salon: ${appointment.salon.name}
 Statut: ${getStatusLabel(appointment.status)}`}
                             >

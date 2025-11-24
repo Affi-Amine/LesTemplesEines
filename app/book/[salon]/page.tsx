@@ -16,8 +16,8 @@ export default async function SalonBookingPage({ params }: SalonBookingPageProps
     return (
       <main className="min-h-screen bg-background py-8">
         <div className="max-w-2xl mx-auto px-4 text-center">
-          <h1 className="text-2xl font-bold mb-4">Salon not found</h1>
-          <p className="text-muted-foreground">The salon you&apos;re looking for doesn&apos;t exist.</p>
+          <h1 className="text-2xl font-bold mb-4">Salon introuvable</h1>
+          <p className="text-muted-foreground">Le salon que vous recherchez n&apos;existe pas.</p>
         </div>
       </main>
     )
@@ -28,8 +28,8 @@ export default async function SalonBookingPage({ params }: SalonBookingPageProps
       <div className="py-8">
         <div className="max-w-2xl mx-auto px-4">
           <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold mb-2">Book at {salon.name}</h1>
-            <p className="text-muted-foreground">Complete your reservation in 5 simple steps</p>
+            <h1 className="text-3xl font-bold mb-2">Réserver chez {salon.name}</h1>
+            <p className="text-muted-foreground">Terminez votre réservation en 5 étapes simples</p>
           </div>
           <BookingFlow initialSalon={salon.id} />
         </div>

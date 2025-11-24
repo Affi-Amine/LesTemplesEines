@@ -9,7 +9,7 @@ export function Footer() {
           {/* Brand */}
           <div>
             <h3 className="text-lg font-bold text-primary mb-4">Les Temples</h3>
-            <p className="text-sm text-muted-foreground">Premium wellness experience across France</p>
+            <p className="text-sm text-muted-foreground">Expérience bien-être premium partout en France</p>
             <div className="flex gap-4 mt-4">
               <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
                 <Facebook className="w-5 h-5" />
@@ -25,21 +25,21 @@ export function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-semibold mb-4">Quick Links</h4>
+            <h4 className="font-semibold mb-4">Liens rapides</h4>
             <ul className="space-y-2 text-sm">
               <li>
                 <Link href="/" className="text-muted-foreground hover:text-primary transition-colors">
-                  Home
+                  Accueil
                 </Link>
               </li>
               <li>
                 <Link href="/book" className="text-muted-foreground hover:text-primary transition-colors">
-                  Book Now
+                  Réserver
                 </Link>
               </li>
               <li>
                 <Link href="/admin" className="text-muted-foreground hover:text-primary transition-colors">
-                  Admin
+                  Administration
                 </Link>
               </li>
             </ul>
@@ -57,8 +57,8 @@ export function Footer() {
               </li>
               <li className="flex items-center gap-2 text-muted-foreground">
                 <Mail className="w-4 h-4" />
-                <a href="mailto:info@lestemplles.fr" className="hover:text-primary transition-colors">
-                  info@lestemplles.fr
+                <a href="mailto:info@lestemples.fr" className="hover:text-primary transition-colors">
+                  info@lestemples.fr
                 </a>
               </li>
             </ul>
@@ -66,24 +66,24 @@ export function Footer() {
 
           {/* Hours */}
           <div>
-            <h4 className="font-semibold mb-4">Hours</h4>
+            <h4 className="font-semibold mb-4">Horaires</h4>
             <ul className="space-y-1 text-sm text-muted-foreground">
-              <li>Mon - Fri: 10:00 - 20:00</li>
-              <li>Sat: 09:00 - 21:00</li>
-              <li>Sun: 10:00 - 19:00</li>
+              <li>Lun - Ven : 10:00 - 20:00</li>
+              <li>Sam : 09:00 - 21:00</li>
+              <li>Dim : 10:00 - 19:00</li>
             </ul>
           </div>
         </div>
 
         {/* Bottom */}
         <div className="border-t pt-8 flex flex-col md:flex-row justify-between items-center text-sm text-muted-foreground">
-          <p>&copy; 2025 Les Temples. All rights reserved.</p>
+          <p>&copy; 2025 Les Temples. Tous droits réservés.</p>
           <div className="flex gap-6 mt-4 md:mt-0">
             <Link href="#" className="hover:text-primary transition-colors">
-              Privacy Policy
+              Politique de confidentialité
             </Link>
             <Link href="#" className="hover:text-primary transition-colors">
-              Terms of Service
+              Conditions d'utilisation
             </Link>
           </div>
         </div>

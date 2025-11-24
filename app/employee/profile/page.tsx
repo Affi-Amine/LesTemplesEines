@@ -92,7 +92,7 @@ export default function EmployeeProfilePage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg">Loading profile...</div>
+        <div className="text-lg">Chargement du profil...</div>
       </div>
     )
   }
@@ -100,7 +100,7 @@ export default function EmployeeProfilePage() {
   if (!profile) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-red-600">Profile not found</div>
+        <div className="text-lg text-red-600">Profil introuvable</div>
       </div>
     )
   }
@@ -110,22 +110,22 @@ export default function EmployeeProfilePage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <User className="h-6 w-6" />
-          <h1 className="text-2xl font-bold">My Profile</h1>
+          <h1 className="text-2xl font-bold">Mon profil</h1>
         </div>
         {!isEditing ? (
           <Button onClick={handleEdit} className="flex items-center gap-2 w-full sm:w-auto">
             <Edit className="h-4 w-4" />
-            Edit Profile
+            Modifier le profil
           </Button>
         ) : (
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Button onClick={handleSave} className="flex items-center gap-2 justify-center">
               <Save className="h-4 w-4" />
-              Save
+              Enregistrer
             </Button>
             <Button variant="outline" onClick={handleCancel} className="flex items-center gap-2 justify-center">
               <X className="h-4 w-4" />
-              Cancel
+              Annuler
             </Button>
           </div>
         )}
@@ -137,13 +137,13 @@ export default function EmployeeProfilePage() {
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-2 text-lg">
               <User className="h-5 w-5" />
-              Personal Information
+              Informations personnelles
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="first_name" className="text-sm font-medium">First Name</Label>
+                <Label htmlFor="first_name" className="text-sm font-medium">Prénom</Label>
                 {isEditing ? (
                   <Input
                     id="first_name"
@@ -158,7 +158,7 @@ export default function EmployeeProfilePage() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="last_name" className="text-sm font-medium">Last Name</Label>
+                <Label htmlFor="last_name" className="text-sm font-medium">Nom</Label>
                 {isEditing ? (
                   <Input
                     id="last_name"
@@ -195,7 +195,7 @@ export default function EmployeeProfilePage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="phone" className="text-sm font-medium">Phone</Label>
+              <Label htmlFor="phone" className="text-sm font-medium">Téléphone</Label>
               <div className="flex items-center gap-2">
                 <Phone className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 {isEditing ? (
@@ -220,12 +220,12 @@ export default function EmployeeProfilePage() {
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-2 text-lg">
               <Briefcase className="h-5 w-5" />
-              Work Information
+              Informations professionnelles
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 space-y-4">
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Role</Label>
+              <Label className="text-sm font-medium">Rôle</Label>
               <Badge className={`${getRoleColor(profile.role)} w-fit`}>
                 {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
               </Badge>
@@ -234,7 +234,7 @@ export default function EmployeeProfilePage() {
             <Separator />
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Workplace</Label>
+              <Label className="text-sm font-medium">Lieu de travail</Label>
               <div className="flex items-start gap-2">
                 <MapPin className="h-4 w-4 text-gray-500 flex-shrink-0 mt-0.5" />
                 <div className="text-sm min-w-0 flex-1">
@@ -245,7 +245,7 @@ export default function EmployeeProfilePage() {
                       <p className="text-gray-600">{profile.salons.city}</p>
                     </div>
                   ) : (
-                    <p className="text-gray-600">Salon information not available</p>
+                    <p className="text-gray-600">Informations du salon indisponibles</p>
                   )}
                 </div>
               </div>
@@ -254,7 +254,7 @@ export default function EmployeeProfilePage() {
             <Separator />
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Employee ID</Label>
+              <Label className="text-sm font-medium">ID employé</Label>
               <div className="text-xs sm:text-sm font-mono bg-gray-50 p-3 rounded-md break-all">
                 {profile.id}
               </div>
@@ -266,15 +266,15 @@ export default function EmployeeProfilePage() {
       {/* Additional Settings */}
       <Card>
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg">Account Settings</CardTitle>
+          <CardTitle className="text-lg">Paramètres du compte</CardTitle>
         </CardHeader>
         <CardContent className="p-4 sm:p-6">
           <div className="space-y-4">
             <Button variant="outline" className="w-full sm:w-auto">
-              Change Password
+              Changer le mot de passe
             </Button>
             <div className="text-xs sm:text-sm text-gray-600">
-              <p>For security reasons, password changes require verification.</p>
+              <p>Pour des raisons de sécurité, les changements de mot de passe nécessitent une vérification.</p>
             </div>
           </div>
         </CardContent>

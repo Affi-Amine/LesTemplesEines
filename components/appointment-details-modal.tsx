@@ -17,6 +17,9 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
+import { useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 
 interface AppointmentDetailsModalProps {
   isOpen: boolean
@@ -67,8 +70,10 @@ export function AppointmentDetailsModal({
         return "bg-yellow-100 text-yellow-800 border-yellow-200"
       case "cancelled":
         return "bg-red-100 text-red-800 border-red-200"
-      case "completed":
+      case "in_progress":
         return "bg-blue-100 text-blue-800 border-blue-200"
+      case "completed":
+        return "bg-indigo-100 text-indigo-800 border-indigo-200"
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
@@ -99,12 +104,43 @@ export function AppointmentDetailsModal({
         return "En attente"
       case "cancelled":
         return "Annulé"
+      case "in_progress":
+        return "En cours"
       case "completed":
         return "Terminé"
       case "no_show":
         return "Absence"
       default:
         return status
+    }
+  }
+
+  const queryClient = useQueryClient()
+  const [saving, setSaving] = useState(false)
+
+  const updateStatus = async (nextStatus: "in_progress" | "completed") => {
+    try {
+      setSaving(true)
+      const res = await fetch(`/api/appointments/${appointment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data?.error || "Impossible de mettre à jour le statut")
+      }
+      toast.success(
+        nextStatus === "in_progress" ? "Le massage a commencé" : "Le massage est terminé",
+        { description: `Statut mis à jour: ${getStatusLabel(data.status || nextStatus)}` }
+      )
+      // Rafraîchir la liste des rendez-vous de l'employé
+      await queryClient.invalidateQueries({ queryKey: ["staff-appointments"] })
+      onClose()
+    } catch (e: any) {
+      toast.error("Échec de la mise à jour", { description: e.message })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -226,14 +262,28 @@ export function AppointmentDetailsModal({
           )}
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={onClose}>
-              Fermer
-            </Button>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Edit className="h-4 w-4" />
-              Modifier les notes
-            </Button>
+          <div className="flex justify-between gap-3 pt-4">
+            <div className="flex gap-2">
+              {appointment.status === "confirmed" || appointment.status === "pending" ? (
+                <Button onClick={() => updateStatus("in_progress")} disabled={saving}>
+                  Commencer le massage
+                </Button>
+              ) : null}
+              {appointment.status === "in_progress" ? (
+                <Button variant="default" onClick={() => updateStatus("completed")} disabled={saving}>
+                  Terminer le massage
+                </Button>
+              ) : null}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={onClose}>
+                Fermer
+              </Button>
+              <Button variant="outline" className="flex items-center gap-2">
+                <Edit className="h-4 w-4" />
+                Modifier les notes
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

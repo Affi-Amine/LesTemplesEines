@@ -28,14 +28,14 @@ export default function SchedulePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <AdminHeader title="Schedule" description="Manage appointments and therapist availability" />
+      <AdminHeader title="Planification" description="Gérez les rendez-vous et la disponibilité des thérapeutes" />
 
       <div className="p-6 space-y-6">
         <Tabs defaultValue="calendar" className="w-full">
           <TabsList>
-            <TabsTrigger value="calendar">Calendar</TabsTrigger>
-            <TabsTrigger value="weekly">Weekly View</TabsTrigger>
-            <TabsTrigger value="availability">Therapist Availability</TabsTrigger>
+            <TabsTrigger value="calendar">Calendrier</TabsTrigger>
+            <TabsTrigger value="weekly">Vue hebdomadaire</TabsTrigger>
+            <TabsTrigger value="availability">Disponibilité des thérapeutes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="calendar" className="mt-6">

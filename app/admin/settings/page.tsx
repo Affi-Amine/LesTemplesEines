@@ -23,7 +23,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <Label htmlFor="business-email">Email de l'entreprise</Label>
-              <Input id="business-email" type="email" defaultValue="info@lestemplles.fr" className="mt-2" />
+              <Input id="business-email" type="email" defaultValue="info@lestemples.fr" className="mt-2" />
             </div>
             <div>
               <Label htmlFor="business-phone">Téléphone de l'entreprise</Label>

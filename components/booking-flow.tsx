@@ -11,6 +11,7 @@ import { StepIndicator } from "@/components/step-indicator"
 import { useSalons } from "@/lib/hooks/use-salons"
 import { useServices } from "@/lib/hooks/use-services"
 import { useStaff } from "@/lib/hooks/use-staff"
+import { useAvailability } from "@/lib/hooks/use-availability"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
 import { t } from "@/lib/i18n/get-translations"
 import { toast } from "sonner"
@@ -65,6 +66,50 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   const currentService = services?.find((s) => s.id === data.service)
   const currentEmployee = staff?.find((e) => e.id === data.employee)
   const salonEmployees = staff || []
+
+  // Availability based on selected therapist and date
+  const selectedDateObj = data.date ? new Date(data.date) : undefined
+  const { data: availabilityData, isLoading: availabilityLoading } = useAvailability(
+    data.employee || undefined,
+    selectedDateObj,
+    data.service || undefined,
+  )
+
+  // Derive available start times (HH:mm) for quick lookup
+  const availableTimesSet = new Set(
+    (availabilityData?.available_slots || []).map((slot) =>
+      new Date(slot.start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    ),
+  )
+
+  // Generate time options from salon hours with 30-min steps if available, otherwise fallback
+  const defaultTimes = [
+    "09:00",
+    "10:00",
+    "11:00",
+    "14:00",
+    "15:00",
+    "16:00",
+    "17:00",
+    "18:00",
+    "19:00",
+  ]
+  const timeOptions = (() => {
+    const open = availabilityData?.salon_hours?.open
+    const close = availabilityData?.salon_hours?.close
+    if (data.date && open && close) {
+      const start = new Date(`${data.date}T${open}:00`)
+      const end = new Date(`${data.date}T${close}:00`)
+      const times: string[] = []
+      let cur = new Date(start)
+      while (cur < end) {
+        times.push(cur.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }))
+        cur = new Date(cur.getTime() + 30 * 60 * 1000)
+      }
+      return times
+    }
+    return defaultTimes
+  })()
 
   const handleNext = () => {
     const steps: BookingStep[] = ["salon", "service", "time", "info", "confirm"]
@@ -261,33 +306,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           <h2 className="text-2xl font-semibold mb-2">{t(locale, "booking.step3_title")}</h2>
           <p className="text-muted-foreground mb-6">{t(locale, "booking.step3_subtitle")}</p>
           <div className="space-y-6">
-            <div>
-              <Label htmlFor="date" className="font-semibold">
-                {t(locale, "booking.select_date")}
-              </Label>
-              <Input
-                id="date"
-                type="date"
-                value={data.date}
-                onChange={(e) => setData({ ...data, date: e.target.value })}
-                className="mt-2"
-              />
-            </div>
-            <div>
-              <Label className="font-semibold">{t(locale, "booking.select_time")}</Label>
-              <div className="grid grid-cols-3 gap-2 mt-3">
-                {["09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"].map((time) => (
-                  <Button
-                    key={time}
-                    variant={data.time === time ? "default" : "outline"}
-                    onClick={() => setData({ ...data, time })}
-                    className="w-full"
-                  >
-                    {time}
-                  </Button>
-                ))}
-              </div>
-            </div>
+            {/* Select Therapist first to compute availability */}
             <div>
               <Label className="font-semibold">{t(locale, "booking.select_therapist")}</Label>
               {staffLoading ? (
@@ -316,6 +335,42 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   </div>
                 </RadioGroup>
               )}
+            </div>
+            <div>
+              <Label htmlFor="date" className="font-semibold">
+                {t(locale, "booking.select_date")}
+              </Label>
+              <Input
+                id="date"
+                type="date"
+                value={data.date}
+                onChange={(e) => setData({ ...data, date: e.target.value })}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label className="font-semibold">{t(locale, "booking.select_time")}</Label>
+              <p className="text-xs text-muted-foreground mt-2">
+                {(!data.employee || !data.date) && "Sélectionnez d'abord le thérapeute et la date pour voir les créneaux disponibles."}
+                {availabilityLoading && data.employee && data.date && "Chargement des créneaux disponibles..."}
+              </p>
+              <div className="grid grid-cols-3 gap-2 mt-3">
+                {timeOptions.map((time) => {
+                  const isAvailable = data.employee && data.date ? availableTimesSet.has(time) : false
+                  const isSelected = data.time === time
+                  return (
+                    <Button
+                      key={time}
+                      variant={isSelected ? "default" : "outline"}
+                      onClick={() => setData({ ...data, time })}
+                      className={`w-full ${!isAvailable ? "opacity-50 cursor-not-allowed" : ""}`}
+                      disabled={!isAvailable || availabilityLoading || !data.employee}
+                    >
+                      {time}
+                    </Button>
+                  )
+                })}
+              </div>
             </div>
           </div>
           <div className="flex justify-between gap-3 mt-8">

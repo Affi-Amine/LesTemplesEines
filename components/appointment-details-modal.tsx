@@ -11,15 +11,16 @@ import {
   Clock, 
   Calendar, 
   MapPin, 
-  DollarSign,
-  FileText,
-  Edit
+  FileText
 } from "lucide-react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { Dialog as InlineDialog, DialogContent as InlineDialogContent, DialogHeader as InlineDialogHeader, DialogTitle as InlineDialogTitle } from "@/components/ui/dialog"
 
 interface AppointmentDetailsModalProps {
   isOpen: boolean
@@ -117,6 +118,9 @@ export function AppointmentDetailsModal({
 
   const queryClient = useQueryClient()
   const [saving, setSaving] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState("")
+  const [cancelSaving, setCancelSaving] = useState(false)
 
   const updateStatus = async (nextStatus: "in_progress" | "completed") => {
     try {
@@ -144,7 +148,35 @@ export function AppointmentDetailsModal({
     }
   }
 
+  const cancelAppointment = async () => {
+    if (!cancelReason.trim()) {
+      toast.error("Veuillez préciser une raison d'annulation")
+      return
+    }
+    try {
+      setCancelSaving(true)
+      const res = await fetch(`/api/appointments/${appointment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled", internal_notes: cancelReason.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data?.error || "Impossible d'annuler le rendez-vous")
+      }
+      toast.success("Rendez-vous annulé", { description: "La raison a été enregistrée" })
+      await queryClient.invalidateQueries({ queryKey: ["staff-appointments"] })
+      setCancelOpen(false)
+      onClose()
+    } catch (e: any) {
+      toast.error("Échec de l'annulation", { description: e.message })
+    } finally {
+      setCancelSaving(false)
+    }
+  }
+
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -163,7 +195,7 @@ export function AppointmentDetailsModal({
               <Calendar className="h-5 w-5" />
               Date & Heure
             </h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-gray-600">Date :</span>
                 <p className="font-medium">{formatDate(appointment.start_time)}</p>
@@ -192,11 +224,11 @@ export function AppointmentDetailsModal({
                   {appointment.clients.first_name} {appointment.clients.last_name}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 break-words">
                 <Phone className="h-4 w-4 text-gray-500" />
                 <span>{appointment.clients.phone}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 break-words">
                 <Mail className="h-4 w-4 text-gray-500" />
                 <span>{appointment.clients.email}</span>
               </div>
@@ -211,7 +243,7 @@ export function AppointmentDetailsModal({
               <Clock className="h-5 w-5" />
               Détails du service
             </h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-gray-600">Service :</span>
                 <p className="font-medium">{appointment.services.name}</p>
@@ -222,10 +254,7 @@ export function AppointmentDetailsModal({
               </div>
               <div>
                 <span className="text-gray-600">Prix :</span>
-                <p className="font-medium flex items-center gap-1">
-                  <DollarSign className="h-4 w-4" />
-                  €{(appointment.services.price_cents / 100).toFixed(2)}
-                </p>
+                <p className="font-medium">€{(appointment.services.price_cents / 100).toFixed(2)}</p>
               </div>
             </div>
           </div>
@@ -238,10 +267,10 @@ export function AppointmentDetailsModal({
               <MapPin className="h-5 w-5" />
               Lieu
             </h3>
-            <div className="text-sm">
+            <div className="text-sm break-words">
               <p className="font-medium">{appointment.salons.name}</p>
-              <p className="text-gray-600">{appointment.salons.address}</p>
-              <p className="text-gray-600">{appointment.salons.city}</p>
+              <p className="text-gray-600 break-words">{appointment.salons.address}</p>
+              <p className="text-gray-600 break-words">{appointment.salons.city}</p>
             </div>
           </div>
 
@@ -262,31 +291,57 @@ export function AppointmentDetailsModal({
           )}
 
           {/* Actions */}
-          <div className="flex justify-between gap-3 pt-4">
-            <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row sm:justify-between gap-3 pt-4">
+            <div className="flex gap-2 w-full sm:w-auto">
               {appointment.status === "confirmed" || appointment.status === "pending" ? (
-                <Button onClick={() => updateStatus("in_progress")} disabled={saving}>
+                <Button className="w-full sm:w-auto" onClick={() => updateStatus("in_progress")} disabled={saving}>
                   Commencer le massage
                 </Button>
               ) : null}
               {appointment.status === "in_progress" ? (
-                <Button variant="default" onClick={() => updateStatus("completed")} disabled={saving}>
+                <Button className="w-full sm:w-auto" variant="default" onClick={() => updateStatus("completed")} disabled={saving}>
                   Terminer le massage
                 </Button>
               ) : null}
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={onClose}>
-                Fermer
-              </Button>
-              <Button variant="outline" className="flex items-center gap-2">
-                <Edit className="h-4 w-4" />
-                Modifier les notes
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button className="w-full sm:w-auto" variant="destructive" onClick={() => setCancelOpen(true)}>
+                Annuler rendez vous
               </Button>
             </div>
           </div>
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Cancel Reason Popup */}
+    <InlineDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+      <InlineDialogContent className="max-w-lg">
+        <InlineDialogHeader>
+          <InlineDialogTitle>Annuler le rendez-vous</InlineDialogTitle>
+        </InlineDialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="cancel-reason">Raison de l'annulation</Label>
+            <Textarea
+              id="cancel-reason"
+              placeholder="Exemples: Le client ne s'est pas présenté, malade, demande d'annulation, autre..."
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={cancelSaving}>
+              Retour
+            </Button>
+            <Button variant="destructive" onClick={cancelAppointment} disabled={cancelSaving || !cancelReason.trim()}>
+              Confirmer l'annulation
+            </Button>
+          </div>
+        </div>
+      </InlineDialogContent>
+    </InlineDialog>
+    </>
   )
 }

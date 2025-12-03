@@ -1,4 +1,6 @@
+export const runtime = "nodejs"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -169,6 +171,15 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) throw error
+
+    // Fire booking emails (client + admin). Errors are logged but do not fail the request.
+    try {
+      console.log("[email] Triggering booking emails for appointment:", appointment.id)
+      await sendAppointmentBookedEmails(appointment)
+      console.log("[email] Booking emails dispatched for:", appointment.id)
+    } catch (emailError) {
+      console.error("[email] Error sending booking emails:", emailError)
+    }
 
     return NextResponse.json(appointment, { status: 201 })
   } catch (error: any) {

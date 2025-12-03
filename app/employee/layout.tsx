@@ -73,7 +73,8 @@ export default function EmployeeLayout({
   return (
     <div className="flex h-screen bg-background">
       <EmployeeSidebar />
-      <main className="flex-1 overflow-auto md:ml-64">{children}</main>
+      {/* Add top padding on mobile to avoid overlap with fixed mobile menu button */}
+      <main className="flex-1 overflow-auto md:ml-64 pt-16 md:pt-0">{children}</main>
     </div>
   )
 }

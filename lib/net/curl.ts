@@ -1,5 +1,6 @@
 import { spawn } from "child_process"
 import { URL } from "url"
+import { httpRequest } from "@/lib/net/http" // fallback if curl not available
 
 export async function curlRequest(
   url: string,
@@ -26,12 +27,37 @@ export async function curlRequest(
   args.push(url)
 
   return new Promise((resolve, reject) => {
-    const child = spawn("curl", args)
+    let child
+    try {
+      child = spawn("curl", args)
+    } catch (spawnErr: any) {
+      // spawn threw synchronously (e.g., not allowed). Fallback to httpRequest
+      console.warn("[curl] spawn failed synchronously, falling back to httpRequest:", spawnErr)
+      httpRequest(url, { method: opts.method, headers: opts.headers, body: opts.body }, timeoutMs)
+        .then(resolve)
+        .catch(reject)
+      return
+    }
+
     const chunks: Buffer[] = []
     let stderr = ""
+
+    // If curl binary is not found, an 'error' event with code ENOENT is typically emitted.
+    child.on("error", (e: any) => {
+      // Fallback to httpRequest for environments without curl (serverless)
+      if (e && e.code === "ENOENT") {
+        console.warn('[curl] curl binary not found (ENOENT), falling back to httpRequest')
+        httpRequest(url, { method: opts.method, headers: opts.headers, body: opts.body }, timeoutMs)
+          .then(resolve)
+          .catch(reject)
+        return
+      }
+      reject(e)
+    })
+
     child.stdout.on("data", (d) => chunks.push(Buffer.isBuffer(d) ? d : Buffer.from(d)))
     child.stderr.on("data", (d) => (stderr += d.toString()))
-    child.on("error", (e) => reject(e))
+
     child.on("close", (code) => {
       if (code !== 0) return reject(new Error(stderr || `curl exited ${code}`))
       const text = Buffer.concat(chunks).toString("utf8")

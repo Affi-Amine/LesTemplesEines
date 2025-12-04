@@ -4,10 +4,15 @@ import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
+const PhoneSchema = z
+  .string()
+  .transform((s) => (s || "").replace(/[\s\u00A0\-\.]/g, ""))
+  .refine((s) => /^\+?[0-9]{10,}$/.test(s), { message: "Invalid" })
+
 const ClientDataSchema = z.object({
   first_name: z.string().min(1),
   last_name: z.string().min(1),
-  phone: z.string().regex(/^\+?[0-9]{10,}/),
+  phone: PhoneSchema,
   email: z.string().email().optional(),
 })
 

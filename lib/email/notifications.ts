@@ -4,14 +4,6 @@ import { adminAppointmentBookedSubject, adminAppointmentBookedHtml } from "./tem
 import { sendSms, isSmsEnabled } from "./templates/sms"
 
 export async function sendAppointmentBookedEmails(appointment: any) {
-  if (!isEmailEnabled) {
-    console.log("[email] Disabled — skipping booking emails")
-    // même si les emails sont désactivés, tu peux décider
-    // d'envoyer quand même les SMS si tu veux :
-    // if (!isSmsEnabled) return
-    // mais pour l'instant on garde ton comportement existant.
-    return
-  }
 
   const salonName = appointment?.salon?.name
   const clientEmail: string | undefined = appointment?.client?.email ?? undefined
@@ -23,29 +15,37 @@ export async function sendAppointmentBookedEmails(appointment: any) {
   const tasks: Promise<any>[] = []
 
   // ---------- EMAIL CLIENT ----------
-  if (clientEmail) {
-    tasks.push(
+  if (isEmailEnabled) {
+    if (clientEmail) {
+      tasks.push(
         sendEmail({
           to: clientEmail,
           subject: clientAppointmentBookedSubject({ salonName }),
           html: clientAppointmentBookedHtml(appointment),
         }),
-    )
+      )
+    } else {
+      console.log("[email] No client email present for appointment:", appointment?.id)
+    }
   } else {
-    console.log("[email] No client email present for appointment:", appointment?.id)
+    console.log("[email] Disabled — skipping client booking email")
   }
 
   // ---------- EMAIL ADMIN ----------
-  if (adminEmails.length > 0) {
-    tasks.push(
+  if (isEmailEnabled) {
+    if (adminEmails.length > 0) {
+      tasks.push(
         sendEmail({
           to: adminEmails,
           subject: adminAppointmentBookedSubject({ salonName }),
           html: adminAppointmentBookedHtml(appointment),
         }),
-    )
+      )
+    } else {
+      console.log("[email] NOTIFICATIONS_ADMIN_EMAIL not set — skipping admin notification")
+    }
   } else {
-    console.log("[email] NOTIFICATIONS_ADMIN_EMAIL not set — skipping admin notification")
+    console.log("[email] Disabled — skipping admin booking email")
   }
 
   // ---------- SMS CLIENT ----------
@@ -66,10 +66,10 @@ export async function sendAppointmentBookedEmails(appointment: any) {
         : `Votre rendez-vous est confirmé${when ? ` le ${when}` : ""}.`
 
     tasks.push(
-        sendSms({
-          to: clientPhone,
-          message: smsMessage,
-        }),
+      sendSms({
+        to: clientPhone,
+        message: smsMessage,
+      }),
     )
   } else if (!clientPhone) {
     console.log("[sms] No client phone present for appointment:", appointment?.id)

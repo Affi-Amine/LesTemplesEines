@@ -39,7 +39,9 @@ export async function PATCH(_: Request, { params }: any) {
 
     const url = buildMarkSentUrl(smsId)
     const timeout = Number(process.env.SMS_TIMEOUT_MS ?? 30000)
+    console.log("[sms] mark-sent request", { transport: process.env.USE_CURL === "1" ? "curl" : "fetch", url, smsId })
     const { status, bodyText } = await fetchWithTimeout(url, timeout)
+    console.log("[sms] mark-sent status", { status })
     if (status < 200 || status >= 300) {
       return NextResponse.json({ ok: false, status, body: bodyText }, { status: 502 })
     }

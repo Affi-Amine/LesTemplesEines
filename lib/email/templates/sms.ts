@@ -35,6 +35,7 @@ async function fetchJson(url: string, body: any, headers: Record<string, string>
   const controller = new AbortController()
   const id = setTimeout(() => controller.abort(), SMS_TIMEOUT_MS)
   try {
+    console.log("[sms] fetch start", { url })
     const res = await fetch(url, {
       method: "POST",
       headers: { accept: "application/json", "Content-Type": "application/json", ...headers },
@@ -42,6 +43,7 @@ async function fetchJson(url: string, body: any, headers: Record<string, string>
       signal: controller.signal,
     })
     const text = await res.text().catch(() => "")
+    console.log("[sms] fetch status", { status: res.status })
     if (!res.ok) throw new Error(`HTTP ${res.status} ${text}`)
     try {
       return JSON.parse(text || "{}")
@@ -58,16 +60,25 @@ async function postWithRetry(url: string, body: any, headers: Record<string, str
   for (let attempt = 1; attempt <= SMS_RETRIES; attempt++) {
     try {
       const useCurl = process.env.USE_CURL === "1"
+      console.log("[sms] attempt", { attempt, transport: useCurl ? "curl" : "fetch", url })
       if (!useCurl) {
         return await fetchJson(url, body, headers)
       }
       const { status, bodyText } = await curlRequest(url, { method: "POST", headers: { accept: "application/json", "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) }, SMS_TIMEOUT_MS)
+      console.log("[sms] curl status", { status })
       if (status < 200 || status >= 300) throw new Error(`HTTP ${status} ${bodyText || ""}`)
-      try { return JSON.parse(bodyText || "{}") } catch { return {} }
+      try {
+        const parsed = JSON.parse(bodyText || "{}")
+        console.log("[sms] attempt ok", { attempt })
+        return parsed
+      } catch {
+        console.log("[sms] attempt ok empty", { attempt })
+        return {}
+      }
     } catch (err) {
       lastErr = err
       const isLast = attempt === SMS_RETRIES
-      console.warn(`[sms] Attempt ${attempt} failed:`, err)
+      console.warn("[sms] attempt failed", { attempt, error: (err as any)?.message || String(err) })
       if (isLast) break
       await new Promise((r) => setTimeout(r, SMS_BACKOFF_MS * attempt))
     }
@@ -92,6 +103,7 @@ export async function sendSms({ to, message }: SendSmsParams) {
     // Try primary provider first (if configured)
     if (SMS_API_URL && SMS_API_KEY) {
       try {
+        console.log("[sms] provider primary", { url: SMS_API_URL, to: normalizedTo })
         const data = await postWithRetry(
           SMS_API_URL as string,
           { to: normalizedTo, message },
@@ -101,13 +113,14 @@ export async function sendSms({ to, message }: SendSmsParams) {
         return data
       } catch (err) {
         lastErr = err
-        console.warn("[sms] Primary provider failed:", err)
+        console.warn("[sms] Primary provider failed", { error: (err as any)?.message || String(err) })
       }
     }
 
     // Try fallback provider if available
     if (SMS_FALLBACK_URL && SMS_FALLBACK_API_KEY) {
       try {
+        console.log("[sms] provider fallback", { url: SMS_FALLBACK_URL, to: normalizedTo })
         const data = await postWithRetry(
           SMS_FALLBACK_URL as string,
           { to: normalizedTo, message },
@@ -117,14 +130,14 @@ export async function sendSms({ to, message }: SendSmsParams) {
         return data
       } catch (err) {
         lastErr = err
-        console.error("[sms] Fallback provider failed:", err)
+        console.error("[sms] Fallback provider failed", { error: (err as any)?.message || String(err) })
       }
     }
 
     // If we get here, both providers failed or none were configured properly
     throw lastErr ?? new Error("SMS send failed: no provider reachable")
   } catch (error) {
-    console.error("[sms] Error while sending SMS:", error)
+    console.error("[sms] Error while sending SMS", { error: (error as any)?.message || String(error) })
     throw error
   }
 }

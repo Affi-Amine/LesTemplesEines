@@ -35,7 +35,9 @@ export async function GET() {
     }
 
     const timeout = Number(process.env.SMS_TIMEOUT_MS ?? 30000)
+    console.log("[sms] pending request", { transport: process.env.USE_CURL === "1" ? "curl" : "fetch", url })
     const { status, bodyText } = await fetchWithTimeout(url, timeout)
+    console.log("[sms] pending status", { status })
     if (status < 200 || status >= 300) {
       return NextResponse.json({ ok: false, status, body: bodyText }, { status: 502 })
     }

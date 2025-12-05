@@ -1,3 +1,4 @@
+export const runtime = "nodejs"
 import { NextResponse } from "next/server"
 import { curlRequest } from "@/lib/net/curl"
 
@@ -8,17 +9,22 @@ function buildMarkSentUrl(id: string): string {
 }
 
 async function fetchWithTimeout(url: string, timeoutMs: number) {
-  return await curlRequest(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        accept: "application/json",
-        "x-api-key": process.env.SMS_API_KEY || "",
-      },
-    },
-    timeoutMs,
-  )
+  if (process.env.USE_CURL === "1") {
+    return await curlRequest(
+      url,
+      { method: "PATCH", headers: { accept: "application/json", "x-api-key": process.env.SMS_API_KEY || "" } },
+      timeoutMs,
+    )
+  }
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { method: "PATCH", headers: { accept: "application/json", "x-api-key": process.env.SMS_API_KEY || "" }, signal: controller.signal })
+    const bodyText = await res.text().catch(() => "")
+    return { status: res.status, bodyText }
+  } finally {
+    clearTimeout(id)
+  }
 }
 
 export async function PATCH(_: Request, { params }: any) {

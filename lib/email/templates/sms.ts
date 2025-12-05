@@ -31,33 +31,39 @@ function normalizePhoneNumber(raw: string): string {
   return to
 }
 
+async function fetchJson(url: string, body: any, headers: Record<string, string>) {
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), SMS_TIMEOUT_MS)
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { accept: "application/json", "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+    const text = await res.text().catch(() => "")
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${text}`)
+    try {
+      return JSON.parse(text || "{}")
+    } catch {
+      return {}
+    }
+  } finally {
+    clearTimeout(id)
+  }
+}
+
 async function postWithRetry(url: string, body: any, headers: Record<string, string>) {
   let lastErr: any = null
   for (let attempt = 1; attempt <= SMS_RETRIES; attempt++) {
     try {
-      const { status, bodyText } = await curlRequest(
-        url,
-        {
-          method: "POST",
-          headers: {
-            accept: "application/json",
-            "Content-Type": "application/json",
-            ...headers,
-          },
-          body: JSON.stringify(body),
-        },
-        SMS_TIMEOUT_MS,
-      )
-
-      if (status < 200 || status >= 300) {
-        throw new Error(`HTTP ${status} ${bodyText || ""}`)
+      const useCurl = process.env.USE_CURL === "1"
+      if (!useCurl) {
+        return await fetchJson(url, body, headers)
       }
-
-      try {
-        return JSON.parse(bodyText || "{}")
-      } catch {
-        return {}
-      }
+      const { status, bodyText } = await curlRequest(url, { method: "POST", headers: { accept: "application/json", "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) }, SMS_TIMEOUT_MS)
+      if (status < 200 || status >= 300) throw new Error(`HTTP ${status} ${bodyText || ""}`)
+      try { return JSON.parse(bodyText || "{}") } catch { return {} }
     } catch (err) {
       lastErr = err
       const isLast = attempt === SMS_RETRIES

@@ -1,3 +1,4 @@
+export const runtime = "nodejs"
 import { NextResponse } from "next/server"
 import { sendSms } from "@/lib/email/templates/sms"
 
@@ -21,4 +22,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: msg }, { status: 500 })
   }
 }
-

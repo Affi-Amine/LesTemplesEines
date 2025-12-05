@@ -15,11 +15,11 @@ function checkCurlAvailable() {
 
 function getProviderOrigin(url?: string) {
   try {
-    if (!url) return null
+    if (!url) return undefined
     const u = new URL(url)
     return u.origin
   } catch {
-    return null
+    return undefined
   }
 }
 
@@ -29,9 +29,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "invalid debug token" }, { status: 401 })
   }
 
-  const SMS_API_URL = process.env.SMS_API_URL || null
+  const SMS_API_URL = process.env.SMS_API_URL
   const SMS_API_KEY = Boolean(process.env.SMS_API_KEY)
-  const SMS_FALLBACK_URL = process.env.SMS_FALLBACK_URL || null
+  const SMS_FALLBACK_URL = process.env.SMS_FALLBACK_URL
   const SMS_FALLBACK_API_KEY = Boolean(process.env.SMS_FALLBACK_API_KEY)
 
   const curl = checkCurlAvailable()
@@ -50,7 +50,7 @@ export async function GET(req: Request) {
   }
 
   // Try a lightweight HEAD/GET to provider origin to check connectivity
-  async function tryOrigin(origin: string | null, keyName: string) {
+  async function tryOrigin(origin: string | undefined, keyName: string) {
     if (!origin) return { ok: false, reason: "no_url" }
     try {
       const url = origin
@@ -66,4 +66,3 @@ export async function GET(req: Request) {
 
   return NextResponse.json(results)
 }
-

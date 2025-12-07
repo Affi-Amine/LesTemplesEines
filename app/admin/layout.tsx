@@ -12,44 +12,46 @@ export default function AdminLayout({
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
-  const [isLoginPage, setIsLoginPage] = useState(false)
-  const [isChecking, setIsChecking] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false
+    try {
+      return Boolean(localStorage.getItem("adminToken"))
+    } catch {
+      return false
+    }
+  })
+  const [isLoginPage, setIsLoginPage] = useState(() => pathname === "/admin/login")
+  const [isChecking, setIsChecking] = useState(false)
 
   useEffect(() => {
-    // Check if it's the login page
-    if (pathname === "/admin/login") {
-      setIsLoginPage(true)
-      setIsChecking(false)
-      return
-    }
+    setIsLoginPage(pathname === "/admin/login")
 
-    // Check authentication
     const checkAuth = () => {
-      const token = localStorage.getItem("adminToken")
-      if (!token) {
-        router.push("/admin/login")
+      try {
+        const token = localStorage.getItem("adminToken")
+        if (!token) {
+          setIsAuthenticated(false)
+          router.push("/admin/login")
+        } else {
+          setIsAuthenticated(true)
+        }
+      } catch {
         setIsAuthenticated(false)
-      } else {
-        setIsAuthenticated(true)
       }
-      setIsChecking(false)
     }
 
     checkAuth()
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "adminToken") {
+        checkAuth()
+      }
+    }
+    window.addEventListener("storage", onStorage)
+    return () => window.removeEventListener("storage", onStorage)
   }, [pathname, router])
 
-  // Show loading only briefly while checking
-  if (isChecking) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-12 h-12 bg-primary/20 rounded-full animate-pulse mx-auto mb-4" />
-          <p className="text-muted-foreground">Chargement...</p>
-        </div>
-      </div>
-    )
-  }
+  // No loading gate here; compute sync and react to changes
 
   // Login page - no sidebar
   if (isLoginPage) {

@@ -12,57 +12,58 @@ export default function EmployeeLayout({
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
-  const [isChecking, setIsChecking] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false
+    try {
+      return Boolean(localStorage.getItem("adminToken"))
+    } catch {
+      return false
+    }
+  })
+  const [isChecking, setIsChecking] = useState(false)
   const [userRole, setUserRole] = useState<string | null>(null)
 
   useEffect(() => {
-    // Check authentication and role
     const checkAuth = () => {
-      const token = localStorage.getItem("adminToken")
-      const adminUser = localStorage.getItem("adminUser")
-      
-      if (!token) {
-        router.push("/admin/login")
-        setIsAuthenticated(false)
-        setIsChecking(false)
-        return
-      }
-
-      if (adminUser) {
-        const user = JSON.parse(adminUser)
-        setUserRole(user.role)
-        
-        // Check if user has access to employee dashboard
-        if (user.role === 'therapist' || user.role === 'assistant' || user.role === 'manager' || user.role === 'admin') {
-          setIsAuthenticated(true)
-        } else {
-          // Redirect unauthorized users to login
-          router.push("/admin/login")
+      try {
+        const token = localStorage.getItem("adminToken")
+        const adminUser = localStorage.getItem("adminUser")
+        if (!token) {
           setIsAuthenticated(false)
+          router.push("/admin/login")
+          return
         }
-      } else {
-        router.push("/admin/login")
+        if (adminUser) {
+          const user = JSON.parse(adminUser)
+          setUserRole(user.role)
+          if (user.role === 'therapist' || user.role === 'assistant' || user.role === 'manager' || user.role === 'admin') {
+            setIsAuthenticated(true)
+          } else {
+            setIsAuthenticated(false)
+            router.push("/admin/login")
+          }
+        } else {
+          setIsAuthenticated(false)
+          router.push("/admin/login")
+        }
+      } catch {
         setIsAuthenticated(false)
+        router.push("/admin/login")
       }
-      
-      setIsChecking(false)
     }
 
     checkAuth()
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "adminToken" || e.key === "adminUser") {
+        checkAuth()
+      }
+    }
+    window.addEventListener("storage", onStorage)
+    return () => window.removeEventListener("storage", onStorage)
   }, [pathname, router])
 
-  // Show loading while checking authentication
-  if (isChecking) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-12 h-12 bg-primary/20 rounded-full animate-pulse mx-auto mb-4" />
-          <p className="text-muted-foreground">Chargement...</p>
-        </div>
-      </div>
-    )
-  }
+  // No loading gate; compute sync and react to changes
 
   // Not authenticated - redirect happening
   if (!isAuthenticated) {

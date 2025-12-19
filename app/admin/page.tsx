@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { fetchAPI } from "@/lib/api/client"
 import { useQuery } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,6 +31,17 @@ interface Appointment {
 
 export default function AdminDashboard() {
   const { t, mounted } = useTranslations()
+  const [userInfo, setUserInfo] = useState<any>(null)
+
+  useEffect(() => {
+    const stored = localStorage.getItem("user-storage")
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      setUserInfo(parsed.state?.userInfo)
+    }
+  }, [])
+
+  const isAdmin = userInfo?.role === 'admin'
   
   // State for modals
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
@@ -172,7 +183,7 @@ export default function AdminDashboard() {
 
     try {
       const response = await fetch(`/api/appointments/${selectedAppointment.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
@@ -208,7 +219,8 @@ export default function AdminDashboard() {
       <AdminHeader title={t("admin.dashboard")} description="Bienvenue! Voici l'aperçu de votre activité." />
 
       <div className="p-6 space-y-6">
-        {/* Stats Grid */}
+        {/* Stats Grid - Admin Only */}
+        {isAdmin && (
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             title={t("admin.total_appointments")}
@@ -239,6 +251,7 @@ export default function AdminDashboard() {
             trend={pendingTrend !== 0 ? { value: Math.abs(pendingTrend), isPositive: pendingTrend < 0 } : undefined}
           />
         </div>
+        )}
 
         {/* Upcoming Appointments */}
         <div>
@@ -255,7 +268,9 @@ export default function AdminDashboard() {
               date: new Date(apt.start_time).toLocaleDateString('fr-FR'),
               time: new Date(apt.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
               status: apt.status as "confirmed" | "pending" | "cancelled",
-              therapist: apt.staff ? `${apt.staff.first_name} ${apt.staff.last_name}` : 'Thérapeute',
+              therapist: apt.assignments?.length > 0 
+                ? apt.assignments.map((a: any) => `${a.staff.first_name} ${a.staff.last_name}`).join(", ")
+                : (apt.staff ? `${apt.staff.first_name} ${apt.staff.last_name}` : 'Thérapeute'),
             }))}
             onView={handleViewAppointment}
             onEdit={handleEditAppointment}

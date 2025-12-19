@@ -9,6 +9,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, subDays, startOfDay, endOfDay, eachHourOfInterval } from "date-fns"
 import { fr } from "date-fns/locale"
+import { formatInTimeZone, toZonedTime } from "date-fns-tz"
+
 import { BookingDetailsModal } from "@/components/booking-details-modal"
 
 interface Salon {
@@ -62,9 +64,15 @@ function WeekView({ currentDate, appointments, onAppointmentClick }: {
 
   const getAppointmentsForDayAndHour = (day: Date, hour: Date) => {
     return appointments.filter(appointment => {
-      const appointmentStart = new Date(appointment.start_time)
-      return isSameDay(appointmentStart, day) && 
-             appointmentStart.getHours() === hour.getHours()
+      // Convert UTC appointment time to Paris time components
+      const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
+      const dayDateStr = format(day, "yyyy-MM-dd")
+      
+      const aptHourStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "H")
+      const targetHour = hour.getHours()
+      
+      return aptDateStr === dayDateStr && 
+             parseInt(aptHourStr, 10) === targetHour
     })
   }
 
@@ -104,10 +112,10 @@ function WeekView({ currentDate, appointments, onAppointmentClick }: {
                         onClick={() => onAppointmentClick(appointment)}
                       >
                         <div className="font-medium truncate">
-                          {appointment.client.first_name} {appointment.client.last_name}
+                          {appointment.client?.first_name || 'Client'} {appointment.client?.last_name || 'Inconnu'}
                         </div>
                         <div className="truncate text-muted-foreground">
-                          {appointment.service.name}
+                          {appointment.service?.name || 'Service Inconnu'}
                         </div>
                       </div>
                     ))}
@@ -143,9 +151,15 @@ function DayView({ currentDate, appointments, onAppointmentClick }: {
 
   const getAppointmentsForHour = (hour: Date) => {
     return appointments.filter(appointment => {
-      const appointmentStart = new Date(appointment.start_time)
-      return isSameDay(appointmentStart, currentDate) && 
-             appointmentStart.getHours() === hour.getHours()
+      // Convert UTC appointment time to Paris time components
+      const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
+      const currentDateStr = format(currentDate, "yyyy-MM-dd")
+      
+      const aptHourStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "H")
+      const targetHour = hour.getHours()
+      
+      return aptDateStr === currentDateStr && 
+             parseInt(aptHourStr, 10) === targetHour
     })
   }
 
@@ -172,10 +186,10 @@ function DayView({ currentDate, appointments, onAppointmentClick }: {
                       >
                         <div className="flex justify-between items-start mb-2">
                           <div className="font-medium">
-                            {appointment.client.first_name} {appointment.client.last_name}
+                            {appointment.client?.first_name || 'Client'} {appointment.client?.last_name || 'Inconnu'}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {format(new Date(appointment.start_time), "HH:mm")} - {format(new Date(appointment.end_time), "HH:mm")}
+                            {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")}
                           </div>
                         </div>
                         <div className="text-sm text-muted-foreground">
@@ -437,20 +451,20 @@ export default function CalendrierPage() {
                               key={appointment.id}
                               className={`text-xs p-1.5 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getStatusColor(appointment.status)}`}
                               onClick={() => handleAppointmentClick(appointment)}
-                              title={`${format(new Date(appointment.start_time), "HH:mm")} - ${appointment.client.first_name} ${appointment.client.last_name}
-Service: ${appointment.service.name}
-Thérapeute : ${appointment.staff.first_name} ${appointment.staff.last_name}
-Salon: ${appointment.salon.name}
+                              title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}
+Service: ${appointment.service?.name || 'Service Inconnu'}
+Thérapeute : ${appointment.staff?.first_name || 'Inconnu'} ${appointment.staff?.last_name || ''}
+Salon: ${appointment.salon?.name || 'Salon Inconnu'}
 Statut: ${getStatusLabel(appointment.status)}`}
                             >
                               <div className="font-medium">
-                                {format(new Date(appointment.start_time), "HH:mm")}
+                                {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}
                               </div>
                               <div className="truncate">
-                                {appointment.client.first_name} {appointment.client.last_name}
+                                {appointment.client?.first_name || 'Client'} {appointment.client?.last_name || 'Inconnu'}
                               </div>
                               <div className="truncate text-xs opacity-75">
-                                {appointment.service.name}
+                                {appointment.service?.name || 'Service Inconnu'}
                               </div>
                             </div>
                           ))}

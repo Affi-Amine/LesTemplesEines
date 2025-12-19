@@ -15,7 +15,8 @@ interface ClientData {
 
 interface CreateAppointmentData {
   salon_id: string
-  staff_id: string
+  staff_id?: string
+  staff_ids?: string[]
   service_id: string
   start_time: string
   end_time?: string

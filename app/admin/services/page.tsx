@@ -33,11 +33,21 @@ import { Switch } from "@/components/ui/switch"
 
 import type { Service } from "@/lib/types/database"
 
+import { SalonFilter } from "@/components/salon-filter"
+import { useRoleProtection } from "@/lib/hooks/use-role-protection"
+
 export default function ServicesPage() {
+  const isAuthorized = useRoleProtection(["admin", "manager"])
   const { t } = useTranslations()
   const { data: services, isLoading, refetch } = useServices(undefined, true)
   const { data: salons } = useSalons()
+  const [selectedSalonId, setSelectedSalonId] = useState("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+
+  const filteredServices = selectedSalonId === "all"
+    ? services
+    : services?.filter(service => service.salon_id === selectedSalonId)
+
   const [editingService, setEditingService] = useState<Service | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -51,7 +61,10 @@ export default function ServicesPage() {
     category: "",
     image_url: "",
     is_active: true,
+    required_staff_count: "1",
   })
+
+  if (!isAuthorized) return null
 
   const handleEdit = (service: Service) => {
     setEditingService(service)
@@ -64,6 +77,7 @@ export default function ServicesPage() {
       category: service.category || "",
       image_url: service.image_url || "",
       is_active: service.is_active,
+      required_staff_count: (service.required_staff_count || 1).toString(),
     })
     setIsDialogOpen(true)
   }
@@ -79,6 +93,7 @@ export default function ServicesPage() {
       category: "",
       image_url: "",
       is_active: true,
+      required_staff_count: "1",
     })
     setIsDialogOpen(true)
   }
@@ -107,6 +122,7 @@ export default function ServicesPage() {
         category: formData.category || undefined,
         image_url: formData.image_url || undefined,
         is_active: formData.is_active,
+        required_staff_count: parseInt(formData.required_staff_count) || 1,
       }
 
       const response = await fetch(endpoint, {
@@ -174,10 +190,13 @@ export default function ServicesPage() {
       <div className="p-6 space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">Services</h2>
-          <Button onClick={handleCreate} className="gap-2 cursor-pointer">
-            <Plus className="w-4 h-4" />
-            Nouveau service
-          </Button>
+          <div className="flex items-center gap-4">
+            <SalonFilter selectedSalonId={selectedSalonId} onSelectSalon={setSelectedSalonId} />
+            <Button onClick={handleCreate} className="gap-2 cursor-pointer">
+              <Plus className="w-4 h-4" />
+              Nouveau service
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -196,7 +215,7 @@ export default function ServicesPage() {
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {services?.map((service: Service) => (
+            {filteredServices?.map((service: Service) => (
               <Card key={service.id} className="p-6 hover:shadow-lg transition-shadow">
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">
@@ -347,6 +366,24 @@ export default function ServicesPage() {
                     Prix: {(parseInt(formData.price_cents) / 100).toFixed(2)} €
                   </p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="required_staff_count">
+                  Masseurs requis
+                </Label>
+                <Input
+                  id="required_staff_count"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={formData.required_staff_count}
+                  onChange={(e) => setFormData({ ...formData, required_staff_count: e.target.value })}
+                  placeholder="1"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Nombre de prestataires nécessaires pour ce service (ex: 2 pour duo)
+                </p>
               </div>
             </div>
 

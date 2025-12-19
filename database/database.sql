@@ -63,7 +63,7 @@ CREATE TABLE staff (
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     phone VARCHAR(20),
-    role VARCHAR(50) NOT NULL CHECK (role IN ('therapist', 'assistant', 'manager', 'admin')),
+    role VARCHAR(50) NOT NULL CHECK (role IN ('therapist', 'assistant', 'manager', 'admin', 'receptionist')),
     photo_url TEXT,
     specialties TEXT[] DEFAULT '{}', -- Array of service IDs or specialty names
     is_active BOOLEAN DEFAULT true,

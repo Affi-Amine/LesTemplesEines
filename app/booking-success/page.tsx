@@ -8,6 +8,8 @@ import { Footer } from "@/components/footer"
 import { Navbar } from "@/components/navbar"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { CheckCircle, Calendar, Clock, MapPin, User, Phone, Mail, ArrowLeft, Plus } from "lucide-react"
+import { formatInTimeZone } from "date-fns-tz"
+import { fr } from "date-fns/locale"
 import Link from "next/link"
 
 function BookingSuccessContent() {
@@ -121,18 +123,10 @@ function BookingSuccessContent() {
                       <Clock className="w-5 h-5 mr-3 text-muted-foreground" />
                       <div>
                         <div className="font-medium">
-                          {new Date(bookingDetails.start_time).toLocaleDateString("fr-FR", {
-                            weekday: "long",
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })}
+                          {formatInTimeZone(bookingDetails.start_time, "Europe/Paris", "EEEE d MMMM yyyy", { locale: fr })}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {new Date(bookingDetails.start_time).toLocaleTimeString("fr-FR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {formatInTimeZone(bookingDetails.start_time, "Europe/Paris", "HH:mm")}
                         </div>
                       </div>
                     </div>

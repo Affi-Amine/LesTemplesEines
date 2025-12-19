@@ -10,7 +10,7 @@ const StaffSchema = z.object({
   first_name: z.string().min(1),
   last_name: z.string().min(1),
   phone: z.string().optional(),
-  role: z.enum(["therapist", "assistant", "manager", "admin"]),
+  role: z.enum(["therapist", "assistant", "manager", "admin", "receptionist"]),
   photo_url: z.string().optional(),
   specialties: z.array(z.string()).optional(),
 })

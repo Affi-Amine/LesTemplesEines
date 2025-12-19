@@ -10,6 +10,7 @@ import { AppointmentDetailsModal } from "@/components/appointment-details-modal"
 import { CalendarIcon, Clock, User, MapPin } from "lucide-react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
+import { toZonedTime, formatInTimeZone } from "date-fns-tz"
 
 interface Appointment {
   id: string
@@ -68,9 +69,10 @@ export default function EmployeeCalendarPage() {
 
   const getAppointmentsForDate = (date: Date) => {
     const dateStr = format(date, "yyyy-MM-dd")
-    return appointments.filter((apt: Appointment) => 
-      apt.start_time.startsWith(dateStr)
-    )
+    return appointments.filter((apt: Appointment) => {
+      const parisDateStr = formatInTimeZone(apt.start_time, "Europe/Paris", "yyyy-MM-dd")
+      return parisDateStr === dateStr
+    })
   }
 
   const dayAppointments = selectedDate ? getAppointmentsForDate(selectedDate) : []
@@ -93,7 +95,7 @@ export default function EmployeeCalendarPage() {
   }
 
   const formatTime = (dateTime: string) => {
-    return format(new Date(dateTime), "HH:mm")
+    return formatInTimeZone(dateTime, "Europe/Paris", "HH:mm")
   }
 
   const formatDuration = (minutes: number) => {

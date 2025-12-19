@@ -10,8 +10,11 @@ import { TrendingUp, Users, DollarSign, Calendar, Clock, MapPin } from "lucide-r
 import { useAnalyticsData, useSalons, useStaff } from "@/lib/hooks/use-analytics-data"
 import { format, subDays } from "date-fns"
 import { fr } from "date-fns/locale"
+import { useRoleProtection } from "@/lib/hooks/use-role-protection"
 
 export default function AnalyticsPage() {
+  const isAuthorized = useRoleProtection(["admin"])
+
   const [filters, setFilters] = useState({
     startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
     endDate: format(new Date(), 'yyyy-MM-dd'),
@@ -24,6 +27,8 @@ export default function AnalyticsPage() {
   const { data: analyticsData, isLoading: analyticsLoading } = useAnalyticsData(filters)
   const { data: salons = [], isLoading: salonsLoading } = useSalons()
   const { data: staff = [], isLoading: staffLoading } = useStaff()
+
+  if (!isAuthorized) return null
 
   const formatCurrency = (cents: number) => `€${(cents / 100).toFixed(2)}`
   const formatNumber = (num: number) => num.toLocaleString()

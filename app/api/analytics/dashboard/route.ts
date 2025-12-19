@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 import { startOfDay, endOfDay, format } from "date-fns"
+import { fromZonedTime } from "date-fns-tz"
+
+const TIMEZONE = "Europe/Paris"
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,8 +17,27 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
 
     // Default to last 30 days if no dates provided
-    const start = startDate ? startOfDay(new Date(startDate)) : startOfDay(new Date(new Date().setDate(new Date().getDate() - 30)))
-    const end = endDate ? endOfDay(new Date(endDate)) : endOfDay(new Date())
+    let start: Date
+    let end: Date
+
+    if (startDate) {
+        start = fromZonedTime(startDate, TIMEZONE)
+    } else {
+        const d = fromZonedTime(new Date(), TIMEZONE)
+        d.setDate(d.getDate() - 30)
+        start = startOfDay(d)
+    }
+
+    if (endDate) {
+        // If endDate is YYYY-MM-DD, we want the end of that day in Paris
+        if (/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+            end = fromZonedTime(`${endDate} 23:59:59.999`, TIMEZONE)
+        } else {
+            end = fromZonedTime(endDate, TIMEZONE)
+        }
+    } else {
+        end = endOfDay(fromZonedTime(new Date(), TIMEZONE))
+    }
 
     // Helper function to apply filters to appointment queries
     const applyFilters = (query: any) => {

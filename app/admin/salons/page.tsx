@@ -4,9 +4,10 @@ import { AdminHeader } from "@/components/admin-header"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useSalons } from "@/lib/hooks/use-salons"
-import { Plus, MapPin, Phone, Mail, Edit, Trash2, Clock } from "lucide-react"
+import { Plus, MapPin, Phone, Mail, Edit, Trash2, Clock, LayoutDashboard } from "lucide-react"
 import { useState } from "react"
 import { useTranslations } from "@/lib/i18n/use-translations"
+import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
@@ -215,14 +216,19 @@ export default function SalonsPage() {
                   </div>
 
                   <div className="flex gap-2 pt-2">
+                    <Button asChild variant="default" size="sm" className="flex-1 cursor-pointer">
+                      <Link href={`/admin/salons/${salon.id}/dashboard`}>
+                        <LayoutDashboard className="w-4 h-4 mr-2" />
+                        Dashboard
+                      </Link>
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleEdit(salon)}
-                      className="flex-1 cursor-pointer"
+                      className="cursor-pointer"
                     >
-                      <Edit className="w-4 h-4 mr-2" />
-                      Modifier
+                      <Edit className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="outline"

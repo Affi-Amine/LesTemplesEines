@@ -11,6 +11,7 @@ const UpdateServiceSchema = z.object({
   category: z.string().optional(),
   image_url: z.string().optional(),
   is_active: z.boolean().optional(),
+  required_staff_count: z.number().min(1).optional(),
 })
 
 interface RouteContext {

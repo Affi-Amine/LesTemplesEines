@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { StepIndicator } from "@/components/step-indicator"
 import { useSalons } from "@/lib/hooks/use-salons"
@@ -17,6 +18,9 @@ import { t } from "@/lib/i18n/get-translations"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 import { useRouter } from "next/navigation"
+import { format } from "date-fns"
+import { fr, enUS } from "date-fns/locale"
+import { fromZonedTime } from "date-fns-tz"
 import type { Locale } from "@/i18n.config"
 
 type BookingStep = "salon" | "service" | "time" | "info" | "confirm"
@@ -25,6 +29,7 @@ interface BookingData {
   salon: string
   service: string
   employee: string
+  employees: string[] // For multi-staff selection
   date: string
   time: string
   firstName: string
@@ -46,6 +51,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     salon: initialSalon || "",
     service: "",
     employee: "",
+    employees: [],
     date: "",
     time: "",
     firstName: "",
@@ -70,7 +76,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   // Availability based on selected therapist and date
   const selectedDateObj = data.date ? new Date(data.date) : undefined
   const { data: availabilityData, isLoading: availabilityLoading } = useAvailability(
-    data.employee || undefined,
+    (data.employees.length > 0 ? data.employees : (data.employee ? data.employee : undefined)),
     selectedDateObj,
     data.service || undefined,
   )
@@ -81,6 +87,15 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       new Date(slot.start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
     ),
   )
+
+  // Helper to get staff for selected slot in multi-staff scenario
+  const getStaffForSelectedTime = () => {
+    if (!data.time || !availabilityData?.available_slots) return []
+    const selectedSlot = availabilityData.available_slots.find(slot => 
+      new Date(slot.start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) === data.time
+    )
+    return selectedSlot?.available_staff || []
+  }
 
   // Generate time options from salon hours with 30-min steps if available, otherwise fallback
   const defaultTimes = [
@@ -111,6 +126,28 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     return defaultTimes
   })()
 
+  // Handle toggle for multi-staff selection
+  const toggleEmployeeSelection = (employeeId: string, requiredCount: number) => {
+    let newSelection = [...data.employees]
+    if (newSelection.includes(employeeId)) {
+      newSelection = newSelection.filter(id => id !== employeeId)
+    } else {
+      if (newSelection.length < requiredCount) {
+        newSelection.push(employeeId)
+      } else {
+         // Replace the first one if limit reached (optional UX choice, or just block)
+         // Let's block for now or maybe replace last? Let's just block adding more than needed
+         // Actually better UX: if full, don't add. User must unselect first.
+         // Or: Shift. remove first, add new.
+         // Let's keep it simple: if not full, add.
+         if (newSelection.length >= requiredCount) return
+      }
+    }
+    setData({ ...data, employees: newSelection })
+  }
+
+  const isMultiStaff = (currentService?.required_staff_count || 1) > 1
+
   const handleNext = () => {
     const steps: BookingStep[] = ["salon", "service", "time", "info", "confirm"]
     const currentIndex = steps.indexOf(step)
@@ -128,7 +165,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   }
 
   const handleConfirm = async () => {
-    if (!currentSalon || !currentService || !currentEmployee) {
+    // If multi-staff, we don't need currentEmployee, but we need dynamic staff assignment
+    // const isMultiStaff = (currentService?.required_staff_count || 1) > 1 // Defined above now
+    
+    if (!currentSalon || !currentService || (!currentEmployee && !isMultiStaff)) {
       toast.error("Erreur", {
         description: "Veuillez remplir tous les champs requis",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
@@ -136,12 +176,52 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       return
     }
 
-    const startTime = `${data.date}T${data.time}:00Z`
+    // Convert Paris time to UTC ISO string
+    const parisTime = fromZonedTime(`${data.date} ${data.time}:00`, "Europe/Paris")
+    const startTime = parisTime.toISOString()
+    
+    // For multi-staff, get the assigned staff from availability data
+    let assignedStaffIds: string[] = []
+    let primaryStaffId = currentEmployee?.id
+
+    if (isMultiStaff) {
+      // If user selected specific employees, use them. Otherwise auto-assign (fallback)
+      // But since we are implementing manual selection now, we prefer data.employees if valid
+      
+      const requiredCount = currentService.required_staff_count || 1
+      
+      if (data.employees.length === requiredCount) {
+         // User selected manually
+         assignedStaffIds = data.employees
+      } else {
+         // Fallback to auto-assignment if user didn't select or selected fewer (should be blocked by UI validation ideally)
+         // But for now let's keep auto-assign as backup or if they chose "Any"
+         const availableStaff = getStaffForSelectedTime()
+         if (availableStaff.length < requiredCount) {
+            toast.error("Erreur", {
+              description: "Plus assez de personnel disponible pour ce créneau.",
+              icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+            })
+            return
+         }
+         assignedStaffIds = availableStaff.slice(0, requiredCount)
+      }
+      
+      primaryStaffId = assignedStaffIds[0] // Use first one as primary for compatibility
+    } else {
+      assignedStaffIds = currentEmployee ? [currentEmployee.id] : []
+    }
+
+    if (!primaryStaffId) {
+       toast.error("Erreur technique: Impossible d'assigner un prestataire.")
+       return
+    }
 
     createAppointment.mutate(
       {
         salon_id: currentSalon.id,
-        staff_id: currentEmployee.id,
+        staff_id: primaryStaffId,
+        staff_ids: assignedStaffIds,
         service_id: currentService.id,
         start_time: startTime,
         client_data: {
@@ -307,6 +387,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           <p className="text-muted-foreground mb-6">{t(locale, "booking.step3_subtitle")}</p>
           <div className="space-y-6">
             {/* Select Therapist first to compute availability */}
+            {(!currentService?.required_staff_count || currentService.required_staff_count <= 1) ? (
             <div>
               <Label className="font-semibold">{t(locale, "booking.select_therapist")}</Label>
               {staffLoading ? (
@@ -336,6 +417,52 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 </RadioGroup>
               )}
             </div>
+            ) : (
+              <div>
+                 <Label className="font-semibold">
+                   Sélectionnez {currentService.required_staff_count} praticiens
+                   {data.employees.length > 0 && ` (${data.employees.length}/${currentService.required_staff_count})`}
+                 </Label>
+                 <p className="text-xs text-muted-foreground mb-3">
+                   Veuillez choisir les praticiens pour ce soin duo/trio. Laissez vide pour une attribution automatique.
+                 </p>
+                 
+                 {staffLoading ? (
+                    <div className="space-y-2 mt-3">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="p-3 border rounded-lg animate-pulse">
+                          <div className="h-4 bg-muted rounded w-1/3" />
+                        </div>
+                      ))}
+                    </div>
+                 ) : (
+                   <div className="space-y-2 mt-3">
+                      {salonEmployees.map((emp) => {
+                        const isSelected = data.employees.includes(emp.id)
+                        const isFull = data.employees.length >= (currentService.required_staff_count || 2)
+                        const disabled = !isSelected && isFull
+
+                        return (
+                          <div 
+                            key={emp.id} 
+                            className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-primary/5 border-primary' : 'hover:bg-muted'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            onClick={() => !disabled && toggleEmployeeSelection(emp.id, currentService.required_staff_count || 2)}
+                          >
+                            <Checkbox 
+                              checked={isSelected}
+                              onCheckedChange={() => !disabled && toggleEmployeeSelection(emp.id, currentService.required_staff_count || 2)}
+                              id={`staff-${emp.id}`}
+                            />
+                            <Label htmlFor={`staff-${emp.id}`} className="cursor-pointer flex-1 font-medium">
+                              {emp.first_name} {emp.last_name}
+                            </Label>
+                          </div>
+                        )
+                      })}
+                   </div>
+                 )}
+              </div>
+            )}
             <div>
               <Label htmlFor="date" className="font-semibold">
                 {t(locale, "booking.select_date")}
@@ -351,12 +478,12 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             <div>
               <Label className="font-semibold">{t(locale, "booking.select_time")}</Label>
               <p className="text-xs text-muted-foreground mt-2">
-                {(!data.employee || !data.date) && "Sélectionnez d'abord le thérapeute et la date pour voir les créneaux disponibles."}
-                {availabilityLoading && data.employee && data.date && "Chargement des créneaux disponibles..."}
+                {(!data.employee && (!currentService?.required_staff_count || currentService.required_staff_count <= 1) && !data.date) && "Sélectionnez d'abord le thérapeute et la date pour voir les créneaux disponibles."}
+                {availabilityLoading && data.date && "Chargement des créneaux disponibles..."}
               </p>
               <div className="grid grid-cols-3 gap-2 mt-3">
                 {timeOptions.map((time) => {
-                  const isAvailable = data.employee && data.date ? availableTimesSet.has(time) : false
+                  const isAvailable = (data.employee || (currentService?.required_staff_count || 1) > 1) && data.date ? availableTimesSet.has(time) : false
                   const isSelected = data.time === time
                   return (
                     <Button
@@ -364,7 +491,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                       variant={isSelected ? "default" : "outline"}
                       onClick={() => setData({ ...data, time })}
                       className={`w-full ${!isAvailable ? "opacity-50 cursor-not-allowed" : ""}`}
-                      disabled={!isAvailable || availabilityLoading || !data.employee}
+                      disabled={!isAvailable || availabilityLoading || (!data.employee && (currentService?.required_staff_count || 1) <= 1)}
                     >
                       {time}
                     </Button>
@@ -377,7 +504,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer">
               {t(locale, "common.back")}
             </Button>
-            <Button onClick={handleNext} disabled={!data.date || !data.time || !data.employee} size="lg" className="cursor-pointer">
+            <Button onClick={handleNext} disabled={!data.date || !data.time || (!data.employee && (currentService?.required_staff_count || 1) <= 1)} size="lg" className="cursor-pointer">
               {t(locale, "common.next")}
             </Button>
           </div>

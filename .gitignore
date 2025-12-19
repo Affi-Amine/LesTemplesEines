@@ -50,6 +50,7 @@ next-env.d.ts
 # IDE / Editor
 .vscode/
 .idea/
+.trae/
 *.swp
 *.swo
 *~
@@ -80,6 +81,10 @@ scripts/create-admin.ts
 scripts/hash-password.js
 scripts/test-login.js
 scripts/apply-rls-policies.js
+scripts/test-backend.ts
+scripts/test-timezone.js
+scripts/test-timezone-2.js
+scripts/fix-staff-availability.ts
 
 # Root-level utility scripts with secrets/credentials
 create-admin-simple.js
@@ -93,3 +98,5 @@ debug-*.js
 debug-*.ts
 *.debug.js
 *.debug.ts
+output.json
+output_fixed.json

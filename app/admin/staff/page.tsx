@@ -33,11 +33,21 @@ import { Switch } from "@/components/ui/switch"
 
 import type { Staff } from "@/lib/types/database"
 
+import { SalonFilter } from "@/components/salon-filter"
+import { useRoleProtection } from "@/lib/hooks/use-role-protection"
+
 export default function StaffPage() {
+  const isAuthorized = useRoleProtection(["admin", "manager"])
   const { t } = useTranslations()
   const { data: staff, isLoading, refetch } = useStaff()
   const { data: salons } = useSalons()
+  const [selectedSalonId, setSelectedSalonId] = useState("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+
+  const filteredStaff = selectedSalonId === "all" 
+    ? staff 
+    : staff?.filter(member => member.salon_id === selectedSalonId)
+
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -49,11 +59,13 @@ export default function StaffPage() {
     first_name: "",
     last_name: "",
     phone: "",
-    role: "therapist" as "therapist" | "assistant" | "manager" | "admin",
+    role: "therapist" as "therapist" | "assistant" | "manager" | "admin" | "receptionist",
     photo_url: "",
     specialties: "",
     is_active: true,
   })
+
+  if (!isAuthorized) return null
 
   const handleEdit = (member: Staff) => {
     setEditingStaff(member)
@@ -188,10 +200,13 @@ export default function StaffPage() {
       <div className="p-6 space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">{t("admin.staff")}</h2>
-          <Button onClick={handleCreate} className="gap-2 cursor-pointer">
-            <Plus className="w-4 h-4" />
-            {t("common.add")}
-          </Button>
+          <div className="flex items-center gap-4">
+            <SalonFilter selectedSalonId={selectedSalonId} onSelectSalon={setSelectedSalonId} />
+            <Button onClick={handleCreate} className="gap-2 cursor-pointer">
+              <Plus className="w-4 h-4" />
+              {t("common.add")}
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -209,7 +224,7 @@ export default function StaffPage() {
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {staff?.map((emp) => (
+            {filteredStaff?.map((emp) => (
               <Card key={emp.id} className="overflow-hidden">
                 <div className="relative h-40 bg-muted">
                   <Image
@@ -271,7 +286,7 @@ export default function StaffPage() {
           </div>
         )}
 
-        {!isLoading && staff && staff.length === 0 && (
+        {!isLoading && filteredStaff && filteredStaff.length === 0 && (
           <Card className="p-12 text-center">
             <Icon icon="solar:user-bold" className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Aucun membre</h3>
@@ -371,15 +386,21 @@ export default function StaffPage() {
                 <Label htmlFor="role">
                   Rôle <span className="text-red-500">*</span>
                 </Label>
-                <Select value={formData.role} onValueChange={(value: any) => setFormData({ ...formData, role: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
+                <Select
+                  value={formData.role}
+                  onValueChange={(value: "therapist" | "assistant" | "manager" | "admin" | "receptionist") => 
+                    setFormData({ ...formData, role: value })
+                  }
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Sélectionner un rôle" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="therapist">Thérapeute</SelectItem>
-                    <SelectItem value="assistant">Assistant(e)</SelectItem>
+                    <SelectItem value="assistant">Assistant</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="admin">Administrateur</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="receptionist">Réceptionniste</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

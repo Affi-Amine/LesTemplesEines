@@ -10,7 +10,7 @@ const UpdateStaffSchema = z.object({
   first_name: z.string().min(1).optional(),
   last_name: z.string().min(1).optional(),
   phone: z.string().optional(),
-  role: z.enum(["therapist", "assistant", "manager", "admin"]).optional(),
+  role: z.enum(["therapist", "assistant", "manager", "admin", "receptionist"]).optional(),
   photo_url: z.string().optional(),
   specialties: z.array(z.string()).optional(),
   is_active: z.boolean().optional(),

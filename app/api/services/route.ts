@@ -10,6 +10,7 @@ const ServiceSchema = z.object({
   price_cents: z.number().min(0),
   category: z.string().optional(),
   image_url: z.string().optional(),
+  required_staff_count: z.number().min(1).default(1),
 })
 
 export async function GET(request: NextRequest) {

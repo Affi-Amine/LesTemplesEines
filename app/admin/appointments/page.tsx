@@ -4,9 +4,10 @@ import { AdminHeader } from "@/components/admin-header"
 import { AppointmentsTable } from "@/components/appointments-table"
 import { Button } from "@/components/ui/button"
 import { useAppointments } from "@/lib/hooks/use-appointments"
-import { Plus } from "lucide-react"
+import { Plus, X } from "lucide-react"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { useState, useEffect } from "react"
+import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,9 @@ import { useStaff } from "@/lib/hooks/use-staff"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
+import { format } from "date-fns"
+import { fr } from "date-fns/locale"
+import { fromZonedTime, formatInTimeZone } from "date-fns-tz"
 
 interface Appointment {
   id: string
@@ -36,9 +40,15 @@ interface Appointment {
   therapist: string
 }
 
+import { SalonFilter } from "@/components/salon-filter"
+
 export default function AppointmentsPage() {
   const { t } = useTranslations()
-  const { data: appointments, isLoading, refetch } = useAppointments()
+  const [selectedSalonId, setSelectedSalonId] = useState("all")
+  const { data: appointments, isLoading, refetch } = useAppointments({
+    salonId: selectedSalonId === "all" ? undefined : selectedSalonId
+  })
+
 
   // Create dialog state
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -52,6 +62,7 @@ export default function AppointmentsPage() {
     salon_id: "",
     service_id: "",
     staff_id: "",
+    staff_ids: [] as string[],
     date: "",
     time: "",
     first_name: "",
@@ -63,12 +74,22 @@ export default function AppointmentsPage() {
 
   const [editForm, setEditForm] = useState({
     status: "",
-    notes: ""
+    notes: "",
+    salon_id: "",
+    service_id: "",
+    staff_ids: [] as string[],
+    date: "",
+    time: "",
   })
 
   const { data: salons } = useSalons()
   const { data: services } = useServices(form.salon_id || undefined)
   const { data: staff } = useStaff(form.salon_id || undefined)
+  
+  // Hooks for Edit Form
+  const { data: editServices } = useServices(editForm.salon_id || undefined)
+  const { data: editStaff } = useStaff(editForm.salon_id || undefined)
+
   const createAppointment = useCreateAppointment()
 
   const resetForm = () => {
@@ -76,6 +97,7 @@ export default function AppointmentsPage() {
       salon_id: "",
       service_id: "",
       staff_id: "",
+      staff_ids: [],
       date: "",
       time: "",
       first_name: "",
@@ -84,6 +106,27 @@ export default function AppointmentsPage() {
       email: "",
       notes: "",
     })
+  }
+
+  const handleAddStaff = (staffId: string) => {
+    if (!form.staff_ids.includes(staffId)) {
+      setForm({ ...form, staff_ids: [...form.staff_ids, staffId] })
+    }
+  }
+
+  const handleRemoveStaff = (staffId: string) => {
+    setForm({ ...form, staff_ids: form.staff_ids.filter(id => id !== staffId) })
+  }
+
+  // Edit Form Staff Handlers
+  const handleEditAddStaff = (staffId: string) => {
+    if (!editForm.staff_ids.includes(staffId)) {
+      setEditForm({ ...editForm, staff_ids: [...editForm.staff_ids, staffId] })
+    }
+  }
+
+  const handleEditRemoveStaff = (staffId: string) => {
+    setEditForm({ ...editForm, staff_ids: editForm.staff_ids.filter(id => id !== staffId) })
   }
 
   useEffect(() => {
@@ -96,7 +139,7 @@ export default function AppointmentsPage() {
   const handleCreate = () => setIsDialogOpen(true)
 
   const handleSave = async () => {
-    if (!form.salon_id || !form.service_id || !form.staff_id || !form.date || !form.time || !form.first_name || !form.last_name || !form.phone) {
+    if (!form.salon_id || !form.service_id || (form.staff_ids.length === 0 && !form.staff_id) || !form.date || !form.time || !form.first_name || !form.last_name || !form.phone) {
       toast.error("Champs manquants", {
         description: "Veuillez remplir tous les champs obligatoires",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
@@ -104,12 +147,19 @@ export default function AppointmentsPage() {
       return
     }
 
-    const start_time = `${form.date}T${form.time}:00Z`
+    // Convert Paris time to UTC ISO string
+    const parisTime = fromZonedTime(`${form.date} ${form.time}:00`, "Europe/Paris")
+    const start_time = parisTime.toISOString()
+
+    // Handle backward compatibility and multi-select
+    const primaryStaffId = form.staff_id || form.staff_ids[0]
+    const allStaffIds = form.staff_ids.length > 0 ? form.staff_ids : (primaryStaffId ? [primaryStaffId] : [])
 
     createAppointment.mutate({
       salon_id: form.salon_id,
       service_id: form.service_id,
-      staff_id: form.staff_id,
+      staff_id: primaryStaffId,
+      staff_ids: allStaffIds,
       start_time,
       client_data: {
         first_name: form.first_name,
@@ -128,10 +178,29 @@ export default function AppointmentsPage() {
   }
 
   const handleEditAppointment = (appointment: Appointment) => {
+    // Find full appointment details
+    const fullAppointment: any = appointments?.find((a: any) => a.id === appointment.id)
+    if (!fullAppointment) return
+
     setSelectedAppointment(appointment)
+    
+    // Extract date and time in Paris timezone
+    const parisDate = formatInTimeZone(fullAppointment.start_time, "Europe/Paris", "yyyy-MM-dd")
+    const parisTime = formatInTimeZone(fullAppointment.start_time, "Europe/Paris", "HH:mm")
+
+    // Get staff IDs
+    const staffIds = fullAppointment.assignments?.length > 0
+      ? fullAppointment.assignments.map((a: any) => a.staff.id) 
+      : (fullAppointment.staff_id ? [fullAppointment.staff_id] : [])
+
     setEditForm({
       status: appointment.status,
-      notes: ""
+      notes: fullAppointment.client_notes || "",
+      salon_id: fullAppointment.salon_id,
+      service_id: fullAppointment.service_id,
+      staff_ids: staffIds,
+      date: parisDate,
+      time: parisTime,
     })
     setEditDialogOpen(true)
   }
@@ -168,14 +237,22 @@ export default function AppointmentsPage() {
     if (!selectedAppointment) return
 
     try {
+      // Construct start_time from date and time
+      const parisTime = fromZonedTime(`${editForm.date} ${editForm.time}:00`, "Europe/Paris")
+      const start_time = parisTime.toISOString()
+
       const response = await fetch(`/api/appointments/${selectedAppointment.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           status: editForm.status,
-          notes: editForm.notes,
+          client_notes: editForm.notes,
+          salon_id: editForm.salon_id,
+          service_id: editForm.service_id,
+          staff_ids: editForm.staff_ids,
+          start_time: start_time,
         }),
       })
 
@@ -204,10 +281,13 @@ export default function AppointmentsPage() {
       <div className="container mx-auto p-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Rendez-vous</h1>
-          <Button onClick={handleCreate} className="flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            Nouveau rendez-vous
-          </Button>
+          <div className="flex items-center gap-4">
+            <SalonFilter selectedSalonId={selectedSalonId} onSelectSalon={setSelectedSalonId} />
+            <Button onClick={handleCreate} className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              Nouveau rendez-vous
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -219,10 +299,12 @@ export default function AppointmentsPage() {
               clientName: `${apt.client?.first_name || ''} ${apt.client?.last_name || ''}`.trim() || 'Client',
               service: apt.service?.name || 'Service',
               salon: apt.salon?.name || 'Salon',
-              date: new Date(apt.start_time).toLocaleDateString('fr-FR'),
-              time: new Date(apt.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+              date: formatInTimeZone(apt.start_time, "Europe/Paris", "dd/MM/yyyy", { locale: fr }),
+              time: formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm"),
               status: apt.status as "confirmed" | "pending" | "cancelled",
-              therapist: apt.staff ? `${apt.staff.first_name} ${apt.staff.last_name}` : 'Thérapeute',
+              therapist: apt.assignments?.length > 0 
+                ? apt.assignments.map((a: any) => `${a.staff.first_name} ${a.staff.last_name}`).join(", ")
+                : (apt.staff ? `${apt.staff.first_name} ${apt.staff.last_name}` : 'Thérapeute'),
             })) || []} 
             onView={handleViewAppointment}
             onEdit={handleEditAppointment}
@@ -273,19 +355,30 @@ export default function AppointmentsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="therapist">Thérapeute</Label>
-                <Select value={form.staff_id} onValueChange={(value) => setForm({ ...form, staff_id: value })} disabled={!form.salon_id}>
+                <Label htmlFor="therapist">Thérapeutes</Label>
+                <Select onValueChange={handleAddStaff} disabled={!form.salon_id}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un thérapeute" />
+                    <SelectValue placeholder="Ajouter un thérapeute" />
                   </SelectTrigger>
                   <SelectContent>
-                    {staff?.map((member) => (
+                    {staff?.filter(m => !form.staff_ids.includes(m.id)).map((member) => (
                       <SelectItem key={member.id} value={member.id}>
                         {member.first_name} {member.last_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {form.staff_ids.map(id => {
+                    const member = staff?.find(s => s.id === id)
+                    return (
+                      <Badge key={id} variant="secondary" className="gap-1">
+                        {member?.first_name} {member?.last_name}
+                        <X className="w-3 h-3 cursor-pointer" onClick={() => handleRemoveStaff(id)} />
+                      </Badge>
+                    )
+                  })}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -430,7 +523,7 @@ export default function AppointmentsPage() {
 
         {/* Edit Appointment Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>Modifier le rendez-vous</DialogTitle>
               <DialogDescription>
@@ -439,10 +532,88 @@ export default function AppointmentsPage() {
             </DialogHeader>
             {selectedAppointment && (
               <div className="grid gap-4 py-4">
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Client</Label>
-                  <p className="text-sm">{selectedAppointment.clientName}</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-salon">Salon</Label>
+                    <Select value={editForm.salon_id} onValueChange={(value) => setEditForm({ ...editForm, salon_id: value, service_id: "", staff_ids: [] })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un salon" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {salons?.map((salon) => (
+                          <SelectItem key={salon.id} value={salon.id}>
+                            {salon.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-service">Service</Label>
+                    <Select value={editForm.service_id} onValueChange={(value) => setEditForm({ ...editForm, service_id: value })} disabled={!editForm.salon_id}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un service" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {editServices?.map((service) => (
+                          <SelectItem key={service.id} value={service.id}>
+                            {service.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-therapist">Thérapeutes</Label>
+                  <Select onValueChange={handleEditAddStaff} disabled={!editForm.salon_id}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Ajouter un thérapeute" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {editStaff?.filter(m => !editForm.staff_ids.includes(m.id)).map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.first_name} {member.last_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {editForm.staff_ids.map(id => {
+                      const member = editStaff?.find(s => s.id === id)
+                      if (!member) return null 
+                      return (
+                        <Badge key={id} variant="secondary" className="gap-1">
+                          {member.first_name} {member.last_name}
+                          <X className="w-3 h-3 cursor-pointer" onClick={() => handleEditRemoveStaff(id)} />
+                        </Badge>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-date">Date</Label>
+                    <Input
+                      id="edit-date"
+                      type="date"
+                      value={editForm.date}
+                      onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-time">Heure</Label>
+                    <Input
+                      id="edit-time"
+                      type="time"
+                      value={editForm.time}
+                      onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="edit-status">Statut</Label>
                   <Select value={editForm.status} onValueChange={(value) => setEditForm({ ...editForm, status: value })}>
@@ -453,9 +624,12 @@ export default function AppointmentsPage() {
                       <SelectItem value="confirmed">Confirmé</SelectItem>
                       <SelectItem value="pending">En attente</SelectItem>
                       <SelectItem value="cancelled">Annulé</SelectItem>
+                      <SelectItem value="completed">Terminé</SelectItem>
+                      <SelectItem value="no_show">No Show</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="edit-notes">Notes</Label>
                   <Input
@@ -472,7 +646,7 @@ export default function AppointmentsPage() {
                 Annuler
               </Button>
               <Button onClick={handleSaveEdit}>
-                Sauvegarder
+                Enregistrer
               </Button>
             </DialogFooter>
           </DialogContent>

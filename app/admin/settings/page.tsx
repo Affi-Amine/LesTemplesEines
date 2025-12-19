@@ -6,8 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { useRoleProtection } from "@/lib/hooks/use-role-protection"
 
 export default function SettingsPage() {
+  const isAuthorized = useRoleProtection(["admin", "manager"])
+
+  if (!isAuthorized) return null
+
   return (
     <div className="min-h-screen bg-background">
       <AdminHeader title="Paramètres" description="Gérer les paramètres de votre entreprise" />

@@ -8,6 +8,9 @@ import { useQuery } from "@tanstack/react-query"
 import { fetchAPI } from "@/lib/api/client"
 import { useMemo, useState, useEffect } from "react"
 import Link from "next/link"
+import { format } from "date-fns"
+import { fr } from "date-fns/locale"
+import { toZonedTime, formatInTimeZone } from "date-fns-tz"
 
 export default function EmployeeDashboard() {
   const [userInfo, setUserInfo] = useState<any>(null)
@@ -38,17 +41,17 @@ export default function EmployeeDashboard() {
     }
 
     const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000)
+    const nowParis = toZonedTime(now, "Europe/Paris")
+    const todayStr = formatInTimeZone(now, "Europe/Paris", "yyyy-MM-dd")
 
     const todayAppointments = appointments.filter((apt: any) => {
-      const aptDate = new Date(apt.start_time)
-      return aptDate >= today && aptDate < tomorrow
+      const aptDateStr = formatInTimeZone(apt.start_time, "Europe/Paris", "yyyy-MM-dd")
+      return aptDateStr === todayStr
     })
 
     const upcomingAppointments = appointments.filter((apt: any) => {
-      const aptDate = new Date(apt.start_time)
-      return aptDate > now && aptDate < tomorrow
+      const aptDate = new Date(apt.start_time) // UTC comparison is fine for "upcoming" relative to "now"
+      return aptDate > now && formatInTimeZone(apt.start_time, "Europe/Paris", "yyyy-MM-dd") === todayStr
     }).sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
 
     const completedToday = todayAppointments.filter((apt: any) => 
@@ -69,19 +72,11 @@ export default function EmployeeDashboard() {
   }, [appointments])
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    return formatInTimeZone(dateString, "Europe/Paris", "HH:mm")
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('fr-FR', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
+    return formatInTimeZone(dateString, "Europe/Paris", "EEEE d MMMM yyyy", { locale: fr })
   }
 
   if (isLoading) {

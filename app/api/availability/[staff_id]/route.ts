@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes, format, parse, startOfDay, endOfDay, isWithinInterval } from "date-fns"
+import { fromZonedTime } from "date-fns-tz"
+
+const TIMEZONE = "Europe/Paris"
 
 interface RouteContext {
   params: Promise<{ staff_id: string }>
@@ -52,7 +55,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .single()
 
     // Parse date
-    const requestedDate = new Date(dateParam)
+    const requestedDate = fromZonedTime(dateParam, TIMEZONE)
     const dayOfWeek = requestedDate.getDay() // 0 = Sunday, 6 = Saturday
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
     const dayName = dayNames[dayOfWeek]
@@ -96,25 +99,48 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // Get existing appointments for this staff member on this date
-    const dayStart = startOfDay(requestedDate).toISOString()
-    const dayEnd = endOfDay(requestedDate).toISOString()
+    // Use Paris-based day start/end
+    const dayStart = fromZonedTime(`${dateParam} 00:00:00`, TIMEZONE).toISOString()
+    const dayEnd = fromZonedTime(`${dateParam} 23:59:59.999`, TIMEZONE).toISOString()
 
-    const { data: existingAppointments } = await supabase
+    // Query both legacy staff_id and assignments table
+    const { data: primaryAppointments } = await supabase
       .from("appointments")
-      .select("start_time, end_time")
+      .select("start_time, end_time, status")
       .eq("staff_id", staff_id)
-      .in("status", ["confirmed", "pending"])
       .gte("start_time", dayStart)
       .lte("start_time", dayEnd)
+      .neq("status", "cancelled")
+      .neq("status", "no_show")
+
+    // Get assignments
+    const { data: assignments } = await supabase
+      .from("appointment_assignments")
+      .select("appointment:appointments!inner(start_time, end_time, status)")
+      .eq("staff_id", staff_id)
+      .gte("appointment.start_time", dayStart)
+      .lte("appointment.start_time", dayEnd)
+      .neq("appointment.status", "cancelled")
+      .neq("appointment.status", "no_show")
+
+    // Combine
+    const existingAppointments = [
+      ...(primaryAppointments || []),
+      ...(assignments?.map((a: any) => a.appointment) || [])
+    ]
 
     // Generate time slots (every 30 minutes)
     const slotInterval = 30 // minutes
     const availableSlots: Array<{ start: string; end: string }> = []
 
     for (const period of availabilityPeriods) {
-      // Parse availability times
-      const periodStart = parse(period.start, "HH:mm", requestedDate)
-      const periodEnd = parse(period.end, "HH:mm", requestedDate)
+        // Ensure time format is correct (HH:mm or HH:mm:ss)
+        const cleanStart = period.start.split(':').slice(0, 2).join(':')
+        const cleanEnd = period.end.split(':').slice(0, 2).join(':')
+        
+        // Parse availability times
+        const periodStart = fromZonedTime(`${dateParam} ${cleanStart}:00`, TIMEZONE)
+        const periodEnd = fromZonedTime(`${dateParam} ${cleanEnd}:00`, TIMEZONE)
 
       let currentSlot = periodStart
 

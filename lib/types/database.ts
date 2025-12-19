@@ -24,6 +24,7 @@ export interface Service {
   image_url: string | null
   is_visible: boolean
   is_active: boolean
+  required_staff_count: number
   created_at: string
   updated_at: string
 }

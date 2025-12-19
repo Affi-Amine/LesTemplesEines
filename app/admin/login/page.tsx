@@ -54,7 +54,7 @@ export default function AdminLogin() {
 
       // Redirect based on user role
       const userRole = data.staff.role
-      if (userRole === 'admin' || userRole === 'manager') {
+      if (userRole === 'admin' || userRole === 'manager' || userRole === 'receptionist') {
         router.push("/admin")
       } else if (userRole === 'therapist' || userRole === 'assistant') {
         router.push("/employee")

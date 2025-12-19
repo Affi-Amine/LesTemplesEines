@@ -4,25 +4,44 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Calendar, Users, BarChart3, Settings, LogOut, Menu, X, Building2, Scissors, TrendingUp, CalendarDays, UserCheck } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useTranslations } from "@/lib/i18n/use-translations"
 
 export function AdminSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
+  const [userInfo, setUserInfo] = useState<any>(null)
   const { t, mounted } = useTranslations()
+
+  useEffect(() => {
+    // Get user info from localStorage
+    const adminUser = localStorage.getItem("adminUser")
+    if (adminUser) {
+      setUserInfo(JSON.parse(adminUser))
+    }
+  }, [])
+
+  const role = userInfo?.role
+  const isAdmin = role === 'admin'
+  const isManager = role === 'manager'
+  
+  // Access control helpers
+  const canViewAnalytics = isAdmin
+  const canViewSettings = isAdmin || isManager
+  const canViewStaff = isAdmin || isManager
+  const canViewServices = isAdmin || isManager
 
   const navItems = [
     { href: "/admin", label: mounted ? t("admin.dashboard") : "Dashboard", icon: BarChart3 },
-    { href: "/admin/analytics", label: "Analytics", icon: TrendingUp },
+    ...(canViewAnalytics ? [{ href: "/admin/analytics", label: "Analytics", icon: TrendingUp }] : []),
     { href: "/admin/appointments", label: mounted ? t("admin.appointments") : "Appointments", icon: Calendar },
     { href: "/admin/calendrier", label: "Calendrier", icon: CalendarDays },
     { href: "/admin/clients", label: mounted ? t("admin.clients") : "Clients", icon: Users },
-    { href: "/admin/staff", label: mounted ? t("admin.staff") : "Staff", icon: UserCheck },
+    ...(canViewStaff ? [{ href: "/admin/staff", label: mounted ? t("admin.staff") : "Staff", icon: UserCheck }] : []),
     { href: "/admin/salons", label: "Salons", icon: Building2 },
-    { href: "/admin/services", label: "Services", icon: Scissors },
-    { href: "/admin/settings", label: mounted ? t("admin.settings") : "Settings", icon: Settings },
+    ...(canViewServices ? [{ href: "/admin/services", label: "Services", icon: Scissors }] : []),
+    ...(canViewSettings ? [{ href: "/admin/settings", label: mounted ? t("admin.settings") : "Settings", icon: Settings }] : []),
   ]
 
   const handleLogout = async () => {

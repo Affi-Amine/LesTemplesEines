@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { fromZonedTime } from "date-fns-tz"
 
 const PhoneSchema = z
   .string()
@@ -20,15 +21,20 @@ const AppointmentSchema = z.object({
   salon_id: z.string().uuid(),
   client_id: z.string().uuid().optional(),
   client_data: ClientDataSchema.optional(),
-  staff_id: z.string().uuid(),
-  service_id: z.string().uuid(),
+  staff_id: z.string().uuid().optional(),
+  staff_ids: z.array(z.string().uuid()).optional(),
+  service_id: z.string().uuid().optional(),
   start_time: z.string(),
   end_time: z.string().optional(),
   client_notes: z.string().optional(),
   notes: z.string().optional(), // Alternative field name
-  status: z.enum(["confirmed", "pending", "in_progress", "completed", "cancelled", "no_show"]).optional(),
-}).refine((data) => data.client_id || data.client_data, {
-  message: "Either client_id or client_data must be provided",
+  status: z.enum(["confirmed", "pending", "in_progress", "completed", "cancelled", "no_show", "blocked"]).optional(),
+}).refine((data) => data.status === "blocked" || data.client_id || data.client_data, {
+  message: "Either client_id or client_data must be provided (unless status is blocked)",
+}).refine((data) => data.status === "blocked" || data.service_id, {
+  message: "Service ID is required (unless status is blocked)",
+}).refine((data) => data.staff_id || (data.staff_ids && data.staff_ids.length > 0), {
+  message: "At least one staff member must be assigned",
 })
 
 export async function GET(request: NextRequest) {
@@ -40,12 +46,22 @@ export async function GET(request: NextRequest) {
     const endDate = request.nextUrl.searchParams.get("end_date")
     const status = request.nextUrl.searchParams.get("status")
 
+    // Helper to validate UUID
+    const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+
+    if (salonId && !isValidUUID(salonId)) return NextResponse.json([])
+    if (staffId && !isValidUUID(staffId)) return NextResponse.json([])
+    if (clientId && !isValidUUID(clientId)) return NextResponse.json([])
+
     const supabase = await createAdminClient()
 
     let query = supabase.from("appointments").select(
       `*,
         client:clients(*),
         staff:staff(id, first_name, last_name, role, phone),
+        assignments:appointment_assignments(
+          staff:staff(id, first_name, last_name)
+        ),
         service:services(*),
         salon:salons(id, name, city, address)`,
     )
@@ -53,8 +69,24 @@ export async function GET(request: NextRequest) {
     if (salonId) query = query.eq("salon_id", salonId)
     if (staffId) query = query.eq("staff_id", staffId)
     if (clientId) query = query.eq("client_id", clientId)
-    if (startDate) query = query.gte("start_time", startDate)
-    if (endDate) query = query.lte("start_time", endDate)
+    
+    if (startDate) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        const start = fromZonedTime(startDate, "Europe/Paris")
+        query = query.gte("start_time", start.toISOString())
+      } else {
+        query = query.gte("start_time", startDate)
+      }
+    }
+
+    if (endDate) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        const end = fromZonedTime(`${endDate} 23:59:59.999`, "Europe/Paris")
+        query = query.lte("start_time", end.toISOString())
+      } else {
+        query = query.lte("start_time", endDate)
+      }
+    }
     if (status) query = query.eq("status", status)
 
     // Order by start_time descending (most recent first)
@@ -115,13 +147,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!clientId) {
+    if (!clientId && appointmentData.status !== "blocked") {
       return NextResponse.json({ error: "Client ID is required" }, { status: 400 })
     }
 
     // Calculate end_time if not provided
     let endTime = appointmentData.end_time
     if (!endTime) {
+      if (!appointmentData.service_id) {
+        return NextResponse.json({ error: "End time is required when no service is specified" }, { status: 400 })
+      }
+
       // Get service duration
       const { data: service } = await supabase
         .from("services")
@@ -139,23 +175,52 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for conflicts
-    const { data: conflicts } = await supabase
-      .from("appointments")
-      .select("*")
-      .eq("staff_id", appointmentData.staff_id)
-      .in("status", ["confirmed", "pending"])
-      .gte("start_time", appointmentData.start_time)
-      .lt("start_time", endTime)
+    const primaryStaffId = appointmentData.staff_id
+    const allStaffIds = appointmentData.staff_ids || (primaryStaffId ? [primaryStaffId] : [])
 
-    if (conflicts && conflicts.length > 0) {
-      return NextResponse.json({ error: "Ce créneau n'est plus disponible" }, { status: 409 })
+    for (const staffId of allStaffIds) {
+      const { data: conflicts } = await supabase
+        .from("appointments")
+        .select("id")
+        .eq("staff_id", staffId) // Check legacy single staff column
+        .in("status", ["confirmed", "pending", "blocked"]) // Include blocked status in conflict check
+        .lt("start_time", endTime) // Overlap check: StartA < EndB AND EndA > StartB
+        .gt("end_time", appointmentData.start_time)
+
+      if (conflicts && conflicts.length > 0) {
+        return NextResponse.json({ error: "Un ou plusieurs créneaux ne sont plus disponibles" }, { status: 409 })
+      }
+      
+      // Also check multi-provider assignments table
+      const { data: assignmentConflicts } = await supabase
+        .from("appointment_assignments")
+        .select("appointment_id")
+        .eq("staff_id", staffId)
+        .not("appointment_id", "is", null) // assignment must link to valid apt
+      
+      if (assignmentConflicts && assignmentConflicts.length > 0) {
+         // Deep check on those appointments times would be better, but simplified for now:
+         // Real check requires joining appointments table on assignmentConflicts.
+         // Let's do a proper join check:
+         const { data: deepConflicts } = await supabase
+           .from("appointment_assignments")
+           .select("appointment:appointments!inner(start_time, end_time, status)")
+           .eq("staff_id", staffId)
+           .filter("appointment.status", "in", '("confirmed","pending","blocked")')
+           .filter("appointment.start_time", "lt", endTime)
+           .filter("appointment.end_time", "gt", appointmentData.start_time)
+           
+         if (deepConflicts && deepConflicts.length > 0) {
+            return NextResponse.json({ error: "Un ou plusieurs créneaux ne sont plus disponibles" }, { status: 409 })
+         }
+      }
     }
 
     // Create appointment
     const appointmentPayload = {
       salon_id: appointmentData.salon_id,
       client_id: clientId,
-      staff_id: appointmentData.staff_id,
+      staff_id: primaryStaffId || allStaffIds[0], // Set primary for backward compat
       service_id: appointmentData.service_id,
       start_time: appointmentData.start_time,
       end_time: endTime,
@@ -176,6 +241,24 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) throw error
+
+    // Insert multi-provider assignments
+    if (allStaffIds.length > 0) {
+      const assignments = allStaffIds.map(sid => ({
+        appointment_id: appointment.id,
+        staff_id: sid
+      }))
+      
+      const { error: assignError } = await supabase
+        .from("appointment_assignments")
+        .insert(assignments)
+      
+      if (assignError) {
+        console.error("Failed to assign extra staff", assignError)
+        // Non-fatal, but logged
+      }
+    }
+
 
     // Fire booking emails (client + admin). Errors are logged but do not fail the request.
     try {

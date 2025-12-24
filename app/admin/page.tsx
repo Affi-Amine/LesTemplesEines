@@ -25,7 +25,7 @@ interface Appointment {
   salon: string
   date: string
   time: string
-  status: "confirmed" | "pending" | "cancelled"
+  status: "confirmed" | "cancelled" | "completed" | "no_show" | "blocked" | "in_progress"
   therapist: string
 }
 
@@ -267,7 +267,7 @@ export default function AdminDashboard() {
               salon: apt.salon?.name || 'Salon',
               date: new Date(apt.start_time).toLocaleDateString('fr-FR'),
               time: new Date(apt.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-              status: apt.status as "confirmed" | "pending" | "cancelled",
+              status: apt.status === "pending" ? "confirmed" : apt.status,
               therapist: apt.assignments?.length > 0 
                 ? apt.assignments.map((a: any) => `${a.staff.first_name} ${a.staff.last_name}`).join(", ")
                 : (apt.staff ? `${apt.staff.first_name} ${apt.staff.last_name}` : 'Thérapeute'),
@@ -383,7 +383,14 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <Label className="text-sm font-medium text-muted-foreground">Statut</Label>
-                <p className="text-sm capitalize">{selectedAppointment.status === 'confirmed' ? 'Confirmé' : selectedAppointment.status === 'pending' ? 'En attente' : 'Annulé'}</p>
+                <p className="text-sm capitalize">
+                  {selectedAppointment.status === 'confirmed' && 'Confirmé'}
+                  {selectedAppointment.status === 'cancelled' && 'Annulé'}
+                  {selectedAppointment.status === 'completed' && 'Terminé'}
+                  {selectedAppointment.status === 'in_progress' && 'En cours'}
+                  {selectedAppointment.status === 'no_show' && 'No Show'}
+                  {selectedAppointment.status === 'blocked' && 'Bloqué'}
+                </p>
               </div>
               <div className="flex justify-end">
                 <Button onClick={() => setViewDialogOpen(false)}>Fermer</Button>
@@ -420,9 +427,12 @@ export default function AdminDashboard() {
                     <SelectValue placeholder="Sélectionner un statut" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">En attente</SelectItem>
                     <SelectItem value="confirmed">Confirmé</SelectItem>
+                    <SelectItem value="in_progress">En cours</SelectItem>
+                    <SelectItem value="completed">Terminé</SelectItem>
                     <SelectItem value="cancelled">Annulé</SelectItem>
+                    <SelectItem value="no_show">No Show</SelectItem>
+                    <SelectItem value="blocked">Bloqué</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

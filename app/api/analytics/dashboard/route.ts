@@ -7,14 +7,39 @@ const TIMEZONE = "Europe/Paris"
 
 export async function GET(request: NextRequest) {
   try {
-    const salonId = request.nextUrl.searchParams.get("salon_id")
+    const supabase = await createClient()
+
+    let salonId = request.nextUrl.searchParams.get("salon_id")
     const staffId = request.nextUrl.searchParams.get("staff_id")
     const startDate = request.nextUrl.searchParams.get("start_date")
     const endDate = request.nextUrl.searchParams.get("end_date")
     const startHour = request.nextUrl.searchParams.get("start_hour")
     const endHour = request.nextUrl.searchParams.get("end_hour")
+    const paymentMethod = request.nextUrl.searchParams.get("payment_method")
 
-    const supabase = await createClient()
+    // --- ENFORCE SALON ACCESS FOR MANAGERS ---
+    // We try to identify the user. If we can't, we proceed (assuming middleware protects the route or we trust the client for now, 
+    // but better to be safe if we can).
+    
+    // Let's try to get the user from the supabase client (which reads cookies)
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (user && user.email) {
+       const { data: staffMember } = await supabase
+         .from('staff')
+         .select('role, salon_id')
+         .eq('email', user.email)
+         .single()
+
+       if (staffMember) {
+         if (staffMember.role === 'manager') {
+           // FORCE salon_id to the manager's salon
+           salonId = staffMember.salon_id
+         }
+         // Admins can see everything (salonId stays as requested)
+       }
+    }
+    // -----------------------------------------
 
     // Default to last 30 days if no dates provided
     let start: Date
@@ -47,6 +72,7 @@ export async function GET(request: NextRequest) {
 
       if (salonId) query = query.eq("salon_id", salonId)
       if (staffId) query = query.eq("staff_id", staffId)
+      if (paymentMethod) query = query.eq("payment_method", paymentMethod)
 
       // Apply hour filtering if specified
       if (startHour || endHour) {
@@ -184,6 +210,37 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.booking_count - a.booking_count)
       .slice(0, 5)
 
+    // 7. Payment Methods Distribution
+    let paymentsQuery = supabase
+      .from("appointments")
+      .select("payment_method, amount_paid_cents")
+      .in("status", ["confirmed", "completed"])
+      .not("payment_method", "is", null)
+
+    paymentsQuery = applyFilters(paymentsQuery)
+    const { data: paymentsData } = await paymentsQuery
+
+    const paymentMethodsMap = new Map<string, { count: number; revenue: number }>()
+
+    paymentsData?.forEach((apt) => {
+      const method = apt.payment_method || "unknown"
+      const current = paymentMethodsMap.get(method) || { count: 0, revenue: 0 }
+      
+      paymentMethodsMap.set(method, {
+        count: current.count + 1,
+        revenue: current.revenue + (apt.amount_paid_cents || 0)
+      })
+    })
+
+    const totalPaymentCount = Array.from(paymentMethodsMap.values()).reduce((sum, item) => sum + item.count, 0)
+
+    const payment_methods = Array.from(paymentMethodsMap.entries()).map(([method, stats]) => ({
+      method,
+      count: stats.count,
+      revenue_cents: stats.revenue,
+      percentage: totalPaymentCount > 0 ? Math.round((stats.count / totalPaymentCount) * 100) : 0
+    })).sort((a, b) => b.count - a.count)
+
     // Return dashboard data
     return NextResponse.json({
       period: {
@@ -198,6 +255,7 @@ export async function GET(request: NextRequest) {
       },
       upcoming_appointments: upcomingAppointments || [],
       popular_services: popularServices,
+      payment_methods: payment_methods,
     })
   } catch (error) {
     console.error("[v0] Dashboard analytics error:", error)

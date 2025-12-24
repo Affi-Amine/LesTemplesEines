@@ -30,6 +30,12 @@ export interface AnalyticsData {
     booking_count: number
     revenue_cents: number
   }>
+  payment_methods: Array<{
+    method: string
+    count: number
+    revenue_cents: number
+    percentage: number
+  }>
 }
 
 export interface AnalyticsFilters {
@@ -39,6 +45,7 @@ export interface AnalyticsFilters {
   endHour?: string
   salonId?: string
   staffId?: string
+  paymentMethod?: string
 }
 
 export function useAnalyticsData(filters: AnalyticsFilters = {}) {
@@ -53,6 +60,7 @@ export function useAnalyticsData(filters: AnalyticsFilters = {}) {
       if (filters.endHour) params.append("end_hour", filters.endHour)
       if (filters.salonId) params.append("salon_id", filters.salonId)
       if (filters.staffId) params.append("staff_id", filters.staffId)
+      if (filters.paymentMethod) params.append("payment_method", filters.paymentMethod)
 
       const response = await fetch(`/api/analytics/dashboard?${params.toString()}`)
       

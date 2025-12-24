@@ -7,7 +7,7 @@ interface RouteContext {
 }
 
 const UpdateAppointmentSchema = z.object({
-  status: z.enum(["confirmed", "pending", "in_progress", "completed", "cancelled", "no_show", "blocked"]).optional(),
+  status: z.enum(["confirmed", "in_progress", "completed", "cancelled", "no_show", "blocked"]).optional(),
   client_notes: z.string().optional(),
   internal_notes: z.string().optional(),
   payment_status: z.enum(["unpaid", "partial", "paid"]).optional(),

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Filter, X, Clock } from "lucide-react"
+import { Calendar, Filter, X, Clock, CreditCard } from "lucide-react"
 import { format, startOfWeek, startOfMonth, startOfYear, subDays, subWeeks, subMonths } from "date-fns"
 
 export interface AnalyticsFilters {
@@ -16,6 +16,7 @@ export interface AnalyticsFilters {
   endHour: string
   salonId: string
   staffId: string
+  paymentMethod: string
 }
 
 interface AnalyticsFiltersProps {
@@ -82,7 +83,8 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
       startHour: '',
       endHour: '',
       salonId: '',
-      staffId: ''
+      staffId: '',
+      paymentMethod: ''
     }
     setLocalFilters(clearedFilters)
     onFiltersChange(clearedFilters)
@@ -172,7 +174,7 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
               <Clock className="h-4 w-4" />
               <Label className="text-sm font-medium">Plage horaire</Label>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <Label htmlFor="startHour" className="text-sm">Heure de début</Label>
                 <Select value={localFilters.startHour || "any"} onValueChange={(value) => updateFilter('startHour', value === "any" ? "" : value)}>
@@ -204,6 +206,31 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            {/* Payment Method Filter */}
+            <div className="pt-4 border-t">
+              <div className="flex items-center gap-2 mb-3">
+                <CreditCard className="h-4 w-4" />
+                <Label className="text-sm font-medium">Mode de paiement</Label>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="paymentMethod" className="text-sm">Moyen de paiement</Label>
+                  <Select value={localFilters.paymentMethod || "all"} onValueChange={(value) => updateFilter('paymentMethod', value === "all" ? "" : value)}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Tous les moyens" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les moyens</SelectItem>
+                      <SelectItem value="card">Carte Bancaire</SelectItem>
+                      <SelectItem value="cash">Espèces</SelectItem>
+                      <SelectItem value="check">Chèque</SelectItem>
+                      <SelectItem value="other">Autre</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </div>

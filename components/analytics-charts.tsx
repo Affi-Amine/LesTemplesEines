@@ -7,9 +7,9 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Ba
 export function RevenueChart({ data }: { data?: { total_revenue_cents: number; total_appointments: number; period: { start: string; end: string } } }) {
   if (!data) {
     return (
-      <Card className="p-6">
+      <Card className="p-6 h-full flex flex-col">
         <h3 className="font-semibold text-lg mb-4">Revenue & Bookings</h3>
-        <div className="flex items-center justify-center h-[300px] bg-muted/20 rounded-lg">
+        <div className="flex-1 min-h-[300px] flex items-center justify-center bg-muted/20 rounded-lg">
           <div className="text-center">
             <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">Loading revenue data...</p>
@@ -28,11 +28,11 @@ export function RevenueChart({ data }: { data?: { total_revenue_cents: number; t
   ]
 
   return (
-    <Card className="p-6">
+    <Card className="p-6 h-full flex flex-col">
       <h3 className="font-semibold text-lg mb-4">Revenue & Bookings</h3>
-      <div className="h-[300px]">
+      <div className="flex-1 min-h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} barGap={10} barCategoryGap="20%">
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" />
             <YAxis yAxisId="left" orientation="left" />
@@ -87,7 +87,7 @@ export function ServiceDistributionChart({ data }: { data?: Array<{ service_name
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
               outerRadius={80}
               fill="#8884d8"
               dataKey="value"
@@ -102,6 +102,72 @@ export function ServiceDistributionChart({ data }: { data?: Array<{ service_name
                 name
               ]}
               labelFormatter={(label) => `Service: ${label}`}
+            />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+    </Card>
+  )
+}
+
+export function PaymentMethodChart({ data }: { data?: Array<{ method: string; count: number; revenue_cents: number }> }) {
+  if (!data || data.length === 0) {
+    return (
+      <Card className="p-6">
+        <h3 className="font-semibold text-lg mb-4">Modes de Paiement</h3>
+        <div className="flex items-center justify-center h-[300px] bg-muted/20 rounded-lg">
+          <div className="text-center">
+            <PieChartIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">Aucune donnée de paiement disponible</p>
+          </div>
+        </div>
+      </Card>
+    )
+  }
+
+  const formatMethod = (method: string) => {
+    switch (method) {
+      case 'card': return 'Carte Bancaire'
+      case 'cash': return 'Espèces'
+      case 'check': return 'Chèque'
+      case 'other': return 'Autre'
+      default: return method
+    }
+  }
+
+  const chartData = data.map((item, index) => ({
+    name: formatMethod(item.method),
+    value: item.count,
+    revenue: item.revenue_cents / 100,
+    fill: `hsl(${200 + index * 40}, 60%, ${50 + index * 10}%)`
+  }))
+
+  return (
+    <Card className="p-6">
+      <h3 className="font-semibold text-lg mb-4">Modes de Paiement</h3>
+      <div className="h-[300px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+              outerRadius={80}
+              fill="#8884d8"
+              dataKey="value"
+            >
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.fill} />
+              ))}
+            </Pie>
+            <Tooltip 
+              formatter={(value: number, name: string, props: any) => [
+                `${value} paiements (€${props.payload.revenue.toFixed(2)})`,
+                name
+              ]}
             />
             <Legend />
           </PieChart>

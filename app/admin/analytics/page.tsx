@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { AdminHeader } from "@/components/admin-header"
 import { AnalyticsFilters } from "@/components/analytics-filters"
-import { RevenueChart, ServiceDistributionChart, ClientRetentionChart } from "@/components/analytics-charts"
+import { RevenueChart, ServiceDistributionChart, ClientRetentionChart, PaymentMethodChart } from "@/components/analytics-charts"
 import { StatCard } from "@/components/stat-card"
 import { Card } from "@/components/ui/card"
 import { TrendingUp, Users, DollarSign, Calendar, Clock, MapPin } from "lucide-react"
@@ -21,7 +21,8 @@ export default function AnalyticsPage() {
     startHour: '',
     endHour: '',
     salonId: '',
-    staffId: ''
+    staffId: '',
+    paymentMethod: ''
   })
 
   const { data: analyticsData, isLoading: analyticsLoading } = useAnalyticsData(filters)
@@ -85,7 +86,10 @@ export default function AnalyticsPage() {
             total_appointments: analyticsData.kpis?.total_appointments || 0,
             period: analyticsData.period
           } : undefined} />
-          <ServiceDistributionChart data={analyticsData?.popular_services} />
+          <div className="grid grid-rows-2 gap-6">
+            <ServiceDistributionChart data={analyticsData?.popular_services} />
+            <PaymentMethodChart data={analyticsData?.payment_methods} />
+          </div>
         </div>
 
         <ClientRetentionChart data={analyticsData ? {

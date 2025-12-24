@@ -28,7 +28,7 @@ const AppointmentSchema = z.object({
   end_time: z.string().optional(),
   client_notes: z.string().optional(),
   notes: z.string().optional(), // Alternative field name
-  status: z.enum(["confirmed", "pending", "in_progress", "completed", "cancelled", "no_show", "blocked"]).optional(),
+  status: z.enum(["confirmed", "in_progress", "completed", "cancelled", "no_show", "blocked"]).optional(),
 }).refine((data) => data.status === "blocked" || data.client_id || data.client_data, {
   message: "Either client_id or client_data must be provided (unless status is blocked)",
 }).refine((data) => data.status === "blocked" || data.service_id, {

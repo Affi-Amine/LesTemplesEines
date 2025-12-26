@@ -10,6 +10,7 @@ const UpdateSalonSchema = z.object({
   phone: z.string().optional(),
   email: z.string().email().optional(),
   siret: z.string().optional(),
+  image_url: z.string().optional(),
   opening_hours: z
     .record(
       z.string(),

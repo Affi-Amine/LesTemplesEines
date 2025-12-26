@@ -8,5 +8,7 @@ export function useSalons() {
   return useQuery({
     queryKey: ["salons"],
     queryFn: () => fetchAPI<Salon[]>("/salons"),
+    staleTime: 0,
+    gcTime: 0,
   })
 }

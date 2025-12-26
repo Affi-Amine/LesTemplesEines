@@ -13,9 +13,13 @@ interface SalonPageProps {
   }>
 }
 
+export const dynamic = 'force-dynamic'
+
 export default async function SalonPage({ params }: SalonPageProps) {
   const { slug } = await params
   const supabase = await createClient()
+
+  console.log(`[SalonPage] Fetching salon: ${slug}`)
 
   // Fetch salon by slug
   const { data: salon } = await supabase
@@ -24,6 +28,12 @@ export default async function SalonPage({ params }: SalonPageProps) {
     .eq("slug", slug)
     .eq("is_active", true)
     .single()
+  
+  if (salon) {
+     console.log(`[SalonPage] Salon found: ${salon.name}, Image URL: ${salon.image_url}`)
+  } else {
+     console.log(`[SalonPage] Salon not found for slug: ${slug}`)
+  }
 
   if (!salon) {
     return (
@@ -80,7 +90,7 @@ export default async function SalonPage({ params }: SalonPageProps) {
 
   return (
     <main className="min-h-screen bg-background">
-      <SalonHeader {...salon} hours={salon.opening_hours} />
+      <SalonHeader {...salon} image={salon.image_url} hours={salon.opening_hours} />
       <SalonServices services={transformedServices} />
       <SalonTeam employees={salonEmployees} serviceNames={serviceNames} />
       <SalonHours hours={salon.opening_hours} />

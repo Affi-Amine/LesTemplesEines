@@ -10,6 +10,7 @@ const SalonSchema = z.object({
   phone: z.string().optional(),
   email: z.union([z.string().email(), z.literal("")]).optional().transform((v) => (v === "" ? undefined : v)),
   siret: z.string().optional(),
+  image_url: z.string().optional(),
   opening_hours: z.record(z.string(), z.object({ open: z.string(), close: z.string() })).optional(),
 })
 

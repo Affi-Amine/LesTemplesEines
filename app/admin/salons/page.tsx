@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import { ImageUpload } from "@/components/ui/image-upload"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 
@@ -33,7 +34,7 @@ type Salon = {
   phone: string
   email?: string
   description?: string
-  photo_url?: string
+  image_url?: string
   opening_hours?: Record<string, { open: string; close: string }>
   is_active: boolean
 }
@@ -53,6 +54,7 @@ export default function SalonsPage() {
     address: "",
     phone: "",
     email: "",
+    image_url: "",
     is_active: true,
   })
 
@@ -65,6 +67,7 @@ export default function SalonsPage() {
       address: salon.address,
       phone: salon.phone,
       email: salon.email || "",
+      image_url: salon.image_url || "",
       is_active: salon.is_active,
     })
     setIsDialogOpen(true)
@@ -79,6 +82,7 @@ export default function SalonsPage() {
       address: "",
       phone: "",
       email: "",
+      image_url: "",
       is_active: true,
     })
     setIsDialogOpen(true)
@@ -171,8 +175,8 @@ export default function SalonsPage() {
             {salons?.map((salon: any) => (
               <Card key={salon.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                 <div className="relative h-48 bg-gradient-to-br from-primary/10 to-primary/5">
-                  {salon.photo_url ? (
-                    <img src={salon.photo_url} alt={salon.name} className="w-full h-full object-cover" />
+                  {salon.image_url ? (
+                    <img src={salon.image_url} alt={salon.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="flex items-center justify-center h-full">
                       <Icon icon="solar:building-bold" className="w-16 h-16 text-primary/30" />
@@ -329,6 +333,14 @@ export default function SalonsPage() {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="paris@lestemples.fr"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Image du salon</Label>
+              <ImageUpload
+                value={formData.image_url}
+                onChange={(url) => setFormData({ ...formData, image_url: url })}
               />
             </div>
 

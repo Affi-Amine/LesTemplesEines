@@ -16,6 +16,7 @@ export type Salon = {
   email?: string
   description?: string
   photo_url?: string
+  image_url?: string
   opening_hours?: Record<string, { open: string; close: string }>
   is_active: boolean
   created_at?: string
@@ -163,7 +164,7 @@ export async function getTherapists(salonId: string): Promise<Staff[]> {
  * Format price from cents to euros
  */
 export function formatPrice(priceCents: number): string {
-  return `${(priceCents / 100).toFixed(2)} ¬`
+  return `${(priceCents / 100).toFixed(2)} ï¿½`
 }
 
 /**

@@ -79,7 +79,8 @@ export function useSalons() {
   return useQuery({
     queryKey: ["salons"],
     queryFn: async () => {
-      const response = await fetch("/api/salons")
+      // Use no-store or timestamp to prevent caching old data
+      const response = await fetch(`/api/salons?t=${new Date().getTime()}`)
       
       if (!response.ok) {
         throw new Error("Failed to fetch salons")
@@ -88,7 +89,8 @@ export function useSalons() {
       const data = await response.json()
       return data || []
     },
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 0, // Disable stale time to always fetch fresh data
+    gcTime: 0, // Disable garbage collection time
   })
 }
 

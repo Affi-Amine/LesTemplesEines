@@ -7,6 +7,7 @@ export interface Salon {
   phone: string | null
   email: string | null
   siret: string | null
+  image_url: string | null
   opening_hours: Record<string, { open: string; close: string }>
   is_active: boolean
   created_at: string

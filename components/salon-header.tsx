@@ -16,17 +16,30 @@ interface SalonHeaderProps {
 export function SalonHeader({ name, city, address, phone, image, slug, hours }: SalonHeaderProps) {
   const today = new Date().toLocaleDateString("en-US", { weekday: "long" }).toLowerCase()
   const todayHours = hours && hours[today as keyof typeof hours]
+  
+  // Clean the image URL (remove potential whitespace)
+  const cleanImage = image ? image.trim() : null
+  const imageUrl = cleanImage || "/placeholder.svg?height=400&width=1200&query=luxury spa"
 
   return (
     <div className="w-full">
       {/* Hero Image */}
       <div className="relative h-64 md:h-96 w-full bg-muted overflow-hidden">
-        <Image
-          src={image || "/placeholder.svg?height=400&width=1200&query=luxury spa"}
-          alt={name}
-          fill
-          className="object-cover"
-        />
+        {(cleanImage && cleanImage.startsWith('/')) ? (
+          <Image
+            src={cleanImage}
+            alt={name}
+            fill
+            className="object-cover"
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl}
+            alt={name}
+            className="h-full w-full object-cover"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
       </div>
 

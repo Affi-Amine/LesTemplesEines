@@ -26,6 +26,7 @@ CREATE TABLE salons (
     phone VARCHAR(20),
     email VARCHAR(255),
     siret VARCHAR(14), -- French business registration number
+    image_url TEXT,
     opening_hours JSONB DEFAULT '{}', -- Store hours by day: {"monday": {"open": "10:00", "close": "20:00"}}
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

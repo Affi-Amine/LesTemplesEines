@@ -3,8 +3,8 @@
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import Image from "next/image"
 import { MapPin, Clock } from "lucide-react"
+import { Icon } from "@iconify/react"
 import { useSalons } from "@/lib/hooks/use-salons"
 
 export function HomeSalonsSection() {
@@ -60,8 +60,6 @@ export function HomeSalonsSection() {
             // Parse opening hours for display
             const openingHours = salon.opening_hours as Record<string, { open: string; close: string }>
             const mondayHours = openingHours?.monday || { open: "10:00", close: "20:00" }
-            const rawImageUrl = salon.image_url || `/luxury-spa-${salon.city.toLowerCase()}.jpg`
-            const imageUrl = rawImageUrl.trim()
 
             return (
               <Card
@@ -69,26 +67,17 @@ export function HomeSalonsSection() {
                 className="overflow-hidden hover:shadow-xl transition-all duration-300 group border-primary/10 cursor-pointer"
               >
                 <div className="relative h-56 bg-muted overflow-hidden">
-                  {imageUrl.startsWith('/') ? (
-                    <Image
-                      src={imageUrl}
-                      alt={salon.name}
-                      fill
-                      className="object-cover group-hover:scale-110 transition-transform duration-500"
-                      onError={(e) => {
-                        e.currentTarget.src = "/placeholder.svg?height=224&width=400"
-                      }}
-                    />
-                  ) : (
+                  {salon.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={imageUrl}
+                      src={salon.image_url}
                       alt={salon.name}
                       className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      onError={(e) => {
-                        e.currentTarget.src = "/placeholder.svg?height=224&width=400"
-                      }}
                     />
+                  ) : (
+                    <div className="flex items-center justify-center h-full bg-gradient-to-br from-primary/10 to-primary/5">
+                      <Icon icon="solar:buildings-3-bold" className="w-16 h-16 text-primary/30" />
+                    </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
                 </div>

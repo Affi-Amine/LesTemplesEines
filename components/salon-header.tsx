@@ -1,7 +1,7 @@
 import { MapPin, Phone, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import Image from "next/image"
+import { Icon } from "@iconify/react"
 
 interface SalonHeaderProps {
   name: string
@@ -16,29 +16,22 @@ interface SalonHeaderProps {
 export function SalonHeader({ name, city, address, phone, image, slug, hours }: SalonHeaderProps) {
   const today = new Date().toLocaleDateString("en-US", { weekday: "long" }).toLowerCase()
   const todayHours = hours && hours[today as keyof typeof hours]
-  
-  // Clean the image URL (remove potential whitespace)
-  const cleanImage = image ? image.trim() : null
-  const imageUrl = cleanImage || "/placeholder.svg?height=400&width=1200&query=luxury spa"
 
   return (
     <div className="w-full">
       {/* Hero Image */}
       <div className="relative h-64 md:h-96 w-full bg-muted overflow-hidden">
-        {(cleanImage && cleanImage.startsWith('/')) ? (
-          <Image
-            src={cleanImage}
-            alt={name}
-            fill
-            className="object-cover"
-          />
-        ) : (
+        {image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={imageUrl}
+            src={image}
             alt={name}
             className="h-full w-full object-cover"
           />
+        ) : (
+          <div className="flex items-center justify-center h-full bg-gradient-to-br from-primary/10 to-primary/5">
+            <Icon icon="solar:buildings-3-bold" className="w-24 h-24 text-primary/30" />
+          </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
       </div>

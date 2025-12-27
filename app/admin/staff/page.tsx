@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ImageUpload } from "@/components/ui/image-upload"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 import { Switch } from "@/components/ui/switch"
@@ -227,15 +228,18 @@ export default function StaffPage() {
             {filteredStaff?.map((emp) => (
               <Card key={emp.id} className="overflow-hidden">
                 <div className="relative h-40 bg-muted">
-                  <Image
-                    src={emp.photo_url || "/placeholder.svg?height=160&width=300"}
-                    alt={`${emp.first_name} ${emp.last_name}`}
-                    fill
-                    className="object-cover"
-                    onError={(e) => {
-                      e.currentTarget.src = "/placeholder.svg?height=160&width=300"
-                    }}
-                  />
+                  {emp.photo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={emp.photo_url}
+                      alt={`${emp.first_name} ${emp.last_name}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full bg-gradient-to-br from-primary/10 to-primary/5">
+                      <Icon icon="solar:user-bold" className="w-12 h-12 text-primary/30" />
+                    </div>
+                  )}
                   <div className="absolute top-4 right-4">
                     <Badge variant={emp.is_active ? "default" : "secondary"}>
                       {emp.is_active ? "Actif" : "Inactif"}
@@ -417,12 +421,11 @@ export default function StaffPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="photo_url">URL de la photo</Label>
-              <Input
-                id="photo_url"
+              <Label>Photo du membre</Label>
+              <ImageUpload
                 value={formData.photo_url}
-                onChange={(e) => setFormData({ ...formData, photo_url: e.target.value })}
-                placeholder="https://example.com/photo.jpg"
+                onChange={(url) => setFormData({ ...formData, photo_url: url })}
+                bucketName="staff-photos"
               />
             </div>
 

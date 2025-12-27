@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import Image from "next/image"
+import { Icon } from "@iconify/react"
 
 interface Employee {
   id: string
@@ -32,12 +32,18 @@ export function SalonTeam({ employees, serviceNames }: SalonTeamProps) {
           {employees.map((emp) => (
             <Card key={emp.id} className="overflow-hidden hover:shadow-lg transition-shadow">
               <div className="relative h-48 bg-muted">
-                <Image
-                  src={emp.photo || "/placeholder.svg?height=192&width=300&query=professional therapist"}
-                  alt={emp.name}
-                  fill
-                  className="object-cover"
-                />
+                {emp.photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={emp.photo}
+                    alt={emp.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full bg-gradient-to-br from-primary/10 to-primary/5">
+                    <Icon icon="solar:user-bold" className="w-16 h-16 text-primary/30" />
+                  </div>
+                )}
               </div>
               <div className="p-4">
                 <h3 className="font-semibold text-lg mb-1">{emp.name}</h3>

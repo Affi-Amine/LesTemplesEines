@@ -1,7 +1,7 @@
 "use client"
 
 import { Card } from "@/components/ui/card"
-import Image from "next/image"
+import { Icon } from "@iconify/react"
 import { useServices } from "@/lib/hooks/use-services"
 
 export function HomeServicesSection() {
@@ -65,15 +65,18 @@ export function HomeServicesSection() {
               className="p-6 text-center hover:shadow-lg transition-all duration-300 group border-primary/10 hover:border-primary/30 cursor-pointer"
             >
               <div className="relative h-40 mb-4 bg-muted rounded-2xl overflow-hidden">
-                <Image
-                  src={service.image_url || "/placeholder.svg?height=160&width=200"}
-                  alt={service.name}
-                  fill
-                  className="object-cover group-hover:scale-110 transition-transform duration-300"
-                  onError={(e) => {
-                    e.currentTarget.src = "/placeholder.svg?height=160&width=200"
-                  }}
-                />
+                {service.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={service.image_url}
+                    alt={service.name}
+                    className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full bg-gradient-to-br from-primary/10 to-primary/5">
+                    <Icon icon="solar:spa-bold" className="w-12 h-12 text-primary/30" />
+                  </div>
+                )}
               </div>
               <h3 className="font-semibold mb-2 text-foreground">{service.name}</h3>
               <p className="text-xs text-muted-foreground mb-4">{service.duration_minutes} minutes</p>

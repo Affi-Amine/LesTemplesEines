@@ -31,7 +31,8 @@ supabase db push
 **What it does**:
 - Creates `salon-images` bucket for salon photos
 - Creates `staff-photos` bucket for staff member photos
-- Sets up public read access for both buckets
+- Creates `service-images` bucket for service images
+- Sets up public read access for all three buckets
 - Allows authenticated admin users to upload/update/delete images
 - Sets 5MB file size limit
 - Restricts to image formats: JPEG, PNG, WebP
@@ -39,6 +40,7 @@ supabase db push
 **When to run**:
 - Before using salon image upload feature in admin dashboard
 - Before using staff photo upload feature in admin dashboard
+- Before using service image upload feature in admin dashboard
 
 **Status**: ✅ Ready to run
 
@@ -71,10 +73,10 @@ supabase db push
 Run this query in Supabase SQL Editor:
 ```sql
 SELECT * FROM storage.buckets
-WHERE id IN ('salon-images', 'staff-photos');
+WHERE id IN ('salon-images', 'staff-photos', 'service-images');
 ```
 
-You should see 2 rows returned.
+You should see 3 rows returned.
 
 ### Verify policies were created
 
@@ -86,7 +88,7 @@ WHERE tablename = 'objects' AND schemaname = 'storage'
 ORDER BY policyname;
 ```
 
-You should see 8 policies (4 for each bucket).
+You should see 12 policies (4 for each of the 3 buckets).
 
 ---
 

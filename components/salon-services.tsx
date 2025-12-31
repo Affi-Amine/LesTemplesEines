@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import Image from "next/image"
+import { Icon } from "@iconify/react"
 
 interface Service {
   id: string
@@ -36,12 +36,18 @@ export function SalonServices({ services }: SalonServicesProps) {
                 .map((service) => (
                   <Card key={service.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                     <div className="relative h-40 bg-muted">
-                      <Image
-                        src={service.image || "/placeholder.svg?height=160&width=300&query=massage therapy"}
-                        alt={service.name}
-                        fill
-                        className="object-cover"
-                      />
+                      {service.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={service.image}
+                          alt={service.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full bg-gradient-to-br from-primary/10 to-primary/5">
+                          <Icon icon="solar:spa-bold" className="w-12 h-12 text-primary/30" />
+                        </div>
+                      )}
                     </div>
                     <div className="p-4">
                       <h4 className="font-semibold mb-2">{service.name}</h4>

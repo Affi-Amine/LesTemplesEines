@@ -1,164 +1,132 @@
 -- ============================================================================
--- LES TEMPLES - STORAGE BUCKETS SETUP
--- Migration: 2025-12-27 - Create storage buckets for images
+-- QUICK RUN: Storage Buckets Setup for Les Temples
 -- ============================================================================
--- This script creates storage buckets for salon images, staff photos, and
--- service images with appropriate public access policies.
+-- This is a simplified version of the migration script for quick execution.
+-- Copy and paste this entire script into Supabase SQL Editor and click Run.
 -- ============================================================================
 
--- ----------------------------------------------------------------------------
--- 1. CREATE STORAGE BUCKETS
--- ----------------------------------------------------------------------------
-
--- Create salon-images bucket (if not exists)
+-- Create salon-images bucket
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'salon-images',
   'salon-images',
-  true, -- Public bucket
-  5242880, -- 5MB limit (5 * 1024 * 1024 bytes)
+  true,
+  5242880,
   ARRAY['image/jpeg', 'image/png', 'image/webp']::text[]
 )
 ON CONFLICT (id) DO NOTHING;
 
--- Create staff-photos bucket (if not exists)
+-- Create staff-photos bucket
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'staff-photos',
   'staff-photos',
-  true, -- Public bucket
-  5242880, -- 5MB limit (5 * 1024 * 1024 bytes)
+  true,
+  5242880,
   ARRAY['image/jpeg', 'image/png', 'image/webp']::text[]
 )
 ON CONFLICT (id) DO NOTHING;
 
--- Create service-images bucket (if not exists)
+-- Create service-images bucket
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'service-images',
   'service-images',
-  true, -- Public bucket
-  5242880, -- 5MB limit (5 * 1024 * 1024 bytes)
+  true,
+  5242880,
   ARRAY['image/jpeg', 'image/png', 'image/webp']::text[]
 )
 ON CONFLICT (id) DO NOTHING;
 
--- ----------------------------------------------------------------------------
--- 2. DROP EXISTING POLICIES (if any)
--- ----------------------------------------------------------------------------
-
--- Drop existing policies for salon-images
+-- Drop existing policies (if any)
 DROP POLICY IF EXISTS "Public Access to Salon Images" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can upload salon images" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can update salon images" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can delete salon images" ON storage.objects;
-
--- Drop existing policies for staff-photos
 DROP POLICY IF EXISTS "Public Access to Staff Photos" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can upload staff photos" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can update staff photos" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can delete staff photos" ON storage.objects;
-
--- Drop existing policies for service-images
 DROP POLICY IF EXISTS "Public Access to Service Images" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can upload service images" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can update service images" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can delete service images" ON storage.objects;
 
--- ----------------------------------------------------------------------------
--- 3. CREATE POLICIES FOR SALON-IMAGES BUCKET
--- ----------------------------------------------------------------------------
-
--- Allow public read access to salon images
+-- Policies for salon-images
 CREATE POLICY "Public Access to Salon Images"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'salon-images');
 
--- Allow authenticated users to upload salon images
 CREATE POLICY "Authenticated users can upload salon images"
 ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (bucket_id = 'salon-images');
 
--- Allow authenticated users to update salon images
 CREATE POLICY "Authenticated users can update salon images"
 ON storage.objects FOR UPDATE
 TO authenticated
 USING (bucket_id = 'salon-images')
 WITH CHECK (bucket_id = 'salon-images');
 
--- Allow authenticated users to delete salon images
 CREATE POLICY "Authenticated users can delete salon images"
 ON storage.objects FOR DELETE
 TO authenticated
 USING (bucket_id = 'salon-images');
 
--- ----------------------------------------------------------------------------
--- 4. CREATE POLICIES FOR STAFF-PHOTOS BUCKET
--- ----------------------------------------------------------------------------
-
--- Allow public read access to staff photos
+-- Policies for staff-photos
 CREATE POLICY "Public Access to Staff Photos"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'staff-photos');
 
--- Allow authenticated users to upload staff photos
 CREATE POLICY "Authenticated users can upload staff photos"
 ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (bucket_id = 'staff-photos');
 
--- Allow authenticated users to update staff photos
 CREATE POLICY "Authenticated users can update staff photos"
 ON storage.objects FOR UPDATE
 TO authenticated
 USING (bucket_id = 'staff-photos')
 WITH CHECK (bucket_id = 'staff-photos');
 
--- Allow authenticated users to delete staff photos
 CREATE POLICY "Authenticated users can delete staff photos"
 ON storage.objects FOR DELETE
 TO authenticated
 USING (bucket_id = 'staff-photos');
 
--- ----------------------------------------------------------------------------
--- 5. CREATE POLICIES FOR SERVICE-IMAGES BUCKET
--- ----------------------------------------------------------------------------
-
--- Allow public read access to service images
+-- Policies for service-images
 CREATE POLICY "Public Access to Service Images"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'service-images');
 
--- Allow authenticated users to upload service images
 CREATE POLICY "Authenticated users can upload service images"
 ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (bucket_id = 'service-images');
 
--- Allow authenticated users to update service images
 CREATE POLICY "Authenticated users can update service images"
 ON storage.objects FOR UPDATE
 TO authenticated
 USING (bucket_id = 'service-images')
 WITH CHECK (bucket_id = 'service-images');
 
--- Allow authenticated users to delete service images
 CREATE POLICY "Authenticated users can delete service images"
 ON storage.objects FOR DELETE
 TO authenticated
 USING (bucket_id = 'service-images');
 
--- ----------------------------------------------------------------------------
--- 6. VERIFICATION QUERIES (optional - can be run separately)
--- ----------------------------------------------------------------------------
-
--- Verify buckets were created
--- SELECT * FROM storage.buckets WHERE id IN ('salon-images', 'staff-photos', 'service-images');
-
--- Verify policies were created
--- SELECT * FROM pg_policies WHERE tablename = 'objects' AND schemaname = 'storage';
-
 -- ============================================================================
--- END OF MIGRATION
+-- Verification (run separately after the above)
 -- ============================================================================
+
+-- Check if buckets were created
+SELECT * FROM storage.buckets
+WHERE id IN ('salon-images', 'staff-photos', 'service-images');
+-- Expected: 3 rows
+
+-- Check if policies were created
+SELECT policyname
+FROM pg_policies
+WHERE tablename = 'objects' AND schemaname = 'storage'
+ORDER BY policyname;
+-- Expected: 12 policies

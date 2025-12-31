@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ImageUpload } from "@/components/ui/image-upload"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 import { Switch } from "@/components/ui/switch"
@@ -398,12 +399,11 @@ export default function ServicesPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="image_url">URL de l'image</Label>
-              <Input
-                id="image_url"
+              <Label>Image du service</Label>
+              <ImageUpload
                 value={formData.image_url}
-                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                placeholder="https://example.com/image.jpg"
+                onChange={(url) => setFormData({ ...formData, image_url: url })}
+                bucketName="service-images"
               />
             </div>
 

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Eye, Edit, Trash2 } from "lucide-react"
 import { getStatusColor, getStatusLabel, type AppointmentStatus } from "@/lib/utils"
 
-interface Appointment {
+export interface AppointmentRow {
   id: string
   clientName: string
   service: string
@@ -13,13 +13,15 @@ interface Appointment {
   time: string
   status: AppointmentStatus
   therapist: string
+  payment_status?: "paid" | "unpaid" | "partial"
+  payment_method?: string
 }
 
 interface AppointmentsTableProps {
-  appointments: Appointment[]
-  onView?: (appointment: Appointment) => void
-  onEdit?: (appointment: Appointment) => void
-  onDelete?: (appointment: Appointment) => void
+  appointments: AppointmentRow[]
+  onView?: (appointment: AppointmentRow) => void
+  onEdit?: (appointment: AppointmentRow) => void
+  onDelete?: (appointment: AppointmentRow) => void
 }
 
 export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: AppointmentsTableProps) {

@@ -80,7 +80,7 @@ export interface Appointment {
   service_id: string
   start_time: string
   end_time: string
-  status: "confirmed" | "pending" | "in_progress" | "completed" | "cancelled" | "no_show"
+  status: "confirmed" | "pending" | "in_progress" | "completed" | "cancelled" | "no_show" | "blocked"
   client_notes: string | null
   internal_notes: string | null
   payment_status: "unpaid" | "partial" | "paid"

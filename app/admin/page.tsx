@@ -2,7 +2,7 @@
 
 import { AdminHeader } from "@/components/admin-header"
 import { StatCard } from "@/components/stat-card"
-import { AppointmentsTable } from "@/components/appointments-table"
+import { AppointmentsTable, type AppointmentRow } from "@/components/appointments-table"
 import { useAppointments } from "@/lib/hooks/use-appointments"
 import { Calendar, Users, TrendingUp, Clock } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -17,17 +17,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
-
-interface Appointment {
-  id: string
-  clientName: string
-  service: string
-  salon: string
-  date: string
-  time: string
-  status: "confirmed" | "cancelled" | "completed" | "no_show" | "blocked" | "in_progress"
-  therapist: string
-}
 
 export default function AdminDashboard() {
   const { t, mounted } = useTranslations()
@@ -46,7 +35,7 @@ export default function AdminDashboard() {
   // State for modals
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
+  const [selectedAppointment, setSelectedAppointment] = useState<AppointmentRow | null>(null)
   const [editFormData, setEditFormData] = useState({
     status: "",
     notes: ""
@@ -136,12 +125,12 @@ export default function AdminDashboard() {
   const upcomingAppointments = appointments?.slice(0, 5) || []
 
   // Handle appointment actions
-  const handleViewAppointment = (appointment: Appointment) => {
+  const handleViewAppointment = (appointment: AppointmentRow) => {
     setSelectedAppointment(appointment)
     setViewDialogOpen(true)
   }
 
-  const handleEditAppointment = (appointment: Appointment) => {
+  const handleEditAppointment = (appointment: AppointmentRow) => {
     setSelectedAppointment(appointment)
     setEditFormData({
       status: appointment.status,
@@ -150,7 +139,7 @@ export default function AdminDashboard() {
     setEditDialogOpen(true)
   }
 
-  const handleDeleteAppointment = async (appointment: Appointment) => {
+  const handleDeleteAppointment = async (appointment: AppointmentRow) => {
     if (!confirm(`Êtes-vous sûr de vouloir supprimer le rendez-vous de ${appointment.clientName} ?`)) {
       return
     }

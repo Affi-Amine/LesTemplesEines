@@ -1,7 +1,7 @@
 "use client"
 
 import { AdminHeader } from "@/components/admin-header"
-import { AppointmentsTable } from "@/components/appointments-table"
+import { AppointmentsTable, type AppointmentRow } from "@/components/appointments-table"
 import { Button } from "@/components/ui/button"
 import { useAppointments } from "@/lib/hooks/use-appointments"
 import { Plus, X } from "lucide-react"
@@ -29,19 +29,6 @@ import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { fromZonedTime, formatInTimeZone } from "date-fns-tz"
 
-interface Appointment {
-  id: string
-  clientName: string
-  service: string
-  salon: string
-  date: string
-  time: string
-  status: "confirmed" | "cancelled" | "completed" | "no_show" | "blocked" | "in_progress"
-  therapist: string
-  payment_status?: "paid" | "unpaid" | "partial"
-  payment_method?: string
-}
-
 import { SalonFilter } from "@/components/salon-filter"
 
 export default function AppointmentsPage() {
@@ -58,7 +45,7 @@ export default function AppointmentsPage() {
   // View, Edit, Delete dialog states
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
+  const [selectedAppointment, setSelectedAppointment] = useState<AppointmentRow | null>(null)
   
   const [form, setForm] = useState({
     salon_id: "",
@@ -174,12 +161,12 @@ export default function AppointmentsPage() {
   }
 
   // Handle appointment actions
-  const handleViewAppointment = (appointment: Appointment) => {
+  const handleViewAppointment = (appointment: AppointmentRow) => {
     setSelectedAppointment(appointment)
     setViewDialogOpen(true)
   }
 
-  const handleEditAppointment = (appointment: Appointment) => {
+  const handleEditAppointment = (appointment: AppointmentRow) => {
     // Find full appointment details
     const fullAppointment: any = appointments?.find((a: any) => a.id === appointment.id)
     if (!fullAppointment) return
@@ -207,7 +194,7 @@ export default function AppointmentsPage() {
     setEditDialogOpen(true)
   }
 
-  const handleDeleteAppointment = async (appointment: Appointment) => {
+  const handleDeleteAppointment = async (appointment: AppointmentRow) => {
     if (!confirm(`Êtes-vous sûr de vouloir supprimer le rendez-vous de ${appointment.clientName} ?`)) {
       return
     }

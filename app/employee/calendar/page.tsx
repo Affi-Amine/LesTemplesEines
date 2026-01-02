@@ -56,22 +56,43 @@ export default function EmployeeCalendarPage() {
     }
   }, [])
 
-  const { data: appointments = [], isLoading } = useQuery({
+  const { data: appointments = [], isLoading, error } = useQuery({
     queryKey: ["staff-appointments", staffId],
     queryFn: async () => {
-      if (!staffId) return []
-      const response = await fetch(`/api/staff/${staffId}/appointments`)
-      if (!response.ok) throw new Error("Échec du chargement des rendez-vous")
-      return response.json()
+      if (!staffId) {
+        console.warn("No staff ID available for calendar")
+        return []
+      }
+      try {
+        const response = await fetch(`/api/staff/${staffId}/appointments`)
+        if (!response.ok) {
+          console.error("Failed to fetch appointments:", response.status, response.statusText)
+          return []
+        }
+        return response.json()
+      } catch (error) {
+        console.error("Error fetching appointments for calendar:", error)
+        return []
+      }
     },
     enabled: !!staffId,
+    retry: 1,
+    staleTime: 30000,
   })
 
   const getAppointmentsForDate = (date: Date) => {
+    if (!date || !Array.isArray(appointments)) return []
+
     const dateStr = format(date, "yyyy-MM-dd")
     return appointments.filter((apt: Appointment) => {
-      const parisDateStr = formatInTimeZone(apt.start_time, "Europe/Paris", "yyyy-MM-dd")
-      return parisDateStr === dateStr
+      if (!apt?.start_time) return false
+      try {
+        const parisDateStr = formatInTimeZone(apt.start_time, "Europe/Paris", "yyyy-MM-dd")
+        return parisDateStr === dateStr
+      } catch (error) {
+        console.error("Error filtering appointment by date:", error)
+        return false
+      }
     })
   }
 
@@ -148,19 +169,27 @@ export default function EmployeeCalendarPage() {
             <CardTitle className="text-lg">Sélectionner une date</CardTitle>
           </CardHeader>
           <CardContent className="p-4">
-            <Calendar 
-              mode="single" 
-              selected={selectedDate} 
-              onSelect={setSelectedDate} 
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={setSelectedDate}
               className="w-full"
               modifiers={{
-                hasAppointments: appointments.map((apt: Appointment) => 
-                  new Date(apt.start_time.split("T")[0])
-                )
+                hasAppointments: appointments
+                  .filter((apt: Appointment) => apt?.start_time) // Safety check
+                  .map((apt: Appointment) => {
+                    try {
+                      const dateStr = apt.start_time.split("T")[0]
+                      return new Date(dateStr)
+                    } catch (error) {
+                      console.error("Error parsing date:", apt.start_time, error)
+                      return new Date() // Fallback to current date
+                    }
+                  })
               }}
               modifiersStyles={{
-                hasAppointments: { 
-                  backgroundColor: "#dbeafe", 
+                hasAppointments: {
+                  backgroundColor: "#dbeafe",
                   color: "#1e40af",
                   fontWeight: "bold"
                 }
@@ -210,28 +239,34 @@ export default function EmployeeCalendarPage() {
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4 flex-shrink-0" />
                               <span className="text-sm sm:text-base">
-                                {appointment.clients.first_name} {appointment.clients.last_name}
+                                {appointment.clients?.first_name || ''} {appointment.clients?.last_name || 'Client'}
                               </span>
                             </div>
-                            <span className="text-xs sm:text-sm ml-6 sm:ml-0">
-                              • {appointment.clients.phone}
-                            </span>
+                            {appointment.clients?.phone && (
+                              <span className="text-xs sm:text-sm ml-6 sm:ml-0">
+                                • {appointment.clients.phone}
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-gray-600">
                             <span className="font-medium text-sm sm:text-base">
-                              {appointment.services.name}
+                              {appointment.services?.name || 'Service'}
                             </span>
                             <div className="flex items-center gap-2 text-xs sm:text-sm">
-                              <span>• {formatDuration(appointment.services.duration_minutes)}</span>
-                              <span>• €{(appointment.services.price_cents / 100).toFixed(2)}</span>
+                              {appointment.services?.duration_minutes && (
+                                <span>• {formatDuration(appointment.services.duration_minutes)}</span>
+                              )}
+                              {appointment.services?.price_cents && (
+                                <span>• €{(appointment.services.price_cents / 100).toFixed(2)}</span>
+                              )}
                             </div>
                           </div>
 
                           <div className="flex items-start gap-2 text-gray-600">
                             <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5" />
                             <span className="text-xs sm:text-sm">
-                              {appointment.salons.name}, {appointment.salons.city}
+                              {appointment.salons?.name || 'Salon'}{appointment.salons?.city && `, ${appointment.salons.city}`}
                             </span>
                           </div>
 

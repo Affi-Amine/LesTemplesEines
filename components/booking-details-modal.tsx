@@ -7,6 +7,8 @@ import { Separator } from "@/components/ui/separator"
 import { Calendar, Clock, User, MapPin, Scissors, Phone, Mail, FileText, Edit, Trash2 } from "lucide-react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 interface BookingDetailsModalProps {
   isOpen: boolean
@@ -44,7 +46,48 @@ interface BookingDetailsModalProps {
 }
 
 export function BookingDetailsModal({ isOpen, onClose, appointment }: BookingDetailsModalProps) {
+  const router = useRouter()
+
   if (!appointment) return null
+
+  const handleEdit = () => {
+    // Close modal and navigate to appointments page
+    onClose()
+    router.push('/admin/appointments')
+    toast.info("Modification de rendez-vous", {
+      description: "Veuillez utiliser la page Rendez-vous pour modifier ce rendez-vous.",
+    })
+  }
+
+  const handleCancel = async () => {
+    if (!confirm("Êtes-vous sûr de vouloir annuler ce rendez-vous ?")) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/appointments/${appointment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled" }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Échec de l'annulation")
+      }
+
+      toast.success("Rendez-vous annulé", {
+        description: "Le rendez-vous a été annulé avec succès.",
+      })
+
+      onClose()
+      // Refresh the page to show updated data
+      window.location.reload()
+    } catch (error) {
+      toast.error("Erreur", {
+        description: "Impossible d'annuler le rendez-vous. Veuillez réessayer.",
+      })
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -234,11 +277,20 @@ export function BookingDetailsModal({ isOpen, onClose, appointment }: BookingDet
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4">
-            <Button variant="outline" className="flex-1">
+            <Button
+              variant="outline"
+              className="flex-1 cursor-pointer"
+              onClick={handleEdit}
+            >
               <Edit className="w-4 h-4 mr-2" />
               Modifier
             </Button>
-            <Button variant="outline" className="flex-1">
+            <Button
+              variant="outline"
+              className="flex-1 cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={handleCancel}
+              disabled={appointment.status === "cancelled"}
+            >
               <Trash2 className="w-4 h-4 mr-2" />
               Annuler
             </Button>

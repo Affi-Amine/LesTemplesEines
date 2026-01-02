@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-reac
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, subDays, startOfDay, endOfDay, eachHourOfInterval } from "date-fns"
 import { fr } from "date-fns/locale"
 import { formatInTimeZone, toZonedTime } from "date-fns-tz"
+import { getStatusColor, getStatusLabel, getStatusDescription } from "@/lib/utils"
 
 import { BookingDetailsModal } from "@/components/booking-details-modal"
 
@@ -51,29 +52,30 @@ function WeekView({ currentDate, appointments, onAppointmentClick }: {
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
   const hours = eachHourOfInterval({ start: startOfDay(new Date()), end: endOfDay(new Date()) })
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "confirmed": return "bg-green-100 text-green-800 border-green-200"
-      case "pending": return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "completed": return "bg-blue-100 text-blue-800 border-blue-200"
-      case "cancelled": return "bg-red-100 text-red-800 border-red-200"
-      case "no_show": return "bg-gray-100 text-gray-800 border-gray-200"
-      default: return "bg-gray-100 text-gray-800 border-gray-200"
-    }
-  }
-
   const getAppointmentsForDayAndHour = (day: Date, hour: Date) => {
     return appointments.filter(appointment => {
       // Convert UTC appointment time to Paris time components
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const dayDateStr = format(day, "yyyy-MM-dd")
-      
+
       const aptHourStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "H")
       const targetHour = hour.getHours()
-      
-      return aptDateStr === dayDateStr && 
+
+      return aptDateStr === dayDateStr &&
              parseInt(aptHourStr, 10) === targetHour
     })
+  }
+
+  const calculateDurationMinutes = (startTime: string, endTime: string) => {
+    const start = new Date(startTime)
+    const end = new Date(endTime)
+    return Math.round((end.getTime() - start.getTime()) / (1000 * 60))
+  }
+
+  const getAppointmentHeight = (durationMinutes: number) => {
+    // Base height is 60px per hour, calculate proportional height
+    // 60px = 60 minutes, so 1px = 1 minute
+    return Math.max(durationMinutes, 30) // Minimum 30px for visibility
   }
 
   return (
@@ -104,21 +106,29 @@ function WeekView({ currentDate, appointments, onAppointmentClick }: {
               {weekDays.map((day) => {
                 const hourAppointments = getAppointmentsForDayAndHour(day, hour)
                 return (
-                  <div key={`${day.toISOString()}-${hour.toISOString()}`} className="min-h-[60px] p-1 border border-border bg-background">
-                    {hourAppointments.map((appointment) => (
-                      <div
-                        key={appointment.id}
-                        className={`text-xs p-2 rounded border cursor-pointer hover:shadow-sm transition-shadow mb-1 ${getStatusColor(appointment.status)}`}
-                        onClick={() => onAppointmentClick(appointment)}
-                      >
-                        <div className="font-medium truncate">
-                          {appointment.client?.first_name || 'Client'} {appointment.client?.last_name || 'Inconnu'}
+                  <div key={`${day.toISOString()}-${hour.toISOString()}`} className="min-h-[60px] p-1 border border-border bg-background relative">
+                    {hourAppointments.map((appointment) => {
+                      const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
+                      const heightPx = getAppointmentHeight(durationMinutes)
+                      return (
+                        <div
+                          key={appointment.id}
+                          className={`text-xs p-2 rounded border cursor-pointer hover:shadow-sm transition-shadow mb-1 ${getStatusColor(appointment.status)}`}
+                          style={{ minHeight: `${heightPx}px` }}
+                          onClick={() => onAppointmentClick(appointment)}
+                        >
+                          <div className="font-medium truncate">
+                            {appointment.client?.first_name || 'Client'} {appointment.client?.last_name || 'Inconnu'}
+                          </div>
+                          <div className="truncate text-[10px] text-muted-foreground">
+                            {appointment.service?.name || 'Service Inconnu'}
+                          </div>
+                          <div className="truncate text-[10px] font-medium mt-1">
+                            {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")} ({durationMinutes}min)
+                          </div>
                         </div>
-                        <div className="truncate text-muted-foreground">
-                          {appointment.service?.name || 'Service Inconnu'}
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )
               })}
@@ -138,29 +148,30 @@ function DayView({ currentDate, appointments, onAppointmentClick }: {
 }) {
   const hours = eachHourOfInterval({ start: startOfDay(new Date()), end: endOfDay(new Date()) })
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "confirmed": return "bg-green-100 text-green-800 border-green-200"
-      case "pending": return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "completed": return "bg-blue-100 text-blue-800 border-blue-200"
-      case "cancelled": return "bg-red-100 text-red-800 border-red-200"
-      case "no_show": return "bg-gray-100 text-gray-800 border-gray-200"
-      default: return "bg-gray-100 text-gray-800 border-gray-200"
-    }
-  }
-
   const getAppointmentsForHour = (hour: Date) => {
     return appointments.filter(appointment => {
       // Convert UTC appointment time to Paris time components
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const currentDateStr = format(currentDate, "yyyy-MM-dd")
-      
+
       const aptHourStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "H")
       const targetHour = hour.getHours()
-      
-      return aptDateStr === currentDateStr && 
+
+      return aptDateStr === currentDateStr &&
              parseInt(aptHourStr, 10) === targetHour
     })
+  }
+
+  const calculateDurationMinutes = (startTime: string, endTime: string) => {
+    const start = new Date(startTime)
+    const end = new Date(endTime)
+    return Math.round((end.getTime() - start.getTime()) / (1000 * 60))
+  }
+
+  const getAppointmentHeight = (durationMinutes: number) => {
+    // Base height is 60px per hour, calculate proportional height
+    // 60px = 60 minutes, so 1px = 1 minute
+    return Math.max(durationMinutes, 30) // Minimum 30px for visibility
   }
 
   return (
@@ -178,28 +189,33 @@ function DayView({ currentDate, appointments, onAppointmentClick }: {
                   <div className="text-sm text-muted-foreground italic">Aucun rendez-vous</div>
                 ) : (
                   <div className="space-y-2">
-                    {hourAppointments.map((appointment) => (
-                      <div
-                        key={appointment.id}
-                        className={`p-3 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getStatusColor(appointment.status)}`}
-                        onClick={() => onAppointmentClick(appointment)}
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="font-medium">
-                            {appointment.client?.first_name || 'Client'} {appointment.client?.last_name || 'Inconnu'}
+                    {hourAppointments.map((appointment) => {
+                      const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
+                      const heightPx = getAppointmentHeight(durationMinutes)
+                      return (
+                        <div
+                          key={appointment.id}
+                          className={`p-3 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getStatusColor(appointment.status)}`}
+                          style={{ minHeight: `${heightPx}px` }}
+                          onClick={() => onAppointmentClick(appointment)}
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="font-medium">
+                              {appointment.client?.first_name || 'Client'} {appointment.client?.last_name || 'Inconnu'}
+                            </div>
+                            <div className="text-sm text-muted-foreground font-medium">
+                              {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")} ({durationMinutes}min)
+                            </div>
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")}
+                            {appointment.service.name}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Thérapeute: {appointment.staff.first_name} {appointment.staff.last_name}
                           </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {appointment.service.name}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Thérapeute: {appointment.staff.first_name} {appointment.staff.last_name}
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -309,31 +325,9 @@ export default function CalendrierPage() {
   })
 
   const getAppointmentsForDay = (day: Date) => {
-    return appointments.filter(appointment => 
+    return appointments.filter(appointment =>
       isSameDay(new Date(appointment.start_time), day)
     )
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "confirmed": return "bg-green-100 text-green-800 border-green-200"
-      case "pending": return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "completed": return "bg-blue-100 text-blue-800 border-blue-200"
-      case "cancelled": return "bg-red-100 text-red-800 border-red-200"
-      case "no_show": return "bg-gray-100 text-gray-800 border-gray-200"
-      default: return "bg-gray-100 text-gray-800 border-gray-200"
-    }
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "confirmed": return "Confirmé"
-      case "pending": return "En attente"
-      case "completed": return "Terminé"
-      case "cancelled": return "Annulé"
-      case "no_show": return "Absent"
-      default: return status
-    }
   }
 
   return (
@@ -386,6 +380,30 @@ export default function CalendrierPage() {
             </Button>
           </div>
         </CardHeader>
+      </Card>
+
+      {/* Legend - Comprehensive status legend */}
+      <Card className="border-l-4 border-l-primary">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <CalendarIcon className="w-5 h-5" />
+            Légende des statuts
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {["confirmed", "pending", "in_progress", "completed", "cancelled", "no_show", "blocked"].map((status) => (
+              <div key={status} className="flex items-center gap-2">
+                <Badge variant="outline" className={getStatusColor(status)}>
+                  {getStatusLabel(status)}
+                </Badge>
+                <span className="text-xs text-muted-foreground hidden lg:inline">
+                  {getStatusDescription(status)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
       </Card>
 
       {/* Calendar Navigation */}
@@ -543,21 +561,6 @@ Statut: ${getStatusLabel(appointment.status)}`}
         </Card>
       </div>
 
-      {/* Legend */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Légende des statuts</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {["confirmed", "pending", "completed", "cancelled", "no_show"].map((status) => (
-              <Badge key={status} variant="outline" className={getStatusColor(status)}>
-                {getStatusLabel(status)}
-              </Badge>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Booking Details Modal */}
       <BookingDetailsModal

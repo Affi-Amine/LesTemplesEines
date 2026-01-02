@@ -181,48 +181,96 @@ export function ClientRetentionChart({ data }: { data?: { total_clients: number 
   if (!data) {
     return (
       <Card className="p-6">
-        <h3 className="font-semibold text-lg mb-4">Client Retention</h3>
+        <h3 className="font-semibold text-lg mb-4">Aperçu Clients</h3>
         <div className="flex items-center justify-center h-[300px] bg-muted/20 rounded-lg">
           <div className="text-center">
             <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Loading client data...</p>
+            <p className="text-muted-foreground">Chargement des données clients...</p>
           </div>
         </div>
       </Card>
     )
   }
 
-  // For now, create a simple visualization showing client metrics
-  // In the future, this could be enhanced with time-series data
+  // Simplified single-metric visualization for clarity
   const chartData = [
     {
-      name: 'Total Clients',
+      name: 'Clients uniques',
       value: data.total_clients,
       fill: 'hsl(160, 60%, 50%)'
-    },
-    {
-      name: 'Active Period',
-      value: data.total_clients,
-      fill: 'hsl(200, 60%, 60%)'
     }
   ]
 
   return (
-    <Card className="p-6">
-      <h3 className="font-semibold text-lg mb-4">Client Retention</h3>
-      <div className="h-[300px]">
+    <Card className="p-6 border-l-4 border-l-primary">
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-lg">Aperçu Clients</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Nombre de clients uniques sur la période sélectionnée
+          </p>
+        </div>
+        <div className="bg-primary/10 px-3 py-1 rounded-full">
+          <span className="text-sm font-semibold text-primary">
+            {data.total_clients} client{data.total_clients > 1 ? 's' : ''}
+          </span>
+        </div>
+      </div>
+
+      <div className="h-[250px]">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip formatter={(value: number) => [value, 'Clients']} />
-            <Bar dataKey="value" fill="hsl(160, 60%, 50%)" />
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 12 }}
+              angle={0}
+            />
+            <YAxis
+              tick={{ fontSize: 12 }}
+              label={{ value: 'Nombre de clients', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
+            />
+            <Tooltip
+              formatter={(value: number) => [value, 'Clients uniques']}
+              contentStyle={{
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                border: '1px solid #ccc',
+                borderRadius: '8px',
+                padding: '10px'
+              }}
+              labelStyle={{ fontWeight: 'bold', marginBottom: '5px' }}
+            />
+            <Bar
+              dataKey="value"
+              fill="hsl(160, 60%, 50%)"
+              radius={[8, 8, 0, 0]}
+              maxBarSize={120}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-4 text-sm text-muted-foreground">
-        <p>Showing unique clients for the selected period. Enhanced retention metrics coming soon.</p>
+
+      <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <div className="flex items-start gap-2">
+          <div className="bg-blue-500 rounded-full p-1 mt-0.5">
+            <TrendingUp className="h-3 w-3 text-white" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-blue-900 mb-1">
+              💡 Comment est calculé ce nombre ?
+            </p>
+            <p className="text-xs text-blue-800 leading-relaxed">
+              Ce graphique affiche le <strong>nombre de clients distincts</strong> ayant eu au moins un rendez-vous sur la période sélectionnée.
+              Un même client n'est compté qu'une seule fois, même s'il a eu plusieurs rendez-vous.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+        <p className="text-xs text-amber-800">
+          <strong>🚀 Bientôt disponible :</strong> Analyse détaillée de fidélisation (taux de rétention, fréquence de visite, évolution dans le temps)
+        </p>
       </div>
     </Card>
   )

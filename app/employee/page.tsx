@@ -24,10 +24,23 @@ export default function EmployeeDashboard() {
   }, [])
 
   // Fetch appointments for this staff member
-  const { data: appointments, isLoading } = useQuery({
+  const { data: appointments, isLoading, error } = useQuery({
     queryKey: ["staff-appointments", userInfo?.id],
-    queryFn: () => userInfo?.id ? fetchAPI<any[]>(`/staff/${userInfo.id}/appointments`) : Promise.resolve([]),
+    queryFn: async () => {
+      if (!userInfo?.id) {
+        console.warn("No user ID available for fetching appointments")
+        return []
+      }
+      try {
+        return await fetchAPI<any[]>(`/staff/${userInfo.id}/appointments`)
+      } catch (error) {
+        console.error("Error fetching staff appointments:", error)
+        return []
+      }
+    },
     enabled: !!userInfo?.id,
+    retry: 1,
+    staleTime: 30000, // 30 seconds
   })
 
   // Calculate today's statistics
@@ -59,8 +72,8 @@ export default function EmployeeDashboard() {
     ).length
 
     const revenueToday = todayAppointments
-      .filter((apt: any) => apt.status === 'completed')
-      .reduce((sum: number, apt: any) => sum + (apt.services?.price_cents || 0), 0)
+      .filter((apt: any) => apt?.status === 'completed')
+      .reduce((sum: number, apt: any) => sum + (apt?.services?.price_cents || apt?.service?.price_cents || 0), 0)
 
     return {
       todayAppointments,
@@ -152,33 +165,41 @@ export default function EmployeeDashboard() {
           
           {todayStats.upcomingAppointments.length > 0 ? (
             <div className="space-y-3">
-              {todayStats.upcomingAppointments.map((appointment: any) => (
-                <div
-                  key={appointment.id}
-                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium">
-                        {formatTime(appointment.start_time)} - {formatTime(appointment.end_time)}
-                      </span>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        appointment.status === 'confirmed' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {appointment.status === 'confirmed' ? 'Confirmé' : 'En attente'}
-                      </span>
+              {todayStats.upcomingAppointments.map((appointment: any) => {
+                // Safety checks for appointment data
+                if (!appointment?.id) return null
+
+                const clientName = `${appointment.clients?.first_name || appointment.client?.first_name || ''} ${appointment.clients?.last_name || appointment.client?.last_name || 'Client'}`.trim()
+                const serviceName = appointment.services?.name || appointment.service?.name || 'Service'
+
+                return (
+                  <div
+                    key={appointment.id}
+                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium">
+                          {formatTime(appointment.start_time)} - {formatTime(appointment.end_time)}
+                        </span>
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          appointment.status === 'confirmed'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {appointment.status === 'confirmed' ? 'Confirmé' : 'En attente'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {clientName}
+                      </p>
+                      <p className="text-sm font-medium">
+                        {serviceName}
+                      </p>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {appointment.clients?.first_name} {appointment.clients?.last_name}
-                    </p>
-                    <p className="text-sm font-medium">
-                      {appointment.services?.name}
-                    </p>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
@@ -54,15 +54,22 @@ function WeekView({ currentDate, appointments, onAppointmentClick }: {
 
   const getAppointmentsForDayAndHour = (day: Date, hour: Date) => {
     return appointments.filter(appointment => {
-      // Convert UTC appointment time to Paris time components
+      const aptStart = new Date(appointment.start_time)
+      const aptEnd = new Date(appointment.end_time)
+
+      // Get Paris time components
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const dayDateStr = format(day, "yyyy-MM-dd")
 
-      const aptHourStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "H")
+      // Check if appointment starts or overlaps this hour on this day
+      if (aptDateStr !== dayDateStr) return false
+
+      const aptHour = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"), 10)
+      const aptEndHour = parseInt(formatInTimeZone(appointment.end_time, "Europe/Paris", "H"), 10)
       const targetHour = hour.getHours()
 
-      return aptDateStr === dayDateStr &&
-             parseInt(aptHourStr, 10) === targetHour
+      // Include if appointment starts in this hour OR spans into this hour
+      return (aptHour === targetHour) || (aptHour < targetHour && aptEndHour > targetHour)
     })
   }
 
@@ -72,10 +79,21 @@ function WeekView({ currentDate, appointments, onAppointmentClick }: {
     return Math.round((end.getTime() - start.getTime()) / (1000 * 60))
   }
 
-  const getAppointmentHeight = (durationMinutes: number) => {
-    // Base height is 60px per hour, calculate proportional height
-    // 60px = 60 minutes, so 1px = 1 minute
-    return Math.max(durationMinutes, 30) // Minimum 30px for visibility
+  const getAppointmentPosition = (appointment: any, hourStart: number) => {
+    // Get minute offset from the hour
+    const startMinute = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "m"), 10)
+    const startHour = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"), 10)
+
+    // If appointment started in previous hour, offset is 0
+    const topOffset = startHour === hourStart ? startMinute : 0
+
+    // Calculate duration for this hour slot
+    const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
+
+    return {
+      top: topOffset, // pixels from top of hour cell (1px = 1 minute)
+      height: Math.max(durationMinutes, 15), // Minimum 15px for visibility
+    }
   }
 
   return (
@@ -105,27 +123,39 @@ function WeekView({ currentDate, appointments, onAppointmentClick }: {
               </div>
               {weekDays.map((day) => {
                 const hourAppointments = getAppointmentsForDayAndHour(day, hour)
+                const hourStart = hour.getHours()
                 return (
-                  <div key={`${day.toISOString()}-${hour.toISOString()}`} className="min-h-[60px] p-1 border border-border bg-background relative">
+                  <div key={`${day.toISOString()}-${hour.toISOString()}`} className="h-[60px] border border-border bg-background relative overflow-visible">
+                    {/* 15-minute grid lines */}
+                    <div className="absolute top-[15px] left-0 right-0 h-px bg-border/30"></div>
+                    <div className="absolute top-[30px] left-0 right-0 h-px bg-border/30"></div>
+                    <div className="absolute top-[45px] left-0 right-0 h-px bg-border/30"></div>
+
+                    {/* Appointments */}
                     {hourAppointments.map((appointment) => {
+                      const position = getAppointmentPosition(appointment, hourStart)
                       const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
-                      const heightPx = getAppointmentHeight(durationMinutes)
                       return (
                         <div
                           key={appointment.id}
-                          className={`text-xs p-2 rounded border cursor-pointer hover:shadow-sm transition-shadow mb-1 ${getStatusColor(appointment.status)}`}
-                          style={{ minHeight: `${heightPx}px` }}
+                          className={`absolute left-1 right-1 text-xs p-1 rounded border cursor-pointer hover:shadow-md transition-shadow z-10 ${getStatusColor(appointment.status)}`}
+                          style={{
+                            top: `${position.top}px`,
+                            height: `${position.height}px`,
+                          }}
                           onClick={() => onAppointmentClick(appointment)}
                         >
-                          <div className="font-medium truncate">
-                            {appointment.client?.first_name || 'Client'} {appointment.client?.last_name || 'Inconnu'}
+                          <div className="font-medium truncate text-[10px]">
+                            {appointment.client?.first_name || 'Client'} {appointment.client?.last_name?.[0] || 'I'}.
                           </div>
-                          <div className="truncate text-[10px] text-muted-foreground">
-                            {appointment.service?.name || 'Service Inconnu'}
+                          <div className="truncate text-[9px]">
+                            {appointment.service?.name || 'Service'}
                           </div>
-                          <div className="truncate text-[10px] font-medium mt-1">
-                            {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")} ({durationMinutes}min)
-                          </div>
+                          {position.height >= 30 && (
+                            <div className="truncate text-[9px] font-medium">
+                              {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} ({durationMinutes}min)
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -150,15 +180,17 @@ function DayView({ currentDate, appointments, onAppointmentClick }: {
 
   const getAppointmentsForHour = (hour: Date) => {
     return appointments.filter(appointment => {
-      // Convert UTC appointment time to Paris time components
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const currentDateStr = format(currentDate, "yyyy-MM-dd")
 
-      const aptHourStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "H")
+      if (aptDateStr !== currentDateStr) return false
+
+      const aptHour = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"), 10)
+      const aptEndHour = parseInt(formatInTimeZone(appointment.end_time, "Europe/Paris", "H"), 10)
       const targetHour = hour.getHours()
 
-      return aptDateStr === currentDateStr &&
-             parseInt(aptHourStr, 10) === targetHour
+      // Include if appointment starts in this hour OR spans into this hour
+      return (aptHour === targetHour) || (aptHour < targetHour && aptEndHour > targetHour)
     })
   }
 
@@ -168,10 +200,17 @@ function DayView({ currentDate, appointments, onAppointmentClick }: {
     return Math.round((end.getTime() - start.getTime()) / (1000 * 60))
   }
 
-  const getAppointmentHeight = (durationMinutes: number) => {
-    // Base height is 60px per hour, calculate proportional height
-    // 60px = 60 minutes, so 1px = 1 minute
-    return Math.max(durationMinutes, 30) // Minimum 30px for visibility
+  const getAppointmentPosition = (appointment: any, hourStart: number) => {
+    const startMinute = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "m"), 10)
+    const startHour = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"), 10)
+
+    const topOffset = startHour === hourStart ? startMinute : 0
+    const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
+
+    return {
+      top: topOffset,
+      height: Math.max(durationMinutes, 15),
+    }
   }
 
   return (
@@ -179,45 +218,55 @@ function DayView({ currentDate, appointments, onAppointmentClick }: {
       <div className="space-y-1">
         {hours.filter(hour => hour.getHours() >= 8 && hour.getHours() <= 20).map((hour) => {
           const hourAppointments = getAppointmentsForHour(hour)
+          const hourStart = hour.getHours()
           return (
             <div key={hour.toISOString()} className="flex gap-4">
               <div className="w-20 p-2 text-sm text-muted-foreground text-right">
                 {format(hour, "HH:mm")}
               </div>
-              <div className="flex-1 min-h-[80px] p-2 border border-border bg-background rounded">
-                {hourAppointments.length === 0 ? (
-                  <div className="text-sm text-muted-foreground italic">Aucun rendez-vous</div>
-                ) : (
-                  <div className="space-y-2">
-                    {hourAppointments.map((appointment) => {
-                      const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
-                      const heightPx = getAppointmentHeight(durationMinutes)
-                      return (
-                        <div
-                          key={appointment.id}
-                          className={`p-3 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getStatusColor(appointment.status)}`}
-                          style={{ minHeight: `${heightPx}px` }}
-                          onClick={() => onAppointmentClick(appointment)}
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="font-medium">
-                              {appointment.client?.first_name || 'Client'} {appointment.client?.last_name || 'Inconnu'}
-                            </div>
-                            <div className="text-sm text-muted-foreground font-medium">
-                              {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")} ({durationMinutes}min)
-                            </div>
-                          </div>
-                          <div className="text-sm text-muted-foreground">
+              <div className="flex-1 h-[60px] border border-border bg-background rounded relative overflow-visible">
+                {/* 15-minute grid lines */}
+                <div className="absolute top-[15px] left-0 right-0 h-px bg-border/30"></div>
+                <div className="absolute top-[30px] left-0 right-0 h-px bg-border/30"></div>
+                <div className="absolute top-[45px] left-0 right-0 h-px bg-border/30"></div>
+
+                {/* Appointments */}
+                {hourAppointments.map((appointment) => {
+                  const position = getAppointmentPosition(appointment, hourStart)
+                  const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
+                  return (
+                    <div
+                      key={appointment.id}
+                      className={`absolute left-2 right-2 p-2 rounded border cursor-pointer hover:shadow-md transition-shadow z-10 ${getStatusColor(appointment.status)}`}
+                      style={{
+                        top: `${position.top}px`,
+                        height: `${position.height}px`,
+                      }}
+                      onClick={() => onAppointmentClick(appointment)}
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="font-medium text-sm truncate">
+                          {appointment.client?.first_name || 'Client'} {appointment.client?.last_name || 'Inconnu'}
+                        </div>
+                        <div className="text-xs text-muted-foreground font-medium whitespace-nowrap">
+                          {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")}
+                        </div>
+                      </div>
+                      {position.height >= 40 && (
+                        <>
+                          <div className="text-xs text-muted-foreground truncate mt-1">
                             {appointment.service.name}
                           </div>
-                          <div className="text-sm text-muted-foreground">
-                            Thérapeute: {appointment.staff.first_name} {appointment.staff.last_name}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+                          {position.height >= 55 && (
+                            <div className="text-xs text-muted-foreground truncate">
+                              {appointment.staff.first_name} {appointment.staff.last_name}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )
@@ -286,32 +335,34 @@ export default function CalendrierPage() {
     setIsModalOpen(true)
   }
 
+  // Fetch appointments function (extracted for reuse)
+  const fetchAppointments = useCallback(async () => {
+    setLoading(true)
+    try {
+      const startDate = format(startOfMonth(currentDate), "yyyy-MM-dd")
+      const endDate = format(endOfMonth(currentDate), "yyyy-MM-dd")
+
+      let url = `/api/appointments?start_date=${startDate}&end_date=${endDate}`
+      if (selectedSalon !== "all") {
+        url += `&salon_id=${selectedSalon}`
+      }
+
+      const response = await fetch(url)
+      if (response.ok) {
+        const data = await response.json()
+        setAppointments(data)
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des rendez-vous:", error)
+    } finally {
+      setLoading(false)
+    }
+  }, [currentDate, selectedSalon])
+
   // Fetch appointments
   useEffect(() => {
-    const fetchAppointments = async () => {
-      setLoading(true)
-      try {
-        const startDate = format(startOfMonth(currentDate), "yyyy-MM-dd")
-        const endDate = format(endOfMonth(currentDate), "yyyy-MM-dd")
-        
-        let url = `/api/appointments?start_date=${startDate}&end_date=${endDate}`
-        if (selectedSalon !== "all") {
-          url += `&salon_id=${selectedSalon}`
-        }
-
-        const response = await fetch(url)
-        if (response.ok) {
-          const data = await response.json()
-          setAppointments(data)
-        }
-      } catch (error) {
-        console.error("Erreur lors du chargement des rendez-vous:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
     fetchAppointments()
-  }, [currentDate, selectedSalon])
+  }, [fetchAppointments])
 
   // Generate calendar grid including previous/next month days for complete weeks
   const monthStart = startOfMonth(currentDate)
@@ -567,6 +618,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
         appointment={selectedAppointment}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        onRefetch={fetchAppointments}
       />
     </div>
   )

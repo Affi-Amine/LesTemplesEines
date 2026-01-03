@@ -53,6 +53,7 @@ export default function SalonDashboardPage() {
   }
   const [selectedSlot, setSelectedSlot] = useState<any>(null)
   const [isValidationOpen, setIsValidationOpen] = useState(false)
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isBlockingOpen, setIsBlockingOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   
@@ -73,9 +74,16 @@ export default function SalonDashboardPage() {
 
   const handleValidate = async (appointment: any) => {
     setSelectedSlot(appointment)
-    const price = appointment.service?.price_cents ? appointment.service.price_cents / 100 : 0
-    setPaymentLines([{ method: "card", amount: price }])
-    setIsValidationOpen(true)
+
+    // If appointment is already completed/paid, show details instead of payment panel
+    if (appointment.status === 'completed' || appointment.payment_status === 'paid') {
+      setIsDetailsOpen(true)
+    } else {
+      // Show payment panel for pending/confirmed appointments
+      const price = appointment.service?.price_cents ? appointment.service.price_cents / 100 : 0
+      setPaymentLines([{ method: "card", amount: price }])
+      setIsValidationOpen(true)
+    }
   }
 
   const handleConfirmValidation = async () => {
@@ -402,46 +410,68 @@ export default function SalonDashboardPage() {
                       {Array.from({ length: 11 }).map((_, i) => {
                         const hour = i + 9 // 9:00 to 19:00
                         return (
-                          <div key={hour} className="flex h-24 border-t relative">
+                          <div key={hour} className="flex h-[60px] border-t relative">
                             <div className="w-20 shrink-0 text-sm text-muted-foreground -mt-3 bg-background pr-2 text-right">
                               {hour}:00
                             </div>
                             {staff?.map(s => {
                               // Find appointments for this staff in this hour
                               const staffApts = appointments?.filter((apt: any) => {
-                                // Convert UTC appointment time to Paris time components using formatInTimeZone
-                                const aptHourStr = formatInTimeZone(apt.start_time, "Europe/Paris", "H")
-                                const aptHour = parseInt(aptHourStr, 10)
-                                
-                                // Check if appointment overlaps with this hour slot
-                                // Basic overlap check: (StartA <= EndB) and (EndA >= StartB)
-                                // But here we want to place it in the slot if it starts in this hour or spans it
-                                // For simplicity visualization:
-                                return (apt.staff_id === s.id || apt.assignments?.some((a:any) => a.staff?.id === s.id)) && 
-                                       aptHour === hour
+                                const aptHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
+                                const aptEndHour = parseInt(formatInTimeZone(apt.end_time, "Europe/Paris", "H"), 10)
+
+                                // Include if appointment starts in this hour OR spans into this hour
+                                return (apt.staff_id === s.id || apt.assignments?.some((a:any) => a.staff?.id === s.id)) &&
+                                       ((aptHour === hour) || (aptHour < hour && aptEndHour > hour))
                               })
 
                               return (
-                                <div key={s.id} className="flex-1 border-l relative p-1">
-                                  {staffApts?.map((apt: any) => (
-                                    <div 
-                                      key={apt.id} 
-                                      className={`text-xs p-2 rounded mb-1 cursor-pointer ${
-                                        apt.status === 'blocked' ? 'bg-red-100 text-red-800' :
-                                        apt.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                                        'bg-gray-100'
-                                      }`}
-                                      onClick={() => apt.status !== 'blocked' && handleValidate(apt)}
-                                    >
-                                      {apt.status === 'blocked' ? 'BLOQUÉ' : (
-                                        <>
-                                          <div className="font-semibold">{formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")}</div>
-                                          <div className="truncate">{apt.client?.first_name} {apt.client?.last_name}</div>
-                                          <div className="truncate text-[10px]">{apt.service?.name}</div>
-                                        </>
-                                      )}
-                                    </div>
-                                  ))}
+                                <div key={s.id} className="flex-1 border-l relative overflow-visible">
+                                  {/* 15-minute grid lines */}
+                                  <div className="absolute top-[15px] left-0 right-0 h-px bg-border/30"></div>
+                                  <div className="absolute top-[30px] left-0 right-0 h-px bg-border/30"></div>
+                                  <div className="absolute top-[45px] left-0 right-0 h-px bg-border/30"></div>
+
+                                  {/* Appointments */}
+                                  {staffApts?.map((apt: any) => {
+                                    // Calculate position and height
+                                    const startMinute = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "m"), 10)
+                                    const startHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
+                                    const topOffset = startHour === hour ? startMinute : 0
+
+                                    const start = new Date(apt.start_time)
+                                    const end = new Date(apt.end_time)
+                                    const durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60))
+                                    const heightPx = Math.max(durationMinutes, 15)
+
+                                    return (
+                                      <div
+                                        key={apt.id}
+                                        className={`absolute left-1 right-1 text-xs p-1 rounded cursor-pointer hover:shadow-md transition-shadow z-10 ${
+                                          apt.status === 'blocked' ? 'bg-red-100 text-red-800 border border-red-300' :
+                                          apt.status === 'confirmed' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
+                                          'bg-gray-100 border border-gray-300'
+                                        }`}
+                                        style={{
+                                          top: `${topOffset}px`,
+                                          height: `${heightPx}px`,
+                                        }}
+                                        onClick={() => apt.status !== 'blocked' && handleValidate(apt)}
+                                      >
+                                        {apt.status === 'blocked' ? (
+                                          <div className="font-semibold text-[10px]">BLOQUÉ</div>
+                                        ) : (
+                                          <>
+                                            <div className="font-semibold text-[10px]">{formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")}</div>
+                                            <div className="truncate text-[9px]">{apt.client?.first_name} {apt.client?.last_name?.[0]}.</div>
+                                            {heightPx >= 30 && (
+                                              <div className="truncate text-[8px]">{apt.service?.name}</div>
+                                            )}
+                                          </>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
                                 </div>
                               )
                             })}
@@ -558,6 +588,157 @@ export default function SalonDashboardPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsValidationOpen(false)}>Annuler</Button>
             <Button onClick={handleConfirmValidation}>Confirmer et Payer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Booking Details Dialog */}
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Détails du rendez-vous</DialogTitle>
+            <DialogDescription>
+              Informations complètes sur ce rendez-vous
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedSlot && (
+            <div className="space-y-4 py-4">
+              {/* Status Badge */}
+              <div className="flex items-center justify-between">
+                <Badge variant={selectedSlot.status === "completed" ? "default" : "secondary"} className="text-sm px-3 py-1">
+                  {selectedSlot.status === "completed" ? "✓ Terminé" :
+                   selectedSlot.status === "confirmed" ? "Confirmé" :
+                   selectedSlot.status === "pending" ? "En attente" :
+                   selectedSlot.status}
+                </Badge>
+                {selectedSlot.payment_status && (
+                  <Badge variant={selectedSlot.payment_status === "paid" ? "default" : "outline"} className="text-sm px-3 py-1">
+                    {selectedSlot.payment_status === "paid" ? "💳 Payé" : "En attente de paiement"}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Client Information */}
+              <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Client
+                </h4>
+                <div className="space-y-1 text-sm">
+                  <p className="font-medium">{selectedSlot.client?.first_name} {selectedSlot.client?.last_name}</p>
+                  {selectedSlot.client?.phone && <p className="text-muted-foreground">📞 {selectedSlot.client.phone}</p>}
+                  {selectedSlot.client?.email && <p className="text-muted-foreground">✉️ {selectedSlot.client.email}</p>}
+                </div>
+              </div>
+
+              {/* Service & Timing */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                  <h4 className="font-semibold flex items-center gap-2">
+                    <CalendarIcon className="w-4 h-4" />
+                    Service
+                  </h4>
+                  <div className="text-sm space-y-1">
+                    <p className="font-medium">{selectedSlot.service?.name}</p>
+                    <p className="text-muted-foreground">
+                      ⏱️ {selectedSlot.service?.duration_minutes} minutes
+                    </p>
+                    <p className="text-muted-foreground">
+                      💶 {(selectedSlot.service?.price_cents / 100)?.toFixed(2)}€
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                  <h4 className="font-semibold flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Horaires
+                  </h4>
+                  <div className="text-sm space-y-1">
+                    <p>{formatInTimeZone(selectedSlot.start_time, "Europe/Paris", "dd/MM/yyyy")}</p>
+                    <p className="font-medium">
+                      {formatInTimeZone(selectedSlot.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(selectedSlot.end_time, "Europe/Paris", "HH:mm")}
+                    </p>
+                    <p className="text-muted-foreground">
+                      Durée: {Math.round((new Date(selectedSlot.end_time).getTime() - new Date(selectedSlot.start_time).getTime()) / (1000 * 60))} min
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Staff/Employees */}
+              <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                <h4 className="font-semibold">Prestataire(s)</h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedSlot.staff && (
+                    <Badge variant="outline" className="px-3 py-1">
+                      {selectedSlot.staff.first_name} {selectedSlot.staff.last_name}
+                    </Badge>
+                  )}
+                  {selectedSlot.assignments
+                    ?.filter((assignment: any) => assignment.staff?.id !== selectedSlot.staff?.id)
+                    .map((assignment: any) => (
+                      <Badge key={assignment.staff?.id} variant="outline" className="px-3 py-1">
+                        {assignment.staff?.first_name} {assignment.staff?.last_name}
+                      </Badge>
+                    ))}
+                </div>
+              </div>
+
+              {/* Payment Information (if paid) */}
+              {selectedSlot.payment_status === 'paid' && (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-2">
+                  <h4 className="font-semibold text-green-800">Paiement</h4>
+                  <div className="text-sm space-y-1">
+                    <p className="flex justify-between">
+                      <span>Montant:</span>
+                      <span className="font-medium">{(selectedSlot.amount_paid_cents / 100)?.toFixed(2)}€</span>
+                    </p>
+                    {selectedSlot.payment_method && (
+                      <p className="flex justify-between">
+                        <span>Mode:</span>
+                        <span className="font-medium">
+                          {selectedSlot.payment_method === 'card' ? 'Carte Bancaire' :
+                           selectedSlot.payment_method === 'cash' ? 'Espèces' :
+                           selectedSlot.payment_method === 'check' ? 'Chèque' :
+                           selectedSlot.payment_method === 'treatwell' ? 'Treatwell' :
+                           selectedSlot.payment_method === 'gift_card' ? 'Carte Cadeau' :
+                           selectedSlot.payment_method === 'loyalty' ? 'Points Fidélité' :
+                           selectedSlot.payment_method === 'mixed' ? 'Paiement Mixte' :
+                           selectedSlot.payment_method}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {(selectedSlot.notes || selectedSlot.client_notes) && (
+                <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                  <h4 className="font-semibold">Notes</h4>
+                  <div className="text-sm space-y-2">
+                    {selectedSlot.client_notes && (
+                      <div>
+                        <p className="font-medium text-muted-foreground">Client:</p>
+                        <p>{selectedSlot.client_notes}</p>
+                      </div>
+                    )}
+                    {selectedSlot.notes && (
+                      <div>
+                        <p className="font-medium text-muted-foreground">Interne:</p>
+                        <p>{selectedSlot.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>Fermer</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -221,17 +221,21 @@ export function AppointmentDetailsModal({
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-gray-500" />
                 <span className="font-medium">
-                  {appointment.clients.first_name} {appointment.clients.last_name}
+                  {appointment.clients?.first_name || ''} {appointment.clients?.last_name || 'Client'}
                 </span>
               </div>
-              <div className="flex items-center gap-2 break-words">
-                <Phone className="h-4 w-4 text-gray-500" />
-                <span>{appointment.clients.phone}</span>
-              </div>
-              <div className="flex items-center gap-2 break-words">
-                <Mail className="h-4 w-4 text-gray-500" />
-                <span>{appointment.clients.email}</span>
-              </div>
+              {appointment.clients?.phone && (
+                <div className="flex items-center gap-2 break-words">
+                  <Phone className="h-4 w-4 text-gray-500" />
+                  <span>{appointment.clients.phone}</span>
+                </div>
+              )}
+              {appointment.clients?.email && (
+                <div className="flex items-center gap-2 break-words">
+                  <Mail className="h-4 w-4 text-gray-500" />
+                  <span>{appointment.clients.email}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -246,16 +250,20 @@ export function AppointmentDetailsModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-gray-600">Service :</span>
-                <p className="font-medium">{appointment.services.name}</p>
+                <p className="font-medium">{appointment.services?.name || 'Service'}</p>
               </div>
-              <div>
-                <span className="text-gray-600">Durée :</span>
-                <p className="font-medium">{formatDuration(appointment.services.duration_minutes)}</p>
-              </div>
-              <div>
-                <span className="text-gray-600">Prix :</span>
-                <p className="font-medium">€{(appointment.services.price_cents / 100).toFixed(2)}</p>
-              </div>
+              {appointment.services?.duration_minutes && (
+                <div>
+                  <span className="text-gray-600">Durée :</span>
+                  <p className="font-medium">{formatDuration(appointment.services.duration_minutes)}</p>
+                </div>
+              )}
+              {appointment.services?.price_cents !== undefined && (
+                <div>
+                  <span className="text-gray-600">Prix :</span>
+                  <p className="font-medium">€{(appointment.services.price_cents / 100).toFixed(2)}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -268,9 +276,13 @@ export function AppointmentDetailsModal({
               Lieu
             </h3>
             <div className="text-sm break-words">
-              <p className="font-medium">{appointment.salons.name}</p>
-              <p className="text-gray-600 break-words">{appointment.salons.address}</p>
-              <p className="text-gray-600 break-words">{appointment.salons.city}</p>
+              <p className="font-medium">{appointment.salons?.name || 'Salon'}</p>
+              {appointment.salons?.address && (
+                <p className="text-gray-600 break-words">{appointment.salons.address}</p>
+              )}
+              {appointment.salons?.city && (
+                <p className="text-gray-600 break-words">{appointment.salons.city}</p>
+              )}
             </div>
           </div>
 

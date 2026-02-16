@@ -21,13 +21,16 @@ export default async function SalonPage({ params }: SalonPageProps) {
 
   console.log(`[SalonPage] Fetching salon: ${slug}`)
 
-  // Fetch salon by slug
-  const { data: salon } = await supabase
+  // Fetch all active salons and find by slug (case-insensitive, trimmed to handle database inconsistencies)
+  const { data: salons } = await supabase
     .from("salons")
     .select("*")
-    .eq("slug", slug)
     .eq("is_active", true)
-    .single()
+
+  // Find salon with matching slug (case-insensitive, trimmed)
+  const salon = salons?.find(
+    (s) => s.slug?.trim().toLowerCase() === slug.trim().toLowerCase()
+  )
   
   if (salon) {
      console.log(`[SalonPage] Salon found: ${salon.name}, Image URL: ${salon.image_url}`)
@@ -90,7 +93,7 @@ export default async function SalonPage({ params }: SalonPageProps) {
 
   return (
     <main className="min-h-screen bg-background">
-      <SalonHeader {...salon} image={salon.image_url} images={salon.images || []} hours={salon.opening_hours} />
+      <SalonHeader {...salon} image={salon.image_url} images={salon.images || []} hours={salon.opening_hours} autoplay={false} />
       <SalonServices services={transformedServices} />
       <SalonTeam employees={salonEmployees} serviceNames={serviceNames} />
       <SalonHours hours={salon.opening_hours} />

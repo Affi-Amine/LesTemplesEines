@@ -14,9 +14,10 @@ interface SalonHeaderProps {
   images?: string[] // Array of images for carousel
   slug: string
   hours: Record<string, { open: string; close: string }>
+  autoplay?: boolean // Whether carousel auto-plays (default: false)
 }
 
-export function SalonHeader({ name, city, address, phone, image, images = [], slug, hours }: SalonHeaderProps) {
+export function SalonHeader({ name, city, address, phone, image, images = [], slug, hours, autoplay = false }: SalonHeaderProps) {
   // Use images array if available, otherwise fall back to single image
   const carouselImages = images.length > 0 ? images : (image ? [image] : [])
   const today = new Date().toLocaleDateString("en-US", { weekday: "long" }).toLowerCase()
@@ -44,7 +45,7 @@ export function SalonHeader({ name, city, address, phone, image, images = [], sl
         <SalonCarousel
           images={carouselImages}
           alt={name}
-          autoplay={true}
+          autoplay={autoplay}
           showNavigation={true}
           showDots={true}
         />

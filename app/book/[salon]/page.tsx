@@ -12,13 +12,17 @@ export default async function SalonBookingPage({ params }: SalonBookingPageProps
   const { salon: salonSlug } = await params
 
   // Fetch salon from database by slug
+  // Use ilike for case-insensitive match and trim to handle trailing spaces in database
   const supabase = await createClient()
-  const { data: salon } = await supabase
+  const { data: salons } = await supabase
     .from("salons")
     .select("*")
-    .eq("slug", salonSlug)
     .eq("is_active", true)
-    .single()
+
+  // Find salon with matching slug (case-insensitive, trimmed)
+  const salon = salons?.find(
+    (s) => s.slug?.trim().toLowerCase() === salonSlug.trim().toLowerCase()
+  )
 
   if (!salon) {
     return (

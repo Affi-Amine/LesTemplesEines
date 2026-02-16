@@ -62,6 +62,8 @@ export function useAvailability(staffId?: string | string[], date?: Date, servic
 
       return fetchAPI<AvailabilityResponse>(`/availability/${staffId}?${params.toString()}`)
     },
-    enabled: !!date && (!!staffId || !!serviceId), 
+    enabled: !!date && (!!staffId || !!serviceId),
+    staleTime: 10 * 1000, // Consider stale after 10 seconds (overrides default 60s)
+    refetchInterval: 30 * 1000, // Refetch every 30 seconds to catch newly booked slots
   })
 }

@@ -216,7 +216,7 @@ export default function ClientsPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           <Card className="p-6">
             <div className="flex items-start justify-between">
               <div>
@@ -323,13 +323,13 @@ export default function ClientsPage() {
                       <td className="px-6 py-4 text-sm">
                         {client.last_visit_date ? new Date(client.last_visit_date).toLocaleDateString("fr-FR") : "—"}
                       </td>
-                      <td className="px-6 py-4 text-sm" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="gap-2 cursor-pointer" onClick={(e) => handleEdit(client, e)}>
-                            <Edit className="w-4 h-4" /> Modifier
+                      <td className="px-3 md:px-6 py-4 text-sm" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1 sm:gap-2">
+                          <Button variant="outline" size="sm" className="gap-1 sm:gap-2 cursor-pointer text-xs sm:text-sm" onClick={(e) => handleEdit(client, e)}>
+                            <Edit className="w-3 h-3 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Modifier</span>
                           </Button>
-                          <Button variant="destructive" size="sm" className="gap-2 cursor-pointer" onClick={(e) => handleDelete(client, e)}>
-                            <Trash2 className="w-4 h-4" /> Supprimer
+                          <Button variant="destructive" size="sm" className="gap-1 sm:gap-2 cursor-pointer text-xs sm:text-sm" onClick={(e) => handleDelete(client, e)}>
+                            <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Supprimer</span>
                           </Button>
                         </div>
                       </td>

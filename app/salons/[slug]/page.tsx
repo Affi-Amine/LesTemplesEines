@@ -90,7 +90,7 @@ export default async function SalonPage({ params }: SalonPageProps) {
 
   return (
     <main className="min-h-screen bg-background">
-      <SalonHeader {...salon} image={salon.image_url} hours={salon.opening_hours} />
+      <SalonHeader {...salon} image={salon.image_url} images={salon.images || []} hours={salon.opening_hours} />
       <SalonServices services={transformedServices} />
       <SalonTeam employees={salonEmployees} serviceNames={serviceNames} />
       <SalonHours hours={salon.opening_hours} />

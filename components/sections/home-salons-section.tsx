@@ -67,7 +67,15 @@ export function HomeSalonsSection() {
                 className="overflow-hidden hover:shadow-xl transition-all duration-300 group border-primary/10 cursor-pointer"
               >
                 <div className="relative h-56 bg-muted overflow-hidden">
-                  {salon.image_url ? (
+                  {/* Use images array if available, otherwise fall back to single image_url */}
+                  {(salon.images && salon.images.length > 0) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={salon.images[0]}
+                      alt={salon.name}
+                      className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    />
+                  ) : salon.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={salon.image_url}
@@ -80,6 +88,13 @@ export function HomeSalonsSection() {
                     </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+                  {/* Show image count badge if multiple images */}
+                  {(salon.images && salon.images.length > 1) && (
+                    <div className="absolute top-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                      <Icon icon="solar:gallery-bold" className="w-3 h-3" />
+                      {salon.images.length}
+                    </div>
+                  )}
                 </div>
                 <div className="p-6">
                   <h3 className="text-2xl font-serif font-semibold mb-2">{salon.name}</h3>

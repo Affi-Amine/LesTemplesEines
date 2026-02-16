@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { Icon } from "@iconify/react"
+import { SalonCarousel } from "@/components/salon-carousel"
 
 interface SalonHeaderProps {
   name: string
@@ -10,11 +11,14 @@ interface SalonHeaderProps {
   address: string
   phone: string
   image: string
+  images?: string[] // Array of images for carousel
   slug: string
   hours: Record<string, { open: string; close: string }>
 }
 
-export function SalonHeader({ name, city, address, phone, image, slug, hours }: SalonHeaderProps) {
+export function SalonHeader({ name, city, address, phone, image, images = [], slug, hours }: SalonHeaderProps) {
+  // Use images array if available, otherwise fall back to single image
+  const carouselImages = images.length > 0 ? images : (image ? [image] : [])
   const today = new Date().toLocaleDateString("en-US", { weekday: "long" }).toLowerCase()
   const todayHours = hours && hours[today as keyof typeof hours]
 
@@ -35,20 +39,15 @@ export function SalonHeader({ name, city, address, phone, image, slug, hours }: 
 
   return (
     <div className="w-full">
-      {/* Enhanced Hero Image with Parallax Effect */}
+      {/* Enhanced Hero Image with Carousel */}
       <div className="relative h-[450px] md:h-[550px] w-full bg-muted overflow-hidden">
-        {image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={image}
-            alt={name}
-            className="h-full w-full object-cover scale-105 hover:scale-100 transition-transform duration-700"
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10">
-            <Icon icon="solar:buildings-3-bold" className="w-32 h-32 text-primary/30" />
-          </div>
-        )}
+        <SalonCarousel
+          images={carouselImages}
+          alt={name}
+          autoplay={true}
+          showNavigation={true}
+          showDots={true}
+        />
         {/* Enhanced Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
 

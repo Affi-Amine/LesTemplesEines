@@ -268,11 +268,11 @@ export default function AppointmentsPage() {
     <div className="min-h-screen bg-background">
       <AdminHeader title="Rendez-vous" description="Gérer les rendez-vous du salon" />
       <div className="container mx-auto p-6">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
           <h1 className="text-3xl font-bold">Rendez-vous</h1>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
             <SalonFilter selectedSalonId={selectedSalonId} onSelectSalon={setSelectedSalonId} />
-            <Button onClick={handleCreate} className="flex items-center gap-2">
+            <Button onClick={handleCreate} className="flex items-center justify-center gap-2 cursor-pointer">
               <Plus className="w-4 h-4" />
               Nouveau rendez-vous
             </Button>

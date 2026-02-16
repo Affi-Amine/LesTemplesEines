@@ -7,8 +7,8 @@ import { fromZonedTime } from "date-fns-tz"
 
 const PhoneSchema = z
   .string()
-  .transform((s) => (s || "").replace(/[\s\u00A0\-\.]/g, ""))
-  .refine((s) => /^\+?[0-9]{10,}$/.test(s), { message: "Invalid" })
+  .transform((s) => (s || "").replace(/[\s\u00A0\-\.\(\)\/]/g, "")) // Strip spaces, dashes, dots, parentheses, slashes
+  .refine((s) => /^\+?[0-9]{9,}$/.test(s), { message: "Invalid phone number format" }) // Allow 9+ digits (some countries have shorter numbers)
 
 const ClientDataSchema = z.object({
   first_name: z.string().min(1),

@@ -8,6 +8,7 @@ export interface Salon {
   email: string | null
   siret: string | null
   image_url: string | null
+  images: string[] // Array of image URLs for carousel display
   opening_hours: Record<string, { open: string; close: string }>
   is_active: boolean
   created_at: string

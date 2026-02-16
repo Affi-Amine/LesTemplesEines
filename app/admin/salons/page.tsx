@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { ImageUpload } from "@/components/ui/image-upload"
+import { MultiImageUpload } from "@/components/ui/multi-image-upload"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 
@@ -35,6 +35,7 @@ type Salon = {
   email?: string
   description?: string
   image_url?: string
+  images?: string[] // Array of images for carousel
   opening_hours?: Record<string, { open: string; close: string }>
   is_active: boolean
 }
@@ -55,6 +56,7 @@ export default function SalonsPage() {
     phone: "",
     email: "",
     image_url: "",
+    images: [] as string[],
     is_active: true,
   })
 
@@ -68,6 +70,7 @@ export default function SalonsPage() {
       phone: salon.phone,
       email: salon.email || "",
       image_url: salon.image_url || "",
+      images: salon.images || [],
       is_active: salon.is_active,
     })
     setIsDialogOpen(true)
@@ -83,6 +86,7 @@ export default function SalonsPage() {
       phone: "",
       email: "",
       image_url: "",
+      images: [],
       is_active: true,
     })
     setIsDialogOpen(true)
@@ -175,14 +179,23 @@ export default function SalonsPage() {
             {salons?.map((salon: any) => (
               <Card key={salon.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                 <div className="relative h-48 bg-gradient-to-br from-primary/10 to-primary/5">
-                  {salon.image_url ? (
+                  {/* Show first image from images array, fall back to image_url */}
+                  {(salon.images && salon.images.length > 0) ? (
+                    <img src={salon.images[0]} alt={salon.name} className="w-full h-full object-cover" />
+                  ) : salon.image_url ? (
                     <img src={salon.image_url} alt={salon.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="flex items-center justify-center h-full">
                       <Icon icon="solar:building-bold" className="w-16 h-16 text-primary/30" />
                     </div>
                   )}
-                  <div className="absolute top-4 right-4">
+                  <div className="absolute top-4 right-4 flex items-center gap-2">
+                    {(salon.images && salon.images.length > 1) && (
+                      <Badge variant="secondary" className="bg-black/50 text-white border-none">
+                        <Icon icon="solar:gallery-bold" className="w-3 h-3 mr-1" />
+                        {salon.images.length}
+                      </Badge>
+                    )}
                     <Badge variant={salon.is_active ? "default" : "secondary"}>
                       {salon.is_active ? "Actif" : "Inactif"}
                     </Badge>
@@ -337,10 +350,14 @@ export default function SalonsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Image du salon</Label>
-              <ImageUpload
-                value={formData.image_url}
-                onChange={(url) => setFormData({ ...formData, image_url: url })}
+              <Label>Images du salon</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Ajoutez plusieurs images pour créer un carousel sur la page du salon
+              </p>
+              <MultiImageUpload
+                value={formData.images}
+                onChange={(urls) => setFormData({ ...formData, images: urls, image_url: urls[0] || "" })}
+                maxImages={10}
               />
             </div>
 

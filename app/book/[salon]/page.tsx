@@ -1,6 +1,6 @@
 import { BookingFlow } from "@/components/booking-flow"
 import { Footer } from "@/components/footer"
-import { salons } from "@/lib/mock-data"
+import { createClient } from "@/lib/supabase/server"
 
 interface SalonBookingPageProps {
   params: Promise<{
@@ -10,7 +10,15 @@ interface SalonBookingPageProps {
 
 export default async function SalonBookingPage({ params }: SalonBookingPageProps) {
   const { salon: salonSlug } = await params
-  const salon = salons.find((s) => s.slug === salonSlug)
+
+  // Fetch salon from database by slug
+  const supabase = await createClient()
+  const { data: salon } = await supabase
+    .from("salons")
+    .select("*")
+    .eq("slug", salonSlug)
+    .eq("is_active", true)
+    .single()
 
   if (!salon) {
     return (

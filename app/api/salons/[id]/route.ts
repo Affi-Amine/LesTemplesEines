@@ -11,6 +11,7 @@ const UpdateSalonSchema = z.object({
   email: z.string().email().optional(),
   siret: z.string().optional(),
   image_url: z.string().optional(),
+  images: z.array(z.string()).optional(), // Array of image URLs for carousel
   opening_hours: z
     .record(
       z.string(),

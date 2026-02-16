@@ -32,32 +32,32 @@ export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: Ap
         <table className="w-full">
           <thead className="bg-muted border-b">
             <tr>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Client</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Service</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Salon</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Date & Heure</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Thérapeute</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Statut</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold">Actions</th>
+              <th className="px-3 md:px-6 py-3 text-left text-sm font-semibold">Client</th>
+              <th className="px-3 md:px-6 py-3 text-left text-sm font-semibold">Service</th>
+              <th className="px-3 md:px-6 py-3 text-left text-sm font-semibold">Salon</th>
+              <th className="px-3 md:px-6 py-3 text-left text-sm font-semibold">Date & Heure</th>
+              <th className="px-3 md:px-6 py-3 text-left text-sm font-semibold">Thérapeute</th>
+              <th className="px-3 md:px-6 py-3 text-left text-sm font-semibold">Statut</th>
+              <th className="px-3 md:px-6 py-3 text-left text-sm font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody>
             {appointments.map((apt) => (
               <tr key={apt.id} className="border-b hover:bg-muted/50 transition-colors">
-                <td className="px-6 py-4 text-sm font-medium">{apt.clientName}</td>
-                <td className="px-6 py-4 text-sm">{apt.service}</td>
-                <td className="px-6 py-4 text-sm">{apt.salon}</td>
-                <td className="px-6 py-4 text-sm">
+                <td className="px-3 md:px-6 py-4 text-sm font-medium">{apt.clientName}</td>
+                <td className="px-3 md:px-6 py-4 text-sm">{apt.service}</td>
+                <td className="px-3 md:px-6 py-4 text-sm">{apt.salon}</td>
+                <td className="px-3 md:px-6 py-4 text-sm">
                   {apt.date} à {apt.time}
                 </td>
-                <td className="px-6 py-4 text-sm">{apt.therapist}</td>
-                <td className="px-6 py-4 text-sm">
+                <td className="px-3 md:px-6 py-4 text-sm">{apt.therapist}</td>
+                <td className="px-3 md:px-6 py-4 text-sm">
                   <Badge className={getStatusColor(apt.status)}>
                     {getStatusLabel(apt.status)}
                   </Badge>
                 </td>
-                <td className="px-6 py-4 text-sm">
-                  <div className="flex items-center gap-2">
+                <td className="px-3 md:px-6 py-4 text-sm">
+                  <div className="flex items-center gap-1 md:gap-2">
                     <Button 
                       variant="ghost" 
                       size="sm" 

@@ -320,8 +320,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             </RadioGroup>
           )}
 
-          <div className="flex justify-end gap-3 mt-8">
-            <Button onClick={handleNext} disabled={!data.salon || salonsLoading} size="lg" className="cursor-pointer">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 mt-8">
+            <Button onClick={handleNext} disabled={!data.salon || salonsLoading} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.next")}
             </Button>
           </div>
@@ -369,11 +369,11 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             </RadioGroup>
           )}
 
-          <div className="flex justify-between gap-3 mt-8">
-            <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer">
+          <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 mt-8">
+            <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
-            <Button onClick={handleNext} disabled={!data.service || servicesLoading} size="lg" className="cursor-pointer">
+            <Button onClick={handleNext} disabled={!data.service || servicesLoading} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.next")}
             </Button>
           </div>
@@ -481,7 +481,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 {(!data.employee && (!currentService?.required_staff_count || currentService.required_staff_count <= 1) && !data.date) && "Sélectionnez d'abord le thérapeute et la date pour voir les créneaux disponibles."}
                 {availabilityLoading && data.date && "Chargement des créneaux disponibles..."}
               </p>
-              <div className="grid grid-cols-3 gap-2 mt-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mt-3">
                 {timeOptions.map((time) => {
                   const isAvailable = (data.employee || (currentService?.required_staff_count || 1) > 1) && data.date ? availableTimesSet.has(time) : false
                   const isSelected = data.time === time
@@ -500,11 +500,11 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               </div>
             </div>
           </div>
-          <div className="flex justify-between gap-3 mt-8">
-            <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer">
+          <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 mt-8">
+            <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
-            <Button onClick={handleNext} disabled={!data.date || !data.time || (!data.employee && (currentService?.required_staff_count || 1) <= 1)} size="lg" className="cursor-pointer">
+            <Button onClick={handleNext} disabled={!data.date || !data.time || (!data.employee && (currentService?.required_staff_count || 1) <= 1)} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.next")}
             </Button>
           </div>
@@ -584,11 +584,11 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               />
             </div>
           </div>
-          <div className="flex justify-between gap-3 mt-8">
-            <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer">
+          <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 mt-8">
+            <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
-            <Button onClick={handleNext} disabled={!data.firstName || !data.lastName || !data.phone} size="lg" className="cursor-pointer">
+            <Button onClick={handleNext} disabled={!data.firstName || !data.lastName || !data.phone} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.next")}
             </Button>
           </div>
@@ -655,13 +655,13 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             )}
           </div>
 
-          <div className="flex justify-between gap-3">
-            <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer" disabled={createAppointment.isPending}>
+          <div className="flex flex-col-reverse sm:flex-row justify-between gap-3">
+            <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto" disabled={createAppointment.isPending}>
               {t(locale, "common.back")}
             </Button>
             <Button
               onClick={handleConfirm}
-              className="bg-primary hover:bg-primary/90 cursor-pointer"
+              className="bg-primary hover:bg-primary/90 cursor-pointer w-full sm:w-auto"
               size="lg"
               disabled={createAppointment.isPending}
             >

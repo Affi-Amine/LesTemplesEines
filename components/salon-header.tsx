@@ -49,12 +49,12 @@ export function SalonHeader({ name, city, address, phone, image, images = [], sl
           showNavigation={true}
           showDots={true}
         />
-        {/* Enhanced Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+        {/* Enhanced Gradient Overlay - pointer-events-none to allow carousel button clicks */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none" />
 
-        {/* Hero Content Overlay */}
-        <div className="absolute inset-0 flex items-end">
-          <div className="max-w-7xl mx-auto px-4 pb-12 w-full">
+        {/* Hero Content Overlay - pointer-events-none on container, auto on interactive elements */}
+        <div className="absolute inset-0 flex items-end pointer-events-none">
+          <div className="max-w-7xl mx-auto px-4 pb-12 w-full pointer-events-auto">
             <div className="text-white space-y-4">
               <div className="flex items-center gap-3 mb-2">
                 <Badge variant="secondary" className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30">

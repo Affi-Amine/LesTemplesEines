@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import useEmblaCarousel from "embla-carousel-react"
 import Autoplay from "embla-carousel-autoplay"
 import { Button } from "@/components/ui/button"
@@ -25,16 +25,21 @@ export function SalonCarousel({
   showDots = true
 }: SalonCarouselProps) {
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [canScrollPrev, setCanScrollPrev] = useState(false)
+  const [canScrollNext, setCanScrollNext] = useState(false)
 
-  const autoplayPlugin = Autoplay({
-    delay: 5000,
-    stopOnInteraction: false,
-    stopOnMouseEnter: true
-  })
+  // Create autoplay plugin with useRef to maintain instance
+  const autoplayPlugin = useRef(
+    Autoplay({
+      delay: 5000,
+      stopOnInteraction: false,
+      stopOnMouseEnter: true
+    })
+  )
 
   const [emblaRef, emblaApi] = useEmblaCarousel(
-    { loop: true },
-    autoplay ? [autoplayPlugin] : []
+    { loop: true, align: "start" },
+    autoplay ? [autoplayPlugin.current] : []
   )
 
   const scrollPrev = useCallback(() => {
@@ -52,13 +57,17 @@ export function SalonCarousel({
   const onSelect = useCallback(() => {
     if (!emblaApi) return
     setSelectedIndex(emblaApi.selectedScrollSnap())
+    setCanScrollPrev(emblaApi.canScrollPrev())
+    setCanScrollNext(emblaApi.canScrollNext())
   }, [emblaApi])
 
   useEffect(() => {
     if (!emblaApi) return
+
     onSelect()
     emblaApi.on("select", onSelect)
     emblaApi.on("reInit", onSelect)
+
     return () => {
       emblaApi.off("select", onSelect)
       emblaApi.off("reInit", onSelect)
@@ -91,36 +100,67 @@ export function SalonCarousel({
     <div className={cn("relative w-full h-full group", className)}>
       {/* Carousel Container */}
       <div className="overflow-hidden h-full" ref={emblaRef}>
-        <div className="flex h-full">
+        <div className="flex h-full touch-pan-y">
           {images.map((image, index) => (
-            <div key={index} className="flex-[0_0_100%] min-w-0 h-full relative">
+            <div
+              key={index}
+              className="flex-[0_0_100%] min-w-0 h-full relative"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={image}
                 alt={`${alt} - Image ${index + 1}`}
                 className="h-full w-full object-cover"
+                draggable={false}
               />
             </div>
           ))}
         </div>
       </div>
 
-      {/* Navigation Arrows */}
+      {/* Navigation Arrows - Desktop Only, Theme Aligned */}
       {showNavigation && images.length > 1 && (
         <>
+          {/* Left Arrow */}
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
-            className="absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/30 hover:bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+            className={cn(
+              "absolute left-4 top-1/2 -translate-y-1/2",
+              "hidden md:flex", // Desktop only
+              "h-12 w-12 rounded-full",
+              "bg-background/90 hover:bg-background",
+              "border-border hover:border-primary",
+              "text-foreground hover:text-primary",
+              "shadow-lg hover:shadow-xl",
+              "transition-all duration-200",
+              "cursor-pointer",
+              "backdrop-blur-sm"
+            )}
             onClick={scrollPrev}
+            aria-label="Image précédente"
           >
             <Icon icon="solar:alt-arrow-left-bold" className="h-6 w-6" />
           </Button>
+
+          {/* Right Arrow */}
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
-            className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/30 hover:bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+            className={cn(
+              "absolute right-4 top-1/2 -translate-y-1/2",
+              "hidden md:flex", // Desktop only
+              "h-12 w-12 rounded-full",
+              "bg-background/90 hover:bg-background",
+              "border-border hover:border-primary",
+              "text-foreground hover:text-primary",
+              "shadow-lg hover:shadow-xl",
+              "transition-all duration-200",
+              "cursor-pointer",
+              "backdrop-blur-sm"
+            )}
             onClick={scrollNext}
+            aria-label="Image suivante"
           >
             <Icon icon="solar:alt-arrow-right-bold" className="h-6 w-6" />
           </Button>
@@ -129,25 +169,25 @@ export function SalonCarousel({
 
       {/* Dots Pagination */}
       {showDots && images.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-background/30 backdrop-blur-sm px-3 py-2 rounded-full">
           {images.map((_, index) => (
             <button
               key={index}
               onClick={() => scrollTo(index)}
               className={cn(
-                "w-2 h-2 rounded-full transition-all cursor-pointer",
+                "rounded-full transition-all cursor-pointer",
                 selectedIndex === index
-                  ? "bg-white w-4"
-                  : "bg-white/50 hover:bg-white/75"
+                  ? "bg-primary w-4 h-2"
+                  : "bg-foreground/50 hover:bg-foreground/75 w-2 h-2"
               )}
-              aria-label={`Go to slide ${index + 1}`}
+              aria-label={`Aller à l'image ${index + 1}`}
             />
           ))}
         </div>
       )}
 
       {/* Image Counter */}
-      <div className="absolute top-4 right-4 bg-black/50 text-white text-sm px-3 py-1 rounded-full">
+      <div className="absolute top-4 right-4 bg-background/70 backdrop-blur-sm text-foreground text-sm px-3 py-1 rounded-full border border-border">
         {selectedIndex + 1} / {images.length}
       </div>
     </div>

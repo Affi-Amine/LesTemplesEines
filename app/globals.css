@@ -3,6 +3,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@theme {
+  --breakpoint-lg: 93.75rem; /* 1500px */
+}
+
 :root {
   /* Updated color palette for wellness/spa aesthetic */
   --background: oklch(0.98 0 0);

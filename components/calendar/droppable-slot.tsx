@@ -12,6 +12,8 @@ interface DroppableSlotProps {
   children: ReactNode
   onEmptyClick?: (data: { hour: number; minute: number; staffId?: string; date: Date }) => void
   className?: string
+  isInvalidDrop?: boolean
+  isDragActive?: boolean
 }
 
 export function DroppableSlot({
@@ -23,6 +25,8 @@ export function DroppableSlot({
   children,
   onEmptyClick,
   className = "",
+  isInvalidDrop = false,
+  isDragActive = false,
 }: DroppableSlotProps) {
   const { setNodeRef, isOver, active } = useDroppable({
     id,
@@ -30,30 +34,27 @@ export function DroppableSlot({
   })
 
   const handleClick = (e: MouseEvent<HTMLDivElement>) => {
-    // Only trigger if clicking directly on this element (not on appointments)
     if (e.target === e.currentTarget && onEmptyClick) {
-      // Calculate minute based on click position within the slot
-      const rect = e.currentTarget.getBoundingClientRect()
-      const clickY = e.clientY - rect.top
-      const slotHeight = rect.height
-      const clickedMinute = Math.floor((clickY / slotHeight) * 60)
-
       onEmptyClick({
         hour,
-        minute: clickedMinute,
+        minute,
         staffId,
         date,
       })
     }
   }
 
+  const dragClass = isOver && active
+    ? (isInvalidDrop
+      ? "bg-destructive/15 ring-2 ring-destructive ring-inset"
+      : "bg-primary/20 ring-2 ring-primary ring-inset")
+    : (isDragActive && isInvalidDrop ? "bg-destructive/10" : "")
+
   return (
     <div
       ref={setNodeRef}
       onClick={handleClick}
-      className={`${className} ${
-        isOver && active ? "bg-primary/20 ring-2 ring-primary ring-inset" : ""
-      } cursor-pointer transition-colors hover:bg-muted/30`}
+      className={`${className} ${dragClass} cursor-pointer transition-colors hover:bg-muted/30`}
     >
       {children}
     </div>

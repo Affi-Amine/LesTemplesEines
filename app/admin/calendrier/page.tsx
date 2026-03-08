@@ -17,6 +17,7 @@ import { Icon } from "@iconify/react"
 import { BookingDetailsModal } from "@/components/booking-details-modal"
 import { DndContext, PointerSensor, TouchSensor, useSensors, useSensor, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core"
 import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
+import { findOverlappingAppointment, getAppointmentDurationMinutes } from "@/lib/calendar/scheduling"
 
 interface Salon {
   id: string
@@ -53,11 +54,13 @@ interface Appointment {
 function WeekView({
   currentDate,
   appointments,
+  activeAppointment,
   onAppointmentClick,
   onEmptySlotClick,
 }: {
   currentDate: Date
   appointments: Appointment[]
+  activeAppointment: Appointment | null
   onAppointmentClick: (appointment: Appointment) => void
   onEmptySlotClick: (data: { hour: number; minute: number; date: Date }) => void
 }) {
@@ -74,10 +77,9 @@ function WeekView({
       if (aptDateStr !== dayDateStr) return false
 
       const aptHour = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"), 10)
-      const aptEndHour = parseInt(formatInTimeZone(appointment.end_time, "Europe/Paris", "H"), 10)
       const targetHour = hour.getHours()
 
-      return (aptHour === targetHour) || (aptHour < targetHour && aptEndHour > targetHour)
+      return aptHour === targetHour
     })
   }
 
@@ -98,6 +100,25 @@ function WeekView({
       top: topOffset,
       height: Math.max(durationMinutes, 15),
     }
+  }
+
+  const isInvalidSlotForActive = (day: Date, hour: number, minute: number) => {
+    if (!activeAppointment) return false
+
+    const targetStaffId = activeAppointment.staff_id || activeAppointment.staff?.id
+    if (!targetStaffId) return false
+
+    const targetStart = new Date(day)
+    targetStart.setHours(hour, minute, 0, 0)
+    const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
+
+    return Boolean(findOverlappingAppointment({
+      appointments,
+      staffId: targetStaffId,
+      start: targetStart,
+      end: targetEnd,
+      ignoreAppointmentId: activeAppointment.id,
+    }))
   }
 
   return (
@@ -131,20 +152,25 @@ function WeekView({
                 const slotId = `slot-week-${format(day, "yyyy-MM-dd")}-${hourStart}`
 
                 return (
-                  <DroppableSlot
-                    key={slotId}
-                    id={slotId}
-                    hour={hourStart}
-                    date={day}
-                    onEmptyClick={(data) => onEmptySlotClick({ ...data, date: day })}
-                    className="h-[60px] border border-border bg-background relative overflow-visible"
-                  >
-                    {/* 15-minute grid lines */}
-                    <div className="absolute top-[15px] left-0 right-0 h-px bg-border/30 pointer-events-none"></div>
-                    <div className="absolute top-[30px] left-0 right-0 h-px bg-border/30 pointer-events-none"></div>
-                    <div className="absolute top-[45px] left-0 right-0 h-px bg-border/30 pointer-events-none"></div>
+                  <div className="h-[60px] border border-border bg-background rounded relative overflow-visible">
+                    <div className="absolute inset-0 grid grid-rows-4">
+                      {[0, 15, 30, 45].map((minute, idx) => (
+                        <DroppableSlot
+                          key={`${slotId}-${minute}`}
+                          id={`${slotId}-${minute}`}
+                          hour={hourStart}
+                          minute={minute}
+                          date={day}
+                          onEmptyClick={(data) => onEmptySlotClick({ ...data, date: day })}
+                          isInvalidDrop={isInvalidSlotForActive(day, hourStart, minute)}
+                          isDragActive={Boolean(activeAppointment)}
+                          className={`${idx < 3 ? "border-b border-border/30" : ""}`}
+                        >
+                          <div />
+                        </DroppableSlot>
+                      ))}
+                    </div>
 
-                    {/* Appointments */}
                     {hourAppointments.map((appointment) => {
                       const position = getAppointmentPosition(appointment, hourStart)
                       const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
@@ -190,7 +216,7 @@ function WeekView({
                         </DraggableAppointment>
                       )
                     })}
-                  </DroppableSlot>
+                  </div>
                 )
               })}
             </div>
@@ -205,11 +231,13 @@ function WeekView({
 function DayView({
   currentDate,
   appointments,
+  activeAppointment,
   onAppointmentClick,
   onEmptySlotClick,
 }: {
   currentDate: Date
   appointments: Appointment[]
+  activeAppointment: Appointment | null
   onAppointmentClick: (appointment: Appointment) => void
   onEmptySlotClick: (data: { hour: number; minute: number; date: Date }) => void
 }) {
@@ -223,10 +251,9 @@ function DayView({
       if (aptDateStr !== currentDateStr) return false
 
       const aptHour = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"), 10)
-      const aptEndHour = parseInt(formatInTimeZone(appointment.end_time, "Europe/Paris", "H"), 10)
       const targetHour = hour.getHours()
 
-      return (aptHour === targetHour) || (aptHour < targetHour && aptEndHour > targetHour)
+      return aptHour === targetHour
     })
   }
 
@@ -249,6 +276,25 @@ function DayView({
     }
   }
 
+  const isInvalidSlotForActive = (hour: number, minute: number) => {
+    if (!activeAppointment) return false
+
+    const targetStaffId = activeAppointment.staff_id || activeAppointment.staff?.id
+    if (!targetStaffId) return false
+
+    const targetStart = new Date(currentDate)
+    targetStart.setHours(hour, minute, 0, 0)
+    const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
+
+    return Boolean(findOverlappingAppointment({
+      appointments,
+      staffId: targetStaffId,
+      start: targetStart,
+      end: targetEnd,
+      ignoreAppointmentId: activeAppointment.id,
+    }))
+  }
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="space-y-1">
@@ -262,19 +308,25 @@ function DayView({
               <div className="w-20 p-2 text-sm text-muted-foreground text-right">
                 {format(hour, "HH:mm")}
               </div>
-              <DroppableSlot
-                id={slotId}
-                hour={hourStart}
-                date={currentDate}
-                onEmptyClick={onEmptySlotClick}
-                className="flex-1 h-[60px] border border-border bg-background rounded relative overflow-visible"
-              >
-                {/* 15-minute grid lines */}
-                <div className="absolute top-[15px] left-0 right-0 h-px bg-border/30 pointer-events-none"></div>
-                <div className="absolute top-[30px] left-0 right-0 h-px bg-border/30 pointer-events-none"></div>
-                <div className="absolute top-[45px] left-0 right-0 h-px bg-border/30 pointer-events-none"></div>
+              <div className="flex-1 h-[60px] border border-border bg-background rounded relative overflow-visible">
+                <div className="absolute inset-0 grid grid-rows-4">
+                  {[0, 15, 30, 45].map((minute, idx) => (
+                    <DroppableSlot
+                      key={`${slotId}-${minute}`}
+                      id={`${slotId}-${minute}`}
+                      hour={hourStart}
+                      minute={minute}
+                      date={currentDate}
+                      onEmptyClick={onEmptySlotClick}
+                      isInvalidDrop={isInvalidSlotForActive(hourStart, minute)}
+                      isDragActive={Boolean(activeAppointment)}
+                      className={`${idx < 3 ? "border-b border-border/30" : ""}`}
+                    >
+                      <div />
+                    </DroppableSlot>
+                  ))}
+                </div>
 
-                {/* Appointments */}
                 {hourAppointments.map((appointment) => {
                   const position = getAppointmentPosition(appointment, hourStart)
                   const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
@@ -329,7 +381,7 @@ function DayView({
                     </DraggableAppointment>
                   )
                 })}
-              </DroppableSlot>
+              </div>
             </div>
           )
         })}
@@ -465,8 +517,9 @@ export default function CalendrierPage() {
     newStartTime.setHours(newHour, newMinute, 0, 0)
 
     // Calculate duration to determine new end time
-    const duration = appointment.service?.duration_minutes || 60
+    const duration = getAppointmentDurationMinutes(appointment)
     const newEndTime = addMinutes(newStartTime, duration)
+    const targetStaffId = dropData.staffId || appointment.staff_id || appointment.staff?.id
 
     // Don't update if dropped in the same position
     const oldStart = new Date(appointment.start_time)
@@ -476,6 +529,24 @@ export default function CalendrierPage() {
       format(oldStart, "yyyy-MM-dd") === format(newDate, "yyyy-MM-dd")
     ) {
       return
+    }
+
+    if (targetStaffId) {
+      const overlap = findOverlappingAppointment({
+        appointments,
+        staffId: targetStaffId,
+        start: newStartTime,
+        end: newEndTime,
+        ignoreAppointmentId: appointment.id,
+      })
+
+      if (overlap) {
+        toast.error("Créneau indisponible", {
+          description: "Ce déplacement chevauche un autre rendez-vous pour ce prestataire.",
+          icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+        })
+        return
+      }
     }
 
     try {
@@ -749,6 +820,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
                   <WeekView
                     currentDate={currentDate}
                     appointments={appointments}
+                    activeAppointment={activeAppointment}
                     onAppointmentClick={handleAppointmentClick}
                     onEmptySlotClick={handleEmptySlotClick}
                   />
@@ -758,6 +830,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
                   <DayView
                     currentDate={currentDate}
                     appointments={appointments}
+                    activeAppointment={activeAppointment}
                     onAppointmentClick={handleAppointmentClick}
                     onEmptySlotClick={handleEmptySlotClick}
                   />
@@ -828,6 +901,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
             }}
             salonId={selectedSalon}
             prefillData={quickCreateData || undefined}
+            existingAppointments={appointments}
             onSuccess={fetchAppointments}
           />
         )}

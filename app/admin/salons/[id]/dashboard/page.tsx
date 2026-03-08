@@ -26,6 +26,7 @@ import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
 import { useServices } from "@/lib/hooks/use-services"
 import { DndContext, PointerSensor, TouchSensor, useSensors, useSensor, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core"
 import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
+import { findOverlappingAppointment, getAppointmentDurationMinutes } from "@/lib/calendar/scheduling"
 
 import { useRouter } from "next/navigation"
 
@@ -346,18 +347,35 @@ export default function SalonDashboardPage() {
     newStartTime.setHours(newHour, newMinute, 0, 0)
 
     // Calculate duration to determine new end time
-    const start = new Date(appointment.start_time)
-    const end = new Date(appointment.end_time)
-    const durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60))
+    const durationMinutes = getAppointmentDurationMinutes(appointment)
     const newEndTime = addMinutes(newStartTime, durationMinutes)
+    const targetStaffId = dropData.staffId || appointment.staff_id || appointment.staff?.id
 
     // Check if anything actually changed
     const oldStart = new Date(appointment.start_time)
-    const staffChanged = dropData.staffId && dropData.staffId !== appointment.staff_id
+    const staffChanged = Boolean(dropData.staffId && dropData.staffId !== appointment.staff_id)
     const timeChanged = oldStart.getHours() !== newHour || oldStart.getMinutes() !== newMinute
 
     if (!staffChanged && !timeChanged) {
       return
+    }
+
+    if (targetStaffId) {
+      const overlap = findOverlappingAppointment({
+        appointments: appointments || [],
+        staffId: targetStaffId,
+        start: newStartTime,
+        end: newEndTime,
+        ignoreAppointmentId: appointment.id,
+      })
+
+      if (overlap) {
+        toast.error("Créneau indisponible", {
+          description: "Ce déplacement chevauche un autre rendez-vous pour ce prestataire.",
+          icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+        })
+        return
+      }
     }
 
     try {
@@ -398,6 +416,22 @@ export default function SalonDashboardPage() {
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
       })
     }
+  }
+
+  const isInvalidSlotForActive = (slotDate: Date, slotStaffId: string, hour: number, minute: number) => {
+    if (!activeAppointment) return false
+
+    const targetStart = new Date(slotDate)
+    targetStart.setHours(hour, minute, 0, 0)
+    const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
+
+    return Boolean(findOverlappingAppointment({
+      appointments: appointments || [],
+      staffId: slotStaffId,
+      start: targetStart,
+      end: targetEnd,
+      ignoreAppointmentId: activeAppointment.id,
+    }))
   }
 
   // Visualizer Component
@@ -554,42 +588,38 @@ export default function SalonDashboardPage() {
                                 // Find appointments for this staff in this hour
                                 const staffApts = appointments?.filter((apt: any) => {
                                   const aptHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
-                                  const aptEndHour = parseInt(formatInTimeZone(apt.end_time, "Europe/Paris", "H"), 10)
-
-                                  // Include if appointment starts in this hour OR spans into this hour
                                   return (apt.staff_id === s.id || apt.assignments?.some((a:any) => a.staff?.id === s.id)) &&
-                                         ((aptHour === hour) || (aptHour < hour && aptEndHour > hour))
+                                         aptHour === hour
                                 })
 
                                 const slotId = `slot-dashboard-${s.id}-${hour}`
 
                                 return (
-                                  <DroppableSlot
-                                    key={slotId}
-                                    id={slotId}
-                                    hour={hour}
-                                    staffId={s.id}
-                                    date={date || new Date()}
-                                    onEmptyClick={(data) => handleEmptySlotClick({ ...data, date: date || new Date() })}
-                                    className="flex-1 border-l relative overflow-visible"
-                                  >
-                                    {/* 15-minute grid lines */}
-                                    <div className="absolute top-[15px] left-0 right-0 h-px bg-border/30 pointer-events-none"></div>
-                                    <div className="absolute top-[30px] left-0 right-0 h-px bg-border/30 pointer-events-none"></div>
-                                    <div className="absolute top-[45px] left-0 right-0 h-px bg-border/30 pointer-events-none"></div>
+                                  <div className="flex-1 border-l relative overflow-visible">
+                                    <div className="absolute inset-0 grid grid-rows-4">
+                                      {[0, 15, 30, 45].map((minute, idx) => (
+                                        <DroppableSlot
+                                          key={`${slotId}-${minute}`}
+                                          id={`${slotId}-${minute}`}
+                                          hour={hour}
+                                          minute={minute}
+                                          staffId={s.id}
+                                          date={date || new Date()}
+                                          onEmptyClick={(data) => handleEmptySlotClick({ ...data, date: date || new Date() })}
+                                          isInvalidDrop={isInvalidSlotForActive(date || new Date(), s.id, hour, minute)}
+                                          isDragActive={Boolean(activeAppointment)}
+                                          className={`${idx < 3 ? "border-b border-border/30" : ""}`}
+                                        >
+                                          <div />
+                                        </DroppableSlot>
+                                      ))}
+                                    </div>
 
-                                    {/* Appointments */}
                                     {staffApts?.map((apt: any) => {
-                                      // Calculate position and height
                                       const startMinute = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "m"), 10)
                                       const startHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
                                       const topOffset = startHour === hour ? startMinute : 0
-
-                                      const start = new Date(apt.start_time)
-                                      const end = new Date(apt.end_time)
-                                      const durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60))
-                                      const heightPx = Math.max(durationMinutes, 15)
-
+                                      const heightPx = Math.max(getAppointmentDurationMinutes(apt), 15)
                                       const isDraggable = apt.status !== 'blocked' && apt.status !== 'completed' && apt.status !== 'cancelled'
 
                                       return (
@@ -639,7 +669,7 @@ export default function SalonDashboardPage() {
                                         </DraggableAppointment>
                                       )
                                     })}
-                                  </DroppableSlot>
+                                  </div>
                                 )
                               })}
                             </div>
@@ -1126,6 +1156,7 @@ export default function SalonDashboardPage() {
           }}
           salonId={salonId}
           prefillData={quickCreateData || undefined}
+          existingAppointments={appointments || []}
           onSuccess={() => refetchAppointments()}
         />
       </div>

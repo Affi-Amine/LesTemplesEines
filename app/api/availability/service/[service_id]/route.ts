@@ -35,7 +35,29 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const duration = service.duration_minutes
     const requiredStaffCount = service.required_staff_count || 1
-    const targetSalonId = salonId || service.salon_id
+    const targetSalonId = salonId
+
+    if (!targetSalonId) {
+      return NextResponse.json({ error: "salon_id is required for multi-salon services" }, { status: 400 })
+    }
+
+    const { data: serviceSalon, error: serviceSalonError } = await supabase
+      .from("service_salons")
+      .select("service_id")
+      .eq("service_id", service_id)
+      .eq("salon_id", targetSalonId)
+      .maybeSingle()
+
+    if (serviceSalonError) throw serviceSalonError
+
+    if (!serviceSalon) {
+      return NextResponse.json({
+        service_id,
+        date: dateParam,
+        available_slots: [],
+        message: "Service is not available in this salon",
+      })
+    }
 
     // 2. Get salon hours
     const { data: salon } = await supabase

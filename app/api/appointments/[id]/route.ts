@@ -40,7 +40,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     // Ensure appointment exists and get current data for calculations
     const { data: existing } = await supabase
       .from("appointments")
-      .select("id, status, start_time, service_id, staff_id")
+      .select("id, status, start_time, service_id, staff_id, salon_id")
       .eq("id", id)
       .single()
 
@@ -60,6 +60,26 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (updates.payment_method !== undefined) updateData.payment_method = updates.payment_method
     if (updates.amount_paid_cents !== undefined) updateData.amount_paid_cents = updates.amount_paid_cents
     if (updates.salon_id) updateData.salon_id = updates.salon_id
+
+    const targetSalonId = updates.salon_id || existing.salon_id
+    const targetServiceId = updates.service_id || existing.service_id
+
+    if (targetSalonId && targetServiceId) {
+      const { data: serviceSalon, error: serviceSalonError } = await supabase
+        .from("service_salons")
+        .select("service_id")
+        .eq("service_id", targetServiceId)
+        .eq("salon_id", targetSalonId)
+        .maybeSingle()
+
+      if (serviceSalonError) {
+        throw new Error(serviceSalonError.message)
+      }
+
+      if (!serviceSalon) {
+        return NextResponse.json({ error: "Ce service n'est pas disponible dans le salon sélectionné" }, { status: 400 })
+      }
+    }
 
     // Handle Service/Time updates (recalculate end_time)
     if (updates.service_id || updates.start_time) {

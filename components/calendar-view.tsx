@@ -51,9 +51,9 @@ export function CalendarView({ appointments }: CalendarViewProps) {
       <Card className="p-6 md:col-span-2">
         <div className="mb-6">
           <h3 className="text-lg font-semibold">
-            {selectedDate?.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+            {selectedDate?.toLocaleDateString("fr-FR", { weekday: "long", month: "long", day: "numeric" })}
           </h3>
-          <p className="text-sm text-muted-foreground">{dayAppointments.length} appointments</p>
+          <p className="text-sm text-muted-foreground">{dayAppointments.length} rendez-vous</p>
         </div>
 
         {dayAppointments.length > 0 ? (
@@ -73,8 +73,8 @@ export function CalendarView({ appointments }: CalendarViewProps) {
           </div>
         ) : (
           <div className="text-center py-8">
-            <p className="text-muted-foreground">No appointments scheduled for this date</p>
-            <Button className="mt-4">Schedule Appointment</Button>
+            <p className="text-muted-foreground">Aucun rendez-vous prévu pour cette date</p>
+            <Button className="mt-4">Planifier un rendez-vous</Button>
           </div>
         )}
       </Card>

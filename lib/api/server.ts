@@ -25,7 +25,8 @@ export type Salon = {
 
 export type Service = {
   id: string
-  salon_id: string
+  salon_id: string | null
+  salon_ids: string[]
   name: string
   description?: string
   duration_minutes: number
@@ -104,14 +105,27 @@ export async function getSalon(idOrSlug: string): Promise<Salon | null> {
  */
 export async function getServices(salonId?: string): Promise<Service[]> {
   const supabase = await createClient()
+  const selectClause = salonId
+    ? `
+      *,
+      service_salons!inner(
+        salon_id
+      )
+    `
+    : `
+      *,
+      service_salons!left(
+        salon_id
+      )
+    `
 
   let query = supabase
     .from('services')
-    .select('*')
+    .select(selectClause)
     .eq('is_active', true)
 
   if (salonId) {
-    query = query.eq('salon_id', salonId)
+    query = query.eq('service_salons.salon_id', salonId)
   }
 
   const { data, error } = await query.order('category').order('name')
@@ -121,7 +135,10 @@ export async function getServices(salonId?: string): Promise<Service[]> {
     return []
   }
 
-  return data || []
+  return (data || []).map((service: any) => ({
+    ...service,
+    salon_ids: service.service_salons?.map((relation: any) => relation.salon_id) || [],
+  }))
 }
 
 /**

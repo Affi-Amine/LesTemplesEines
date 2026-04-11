@@ -17,7 +17,9 @@ export interface Salon {
 
 export interface Service {
   id: string
-  salon_id: string
+  salon_id: string | null
+  salon_ids: string[]
+  salons?: Pick<Salon, "id" | "name" | "slug" | "city">[]
   name: string
   description: string | null
   duration_minutes: number
@@ -95,7 +97,7 @@ export interface Payment {
   id: string
   appointment_id: string
   amount_cents: number
-  method: "cash" | "card" | "check" | "other"
+  method: "cash" | "card" | "check" | "other" | "treatwell" | "gift_card" | "loyalty"
   reference: string | null
   notes: string | null
   recorded_by_staff_id: string | null
@@ -130,4 +132,22 @@ export interface LoyaltyTransaction {
   transaction_type: "earned" | "redeemed" | "expired"
   points_amount: number
   created_at: string
+}
+
+export interface GiftCard {
+  id: string
+  code: string
+  service_id: string
+  service?: Service | null
+  buyer_email: string
+  recipient_email: string | null
+  recipient_name: string | null
+  personal_message: string | null
+  amount_cents: number
+  status: "active" | "used" | "cancelled"
+  purchased_at: string
+  used_at: string | null
+  redeemed_appointment_id: string | null
+  created_at: string
+  updated_at: string
 }

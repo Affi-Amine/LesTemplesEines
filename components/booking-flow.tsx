@@ -79,6 +79,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     (data.employees.length > 0 ? data.employees : (data.employee ? data.employee : undefined)),
     selectedDateObj,
     data.service || undefined,
+    data.salon || undefined,
   )
 
   // Derive available start times (HH:mm) for quick lookup
@@ -527,7 +528,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   value={data.firstName}
                   onChange={(e) => setData({ ...data, firstName: e.target.value })}
                   className="mt-2"
-                  placeholder="John"
+                  placeholder="Jean"
                 />
               </div>
               <div>
@@ -539,7 +540,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   value={data.lastName}
                   onChange={(e) => setData({ ...data, lastName: e.target.value })}
                   className="mt-2"
-                  placeholder="Doe"
+                  placeholder="Dupont"
                 />
               </div>
             </div>
@@ -559,7 +560,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             </div>
             <div>
               <Label htmlFor="email" className="font-semibold">
-                {t(locale, "booking.email")} <span className="text-xs text-muted-foreground">(optional)</span>
+                {t(locale, "booking.email")} <span className="text-xs text-muted-foreground">(optionnel)</span>
               </Label>
               <Input
                 id="email"
@@ -572,13 +573,13 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             </div>
             <div>
               <Label htmlFor="notes" className="font-semibold">
-                {t(locale, "booking.notes")} <span className="text-xs text-muted-foreground">(optional)</span>
+                {t(locale, "booking.notes")} <span className="text-xs text-muted-foreground">(optionnel)</span>
               </Label>
               <Textarea
                 id="notes"
                 value={data.notes}
                 onChange={(e) => setData({ ...data, notes: e.target.value })}
-                placeholder="e.g., allergies, preferences, pressure level..."
+                placeholder="Ex: allergies, préférences, niveau de pression..."
                 className="mt-2"
                 rows={3}
               />
@@ -625,7 +626,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               <div>
                 <p className="text-sm text-muted-foreground">{t(locale, "booking.step3_title")}</p>
                 <p className="font-semibold text-lg">
-                  {new Date(data.date).toLocaleDateString()} at {data.time}
+                  {new Date(data.date).toLocaleDateString("fr-FR")} à {data.time}
                 </p>
               </div>
               <div>

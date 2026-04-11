@@ -51,7 +51,7 @@ export function TherapistAvailability({ therapists }: TherapistAvailabilityProps
             {therapist.availability.map((day) => (
               <div key={day.date}>
                 <p className="text-sm font-medium mb-2">
-                  {new Date(day.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                  {new Date(day.date).toLocaleDateString("fr-FR", { weekday: "short", month: "short", day: "numeric" })}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {day.slots.map((slot) => (

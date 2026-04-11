@@ -8,11 +8,11 @@ export function RevenueChart({ data }: { data?: { total_revenue_cents: number; t
   if (!data) {
     return (
       <Card className="p-6 h-full flex flex-col">
-        <h3 className="font-semibold text-lg mb-4">Revenue & Bookings</h3>
+        <h3 className="font-semibold text-lg mb-4">Chiffre d'affaires et réservations</h3>
         <div className="flex-1 min-h-[300px] flex items-center justify-center bg-muted/20 rounded-lg">
           <div className="text-center">
             <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Loading revenue data...</p>
+            <p className="text-muted-foreground">Chargement des données de chiffre d'affaires...</p>
           </div>
         </div>
       </Card>
@@ -21,7 +21,7 @@ export function RevenueChart({ data }: { data?: { total_revenue_cents: number; t
 
   const chartData = [
     {
-      name: 'Current Period',
+      name: 'Période actuelle',
       revenue: data.total_revenue_cents / 100, // Convert cents to euros
       bookings: data.total_appointments,
     }
@@ -29,7 +29,7 @@ export function RevenueChart({ data }: { data?: { total_revenue_cents: number; t
 
   return (
     <Card className="p-6 h-full flex flex-col">
-      <h3 className="font-semibold text-lg mb-4">Revenue & Bookings</h3>
+      <h3 className="font-semibold text-lg mb-4">Chiffre d'affaires et réservations</h3>
       <div className="flex-1 min-h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} barGap={10} barCategoryGap="20%">
@@ -39,14 +39,14 @@ export function RevenueChart({ data }: { data?: { total_revenue_cents: number; t
             <YAxis yAxisId="right" orientation="right" />
             <Tooltip 
               formatter={(value: number, name: string) => {
-                if (name === 'revenue') return [`€${value.toFixed(2)}`, 'Revenue']
-                if (name === 'bookings') return [value, 'Bookings']
+                if (name === 'revenue') return [`€${value.toFixed(2)}`, "Chiffre d'affaires"]
+                if (name === 'bookings') return [value, 'Réservations']
                 return [value, name]
               }}
             />
             <Legend />
-            <Bar yAxisId="left" dataKey="revenue" fill="hsl(160, 60%, 50%)" name="Revenue (€)" />
-            <Bar yAxisId="right" dataKey="bookings" fill="hsl(200, 60%, 60%)" name="Bookings" />
+            <Bar yAxisId="left" dataKey="revenue" fill="hsl(160, 60%, 50%)" name="Chiffre d'affaires (€)" />
+            <Bar yAxisId="right" dataKey="bookings" fill="hsl(200, 60%, 60%)" name="Réservations" />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -58,11 +58,11 @@ export function ServiceDistributionChart({ data }: { data?: Array<{ service_name
   if (!data || data.length === 0) {
     return (
       <Card className="p-6">
-        <h3 className="font-semibold text-lg mb-4">Service Distribution</h3>
+        <h3 className="font-semibold text-lg mb-4">Répartition des services</h3>
         <div className="flex items-center justify-center h-[300px] bg-muted/20 rounded-lg">
           <div className="text-center">
             <PieChartIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">No service data available</p>
+            <p className="text-muted-foreground">Aucune donnée de service disponible</p>
           </div>
         </div>
       </Card>
@@ -78,7 +78,7 @@ export function ServiceDistributionChart({ data }: { data?: Array<{ service_name
 
   return (
     <Card className="p-6">
-      <h3 className="font-semibold text-lg mb-4">Service Distribution</h3>
+      <h3 className="font-semibold text-lg mb-4">Répartition des services</h3>
       <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -98,10 +98,10 @@ export function ServiceDistributionChart({ data }: { data?: Array<{ service_name
             </Pie>
             <Tooltip 
               formatter={(value: number, name: string, props: any) => [
-                `${value} bookings`,
+                `${value} réservations`,
                 name
               ]}
-              labelFormatter={(label) => `Service: ${label}`}
+              labelFormatter={(label) => `Service : ${label}`}
             />
             <Legend />
           </PieChart>

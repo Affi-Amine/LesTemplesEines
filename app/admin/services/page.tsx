@@ -20,17 +20,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { ImageUpload } from "@/components/ui/image-upload"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
 
 import type { Service } from "@/lib/types/database"
 
@@ -47,14 +41,14 @@ export default function ServicesPage() {
 
   const filteredServices = selectedSalonId === "all"
     ? services
-    : services?.filter(service => service.salon_id === selectedSalonId)
+    : services?.filter(service => (service.salon_ids?.length ? service.salon_ids : (service.salon_id ? [service.salon_id] : [])).includes(selectedSalonId))
 
   const [editingService, setEditingService] = useState<Service | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
-    salon_id: "",
+    salon_ids: [] as string[],
     name: "",
     description: "",
     duration_minutes: "60",
@@ -70,7 +64,7 @@ export default function ServicesPage() {
   const handleEdit = (service: Service) => {
     setEditingService(service)
     setFormData({
-      salon_id: service.salon_id,
+      salon_ids: service.salon_ids?.length ? service.salon_ids : (service.salon_id ? [service.salon_id] : []),
       name: service.name,
       description: service.description || "",
       duration_minutes: service.duration_minutes.toString(),
@@ -86,7 +80,7 @@ export default function ServicesPage() {
   const handleCreate = () => {
     setEditingService(null)
     setFormData({
-      salon_id: "",
+      salon_ids: [],
       name: "",
       description: "",
       duration_minutes: "60",
@@ -101,7 +95,7 @@ export default function ServicesPage() {
 
   const handleSave = async () => {
     // Validation
-    if (!formData.name || !formData.salon_id || !formData.price_cents || !formData.duration_minutes) {
+    if (!formData.name || formData.salon_ids.length === 0 || !formData.price_cents || !formData.duration_minutes) {
       toast.error("Erreur", {
         description: "Veuillez remplir tous les champs obligatoires",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
@@ -115,7 +109,7 @@ export default function ServicesPage() {
       const method = editingService ? "PUT" : "POST"
 
       const payload = {
-        salon_id: formData.salon_id,
+        salon_ids: formData.salon_ids,
         name: formData.name,
         description: formData.description || undefined,
         duration_minutes: parseInt(formData.duration_minutes),
@@ -179,9 +173,21 @@ export default function ServicesPage() {
   }
 
   // Get salon name helper
-  const getSalonName = (salonId: string) => {
-    const salon = salons?.find((s: any) => s.id === salonId)
-    return salon?.name || "Unknown"
+  const getSalonNames = (service: Service) => {
+    const ids = service.salon_ids?.length ? service.salon_ids : (service.salon_id ? [service.salon_id] : [])
+    return ids
+      .map((salonId) => salons?.find((s: any) => s.id === salonId)?.name)
+      .filter(Boolean)
+      .join(", ")
+  }
+
+  const toggleSalonSelection = (salonId: string, checked: boolean) => {
+    setFormData((current) => ({
+      ...current,
+      salon_ids: checked
+        ? Array.from(new Set([...current.salon_ids, salonId]))
+        : current.salon_ids.filter((id) => id !== salonId),
+    }))
   }
 
   return (
@@ -221,7 +227,7 @@ export default function ServicesPage() {
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">
                     <h3 className="font-semibold text-lg mb-1">{service.name}</h3>
-                    <p className="text-sm text-muted-foreground">{getSalonName(service.salon_id)}</p>
+                    <p className="text-sm text-muted-foreground">{getSalonNames(service) || "Aucun salon"}</p>
                   </div>
                   <Badge variant={service.is_active ? "default" : "secondary"}>
                     {service.is_active ? "Actif" : "Inactif"}
@@ -309,21 +315,26 @@ export default function ServicesPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="salon_id">
-                Salon <span className="text-red-500">*</span>
+              <Label>
+                Salons <span className="text-red-500">*</span>
               </Label>
-              <Select value={formData.salon_id} onValueChange={(value) => setFormData({ ...formData, salon_id: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionnez un salon" />
-                </SelectTrigger>
-                <SelectContent>
-                  {salons?.map((salon: any) => (
-                    <SelectItem key={salon.id} value={salon.id}>
+              <div className="space-y-3 rounded-md border p-4">
+                {salons?.map((salon: any) => (
+                  <div key={salon.id} className="flex items-center space-x-3">
+                    <Checkbox
+                      id={`salon-${salon.id}`}
+                      checked={formData.salon_ids.includes(salon.id)}
+                      onCheckedChange={(checked) => toggleSalonSelection(salon.id, checked === true)}
+                    />
+                    <Label htmlFor={`salon-${salon.id}`} className="cursor-pointer font-normal">
                       {salon.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Le service sera visible uniquement dans les salons sélectionnés.
+              </p>
             </div>
 
             <div className="space-y-2">

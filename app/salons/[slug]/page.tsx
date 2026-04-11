@@ -55,8 +55,13 @@ export default async function SalonPage({ params }: SalonPageProps) {
   // Fetch services for this salon
   const { data: services } = await supabase
     .from("services")
-    .select("*")
-    .eq("salon_id", salon.id)
+    .select(`
+      *,
+      service_salons!inner(
+        salon_id
+      )
+    `)
+    .eq("service_salons.salon_id", salon.id)
     .eq("is_active", true)
     .order("category")
 

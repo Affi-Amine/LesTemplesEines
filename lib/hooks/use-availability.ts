@@ -11,18 +11,19 @@ interface AvailabilitySlot {
 }
 
 interface AvailabilityResponse {
-  staff_id: string
-  staff_name: string
+  staff_id?: string
+  staff_name?: string
   date: string
-  service_duration_minutes: number
-  salon_hours: { open: string; close: string }
+  service_duration_minutes?: number
+  salon_hours?: { open: string; close: string }
   available_slots: AvailabilitySlot[]
-  total_slots: number
+  total_slots?: number
+  required_staff?: number
 }
 
-export function useAvailability(staffId?: string | string[], date?: Date, serviceId?: string) {
+export function useAvailability(staffId?: string | string[], date?: Date, serviceId?: string, salonId?: string) {
   return useQuery({
-    queryKey: ["availability", staffId, date ? format(date, "yyyy-MM-dd") : null, serviceId],
+    queryKey: ["availability", staffId, date ? format(date, "yyyy-MM-dd") : null, serviceId, salonId],
     queryFn: () => {
       if (!date) {
         throw new Error("Date is required")
@@ -35,6 +36,7 @@ export function useAvailability(staffId?: string | string[], date?: Date, servic
         const params = new URLSearchParams({
           date: formattedDate,
         })
+        if (salonId) params.append("salon_id", salonId)
         return fetchAPI<AvailabilityResponse>(`/availability/service/${serviceId}?${params.toString()}`)
       }
 
@@ -44,6 +46,7 @@ export function useAvailability(staffId?: string | string[], date?: Date, servic
           date: formattedDate,
           staff_ids: staffId.join(',')
         })
+        if (salonId) params.append("salon_id", salonId)
         return fetchAPI<AvailabilityResponse>(`/availability/service/${serviceId}?${params.toString()}`)
       }
 

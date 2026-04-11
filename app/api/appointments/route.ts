@@ -174,6 +174,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (appointmentData.service_id) {
+      const { data: serviceSalon, error: serviceSalonError } = await supabase
+        .from("service_salons")
+        .select("service_id")
+        .eq("service_id", appointmentData.service_id)
+        .eq("salon_id", appointmentData.salon_id)
+        .maybeSingle()
+
+      if (serviceSalonError) {
+        throw serviceSalonError
+      }
+
+      if (!serviceSalon) {
+        return NextResponse.json({ error: "Ce service n'est pas disponible dans le salon sélectionné" }, { status: 400 })
+      }
+    }
+
     // Check for conflicts
     const primaryStaffId = appointmentData.staff_id
     const allStaffIds = appointmentData.staff_ids || (primaryStaffId ? [primaryStaffId] : [])

@@ -35,6 +35,12 @@ export function Navbar() {
           <Link href="/book" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             {t("nav.book")}
           </Link>
+          <Link href="/gift" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Cartes cadeaux
+          </Link>
+          <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            J&apos;ai une carte cadeau
+          </Link>
           <Link href="#services" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             {t("nav.salons")}
           </Link>
@@ -76,6 +82,12 @@ export function Navbar() {
             </Link>
             <Link href="/book" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               {t("nav.book")}
+            </Link>
+            <Link href="/gift" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Cartes cadeaux
+            </Link>
+            <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              J&apos;ai une carte cadeau
             </Link>
             <Link href="#services" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               {t("nav.salons")}

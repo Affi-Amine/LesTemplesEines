@@ -247,7 +247,7 @@ function LoadingFallback() {
             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
               <CheckCircle className="w-12 h-12 text-gray-400" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-400 mb-4">Loading...</h1>
+            <h1 className="text-3xl font-bold text-gray-400 mb-4">Chargement...</h1>
           </div>
         </div>
       </div>

@@ -70,7 +70,7 @@ export function ScheduleView({ appointments }: ScheduleViewProps) {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold">Weekly Schedule</h3>
+          <h3 className="text-lg font-semibold">Planning hebdomadaire</h3>
           <p className="text-sm text-muted-foreground">
             {weekDates[0].toLocaleDateString()} - {weekDates[6].toLocaleDateString()}
           </p>
@@ -93,8 +93,8 @@ export function ScheduleView({ appointments }: ScheduleViewProps) {
             <div className="w-20 flex-shrink-0" />
             {weekDates.map((date, idx) => (
               <div key={idx} className="w-32 flex-shrink-0 text-center">
-                <p className="text-sm font-semibold">{date.toLocaleDateString("en-US", { weekday: "short" })}</p>
-                <p className="text-xs text-muted-foreground">{date.toLocaleDateString()}</p>
+                <p className="text-sm font-semibold">{date.toLocaleDateString("fr-FR", { weekday: "short" })}</p>
+                <p className="text-xs text-muted-foreground">{date.toLocaleDateString("fr-FR")}</p>
               </div>
             ))}
           </div>
@@ -114,7 +114,7 @@ export function ScheduleView({ appointments }: ScheduleViewProps) {
                       </div>
                     ) : (
                       <div className="p-2 rounded border border-dashed border-muted-foreground/30 text-xs text-muted-foreground text-center">
-                        Available
+                        Disponible
                       </div>
                     )}
                   </div>

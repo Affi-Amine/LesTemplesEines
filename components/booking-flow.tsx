@@ -23,6 +23,7 @@ import { fr, enUS } from "date-fns/locale"
 import { fromZonedTime } from "date-fns-tz"
 import type { Locale } from "@/i18n.config"
 import { quarterOptionsBetween } from "@/lib/calendar/scheduling"
+import { fetchAPI } from "@/lib/api/client"
 
 type BookingStep = "salon" | "service" | "time" | "info" | "confirm"
 
@@ -38,6 +39,7 @@ interface BookingData {
   phone: string
   email: string
   notes: string
+  paymentOption: "stripe" | "on_site"
 }
 
 interface BookingFlowProps {
@@ -60,7 +62,9 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     phone: "",
     email: "",
     notes: "",
+    paymentOption: "on_site",
   })
+  const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false)
 
   // Fetch data using hooks
   const { data: salons, isLoading: salonsLoading } = useSalons()
@@ -217,6 +221,58 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
        return
     }
 
+    const bookingDetails = {
+      salon: currentSalon,
+      service: currentService,
+      staff: currentEmployee,
+      start_time: startTime,
+      client: {
+        first_name: data.firstName,
+        last_name: data.lastName,
+        phone: data.phone,
+        email: data.email,
+      },
+      notes: data.notes,
+      payment_option: data.paymentOption,
+    }
+
+    if (data.paymentOption === "stripe") {
+      setIsRedirectingToStripe(true)
+      localStorage.setItem("lastBooking", JSON.stringify(bookingDetails))
+
+      try {
+        const response = await fetchAPI<{ url: string }>("/stripe/checkout/appointment", {
+          method: "POST",
+          body: JSON.stringify({
+            salon_id: currentSalon.id,
+            staff_id: primaryStaffId,
+            staff_ids: assignedStaffIds,
+            service_id: currentService.id,
+            start_time: startTime,
+            client_data: {
+              first_name: data.firstName,
+              last_name: data.lastName,
+              phone: data.phone,
+              email: data.email || undefined,
+            },
+            notes: data.notes || undefined,
+            payment_method: "stripe",
+            payment_status: "pending",
+          }),
+        })
+
+        window.location.href = response.url
+        return
+      } catch (error: any) {
+        setIsRedirectingToStripe(false)
+        toast.error("Erreur lors du paiement", {
+          description: error.message || "Impossible de lancer le paiement Stripe.",
+          icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+        })
+        return
+      }
+    }
+
     createAppointment.mutate(
       {
         salon_id: currentSalon.id,
@@ -231,25 +287,18 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           email: data.email || undefined,
         },
         notes: data.notes || undefined,
+        payment_method: "on_site",
+        payment_status: "unpaid",
+        amount_paid_cents: 0,
       },
       {
         onSuccess: (appointment) => {
           // Store booking details for success page
-          const bookingDetails = {
+          const confirmedBookingDetails = {
             reference: appointment.id,
-            salon: currentSalon,
-            service: currentService,
-            staff: currentEmployee,
-            start_time: startTime,
-            client: {
-              first_name: data.firstName,
-              last_name: data.lastName,
-              phone: data.phone,
-              email: data.email,
-            },
-            notes: data.notes,
+            ...bookingDetails,
           }
-          localStorage.setItem("lastBooking", JSON.stringify(bookingDetails))
+          localStorage.setItem("lastBooking", JSON.stringify(confirmedBookingDetails))
 
           toast.success(t(locale, "booking.booking_confirmed"), {
             description: "Un SMS de confirmation sera envoyé à " + data.phone,
@@ -566,8 +615,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 type="email"
                 value={data.email}
                 onChange={(e) => setData({ ...data, email: e.target.value })}
-                className="mt-2"
-                placeholder="john@example.com"
+            className="mt-2"
+                  placeholder="john@example.com"
               />
             </div>
             <div>
@@ -582,6 +631,29 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 className="mt-2"
                 rows={3}
               />
+            </div>
+            <div>
+              <Label className="font-semibold">Paiement</Label>
+              <RadioGroup
+                value={data.paymentOption}
+                onValueChange={(value: "stripe" | "on_site") => setData({ ...data, paymentOption: value })}
+                className="mt-3 space-y-3"
+              >
+                <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted cursor-pointer">
+                  <RadioGroupItem value="stripe" id="payment-stripe" className="mt-1" />
+                  <Label htmlFor="payment-stripe" className="cursor-pointer flex-1">
+                    <div className="font-medium">Payer maintenant</div>
+                    <div className="text-sm text-muted-foreground">Paiement en ligne securise avec Stripe.</div>
+                  </Label>
+                </div>
+                <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted cursor-pointer">
+                  <RadioGroupItem value="on_site" id="payment-on-site" className="mt-1" />
+                  <Label htmlFor="payment-on-site" className="cursor-pointer flex-1">
+                    <div className="font-medium">Payer sur place</div>
+                    <div className="text-sm text-muted-foreground">Le rendez-vous est cree comme non paye.</div>
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
           </div>
           <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 mt-8">
@@ -634,6 +706,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   {data.firstName} {data.lastName}
                 </p>
               </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Paiement</p>
+                <p className="font-semibold text-lg">{data.paymentOption === "stripe" ? "Stripe" : "Sur place"}</p>
+              </div>
             </div>
 
             {/* Price */}
@@ -663,15 +739,15 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               onClick={handleConfirm}
               className="bg-primary hover:bg-primary/90 cursor-pointer w-full sm:w-auto"
               size="lg"
-              disabled={createAppointment.isPending}
+              disabled={createAppointment.isPending || isRedirectingToStripe}
             >
-              {createAppointment.isPending ? (
+              {createAppointment.isPending || isRedirectingToStripe ? (
                 <>
                   <Icon icon="svg-spinners:ring-resize" className="w-5 h-5 mr-2" />
-                  {t(locale, "common.loading")}
+                  {isRedirectingToStripe ? "Redirection..." : t(locale, "common.loading")}
                 </>
               ) : (
-                t(locale, "booking.confirm_booking")
+                data.paymentOption === "stripe" ? "Payer avec Stripe" : t(locale, "booking.confirm_booking")
               )}
             </Button>
           </div>

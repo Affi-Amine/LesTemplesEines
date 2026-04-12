@@ -25,6 +25,10 @@ interface CreateAppointmentData {
   client_notes?: string
   notes?: string
   status?: "confirmed" | "pending"
+  payment_status?: "pending" | "paid" | "unpaid" | "failed" | "partial"
+  payment_method?: string
+  amount_paid_cents?: number
+  paid_at?: string
 }
 
 export function useCreateAppointment() {

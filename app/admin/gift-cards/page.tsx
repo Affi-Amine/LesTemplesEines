@@ -20,7 +20,9 @@ type GiftCardRow = {
   personal_message: string | null
   amount_cents: number
   status: "active" | "used" | "cancelled"
+  payment_status: "paid" | "unpaid"
   purchased_at: string
+  paid_at: string | null
   used_at: string | null
   redeemed_appointment_id: string | null
   service?: {
@@ -81,6 +83,14 @@ export default function AdminGiftCardsPage() {
       case "cancelled":
         return <Badge variant="secondary">Annulée</Badge>
     }
+  }
+
+  const getPaymentBadge = (value: GiftCardRow["payment_status"]) => {
+    if (value === "paid") {
+      return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Payee</Badge>
+    }
+
+    return <Badge variant="secondary">Non payee</Badge>
   }
 
   return (
@@ -177,6 +187,7 @@ export default function AdminGiftCardsPage() {
                     <div className="flex items-center gap-3 flex-wrap">
                       <p className="font-mono text-lg">{formatGiftCardCode(giftCard.code)}</p>
                       {getStatusBadge(giftCard.status)}
+                      {getPaymentBadge(giftCard.payment_status)}
                     </div>
                     <div>
                       <p className="font-semibold">{giftCard.service?.name || "Prestation inconnue"}</p>
@@ -207,6 +218,13 @@ export default function AdminGiftCardsPage() {
                     <div className="text-sm">
                       <p className="text-muted-foreground">Achetée le</p>
                       <p>{new Date(giftCard.purchased_at).toLocaleString("fr-FR")}</p>
+                    </div>
+                    <div className="text-sm">
+                      <p className="text-muted-foreground">Paiement</p>
+                      <p>{giftCard.payment_status === "paid" ? "Paye" : "Non paye"}</p>
+                      {giftCard.paid_at && (
+                        <p className="text-muted-foreground">{new Date(giftCard.paid_at).toLocaleString("fr-FR")}</p>
+                      )}
                     </div>
                     {giftCard.used_at ? (
                       <div className="text-sm">

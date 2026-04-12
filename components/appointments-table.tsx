@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Eye, Edit, Trash2 } from "lucide-react"
 import { getStatusColor, getStatusLabel, type AppointmentStatus } from "@/lib/utils"
+import { getPaymentMethodLabel, getPaymentStatusClass, getPaymentStatusLabel } from "@/lib/payments"
 
 export interface AppointmentRow {
   id: string
@@ -13,8 +14,9 @@ export interface AppointmentRow {
   time: string
   status: AppointmentStatus
   therapist: string
-  payment_status?: "paid" | "unpaid" | "partial"
+  payment_status?: "pending" | "paid" | "unpaid" | "failed" | "partial"
   payment_method?: string
+  paid_at?: string | null
 }
 
 interface AppointmentsTableProps {
@@ -38,6 +40,7 @@ export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: Ap
               <th className="px-3 md:px-6 py-3 text-left text-sm font-semibold">Date & Heure</th>
               <th className="px-3 md:px-6 py-3 text-left text-sm font-semibold">Thérapeute</th>
               <th className="px-3 md:px-6 py-3 text-left text-sm font-semibold">Statut</th>
+              <th className="px-3 md:px-6 py-3 text-left text-sm font-semibold">Paiement</th>
               <th className="px-3 md:px-6 py-3 text-left text-sm font-semibold">Actions</th>
             </tr>
           </thead>
@@ -55,6 +58,16 @@ export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: Ap
                   <Badge className={getStatusColor(apt.status)}>
                     {getStatusLabel(apt.status)}
                   </Badge>
+                </td>
+                <td className="px-3 md:px-6 py-4 text-sm">
+                  <div className="space-y-1">
+                    <Badge variant="outline" className={getPaymentStatusClass(apt.payment_status)}>
+                      {getPaymentStatusLabel(apt.payment_status)}
+                    </Badge>
+                    <div className="text-xs text-muted-foreground">
+                      {getPaymentMethodLabel(apt.payment_method)}
+                    </div>
+                  </div>
                 </td>
                 <td className="px-3 md:px-6 py-4 text-sm">
                   <div className="flex items-center gap-1 md:gap-2">

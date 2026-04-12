@@ -28,6 +28,7 @@ import { Icon } from "@iconify/react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { fromZonedTime, formatInTimeZone } from "date-fns-tz"
+import { getPaymentMethodLabel, getPaymentStatusClass, getPaymentStatusLabel } from "@/lib/payments"
 
 import { SalonFilter } from "@/components/salon-filter"
 
@@ -295,7 +296,8 @@ export default function AppointmentsPage() {
                 ? apt.assignments.map((a: any) => `${a.staff.first_name} ${a.staff.last_name}`).join(", ")
                 : (apt.staff ? `${apt.staff.first_name} ${apt.staff.last_name}` : 'Thérapeute'),
               payment_status: apt.payment_status,
-              payment_method: apt.payment_method
+              payment_method: apt.payment_method,
+              paid_at: apt.paid_at,
             })) || []} 
             onView={handleViewAppointment}
             onEdit={handleEditAppointment}
@@ -497,23 +499,20 @@ export default function AppointmentsPage() {
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Paiement</Label>
                   <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline" className={
-                      selectedAppointment.payment_status === 'paid' ? 'border-green-500 text-green-700 bg-green-50' : 
-                      selectedAppointment.payment_status === 'partial' ? 'border-yellow-500 text-yellow-700 bg-yellow-50' : 
-                      'border-red-200 text-red-700 bg-red-50'
-                    }>
-                      {selectedAppointment.payment_status === 'paid' ? 'Payé' : 
-                       selectedAppointment.payment_status === 'partial' ? 'Partiel' : 'Non payé'}
+                    <Badge variant="outline" className={getPaymentStatusClass(selectedAppointment.payment_status)}>
+                      {getPaymentStatusLabel(selectedAppointment.payment_status)}
                     </Badge>
                     {selectedAppointment.payment_method && (
                       <span className="text-sm text-muted-foreground">
-                        via {selectedAppointment.payment_method === 'card' ? 'Carte Bancaire' : 
-                             selectedAppointment.payment_method === 'cash' ? 'Espèces' : 
-                             selectedAppointment.payment_method === 'check' ? 'Chèque' : 
-                             selectedAppointment.payment_method}
+                        via {getPaymentMethodLabel(selectedAppointment.payment_method)}
                       </span>
                     )}
                   </div>
+                  {selectedAppointment.paid_at && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Paye le {new Date(selectedAppointment.paid_at).toLocaleString("fr-FR")}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Statut</Label>

@@ -10,12 +10,13 @@ const UpdateAppointmentSchema = z.object({
   status: z.enum(["confirmed", "in_progress", "completed", "cancelled", "no_show", "blocked"]).optional(),
   client_notes: z.string().optional(),
   internal_notes: z.string().optional(),
-  payment_status: z.enum(["unpaid", "partial", "paid"]).optional(),
+  payment_status: z.enum(["pending", "unpaid", "partial", "paid", "failed"]).optional(),
   payment_method: z.string().optional(),
   amount_paid_cents: z.number().optional(),
+  paid_at: z.string().nullable().optional(),
   payments: z.array(z.object({
     amount_cents: z.number(),
-    method: z.enum(["cash", "card", "check", "other", "treatwell", "gift_card", "loyalty"])
+    method: z.enum(["stripe", "gift_card", "on_site", "cash", "card", "check", "other", "treatwell", "loyalty"])
   })).optional(),
   // New fields for modification
   service_id: z.string().uuid().optional(),
@@ -59,7 +60,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (updates.payment_status) updateData.payment_status = updates.payment_status
     if (updates.payment_method !== undefined) updateData.payment_method = updates.payment_method
     if (updates.amount_paid_cents !== undefined) updateData.amount_paid_cents = updates.amount_paid_cents
+    if (updates.paid_at !== undefined) updateData.paid_at = updates.paid_at
     if (updates.salon_id) updateData.salon_id = updates.salon_id
+
+    if (updates.payment_status === "paid" && updates.paid_at === undefined) {
+      updateData.paid_at = new Date().toISOString()
+    }
 
     const targetSalonId = updates.salon_id || existing.salon_id
     const targetServiceId = updates.service_id || existing.service_id

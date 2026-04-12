@@ -1,21 +1,10 @@
 export const runtime = "nodejs"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
+import { ClientDataSchema, createBookableAppointment } from "@/lib/appointments/create"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { fromZonedTime } from "date-fns-tz"
-
-const PhoneSchema = z
-  .string()
-  .transform((s) => (s || "").replace(/[\s\u00A0\-\.\(\)\/]/g, "")) // Strip spaces, dashes, dots, parentheses, slashes
-  .refine((s) => /^\+?[0-9]{9,}$/.test(s), { message: "Invalid phone number format" }) // Allow 9+ digits (some countries have shorter numbers)
-
-const ClientDataSchema = z.object({
-  first_name: z.string().min(1),
-  last_name: z.string().min(1),
-  phone: PhoneSchema,
-  email: z.string().email().optional(),
-})
 
 const AppointmentSchema = z.object({
   salon_id: z.string().uuid(),
@@ -29,6 +18,10 @@ const AppointmentSchema = z.object({
   client_notes: z.string().optional(),
   notes: z.string().optional(), // Alternative field name
   status: z.enum(["confirmed", "in_progress", "completed", "cancelled", "no_show", "blocked"]).optional(),
+  payment_status: z.enum(["pending", "paid", "unpaid", "failed", "partial"]).optional(),
+  payment_method: z.string().optional(),
+  amount_paid_cents: z.number().int().min(0).optional(),
+  paid_at: z.string().optional(),
 }).refine((data) => data.status === "blocked" || data.client_id || data.client_data, {
   message: "Either client_id or client_data must be provided (unless status is blocked)",
 }).refine((data) => data.status === "blocked" || data.service_id, {
@@ -109,6 +102,34 @@ export async function POST(request: NextRequest) {
     const appointmentData = AppointmentSchema.parse(body)
 
     const supabase = await createAdminClient()
+
+    if (appointmentData.status !== "blocked") {
+      const appointment = await createBookableAppointment(supabase, {
+        salon_id: appointmentData.salon_id,
+        client_id: appointmentData.client_id,
+        client_data: appointmentData.client_data,
+        staff_id: appointmentData.staff_id,
+        staff_ids: appointmentData.staff_ids,
+        service_id: appointmentData.service_id!,
+        start_time: appointmentData.start_time,
+        end_time: appointmentData.end_time,
+        client_notes: appointmentData.client_notes,
+        notes: appointmentData.notes,
+        status: appointmentData.status,
+        payment_status: appointmentData.payment_status || "unpaid",
+        payment_method: appointmentData.payment_method || "on_site",
+        amount_paid_cents: appointmentData.amount_paid_cents || 0,
+        paid_at: appointmentData.paid_at,
+      })
+
+      try {
+        await sendAppointmentBookedEmails(appointment)
+      } catch (emailError) {
+        console.error("[appointments] Failed to send confirmation emails:", emailError)
+      }
+
+      return NextResponse.json(appointment, { status: 201 })
+    }
 
     let clientId = appointmentData.client_id
 
@@ -243,6 +264,10 @@ export async function POST(request: NextRequest) {
       end_time: endTime,
       client_notes: appointmentData.client_notes || appointmentData.notes,
       status: appointmentData.status || "confirmed",
+      payment_status: appointmentData.payment_status || null,
+      payment_method: appointmentData.payment_method || null,
+      amount_paid_cents: appointmentData.amount_paid_cents || 0,
+      paid_at: appointmentData.paid_at || null,
     }
 
     const { data: appointment, error } = await supabase

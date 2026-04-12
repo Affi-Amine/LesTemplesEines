@@ -3,13 +3,9 @@ export const runtime = "nodejs"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizeGiftCardCode } from "@/lib/gift-cards"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
+import { ClientDataSchema, createBookableAppointment } from "@/lib/appointments/create"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-
-const PhoneSchema = z
-  .string()
-  .transform((s) => (s || "").replace(/[\s\u00A0\-\.\(\)\/]/g, ""))
-  .refine((s) => /^\+?[0-9]{9,}$/.test(s), { message: "Invalid phone number format" })
 
 const RedeemGiftCardSchema = z.object({
   code: z.string().min(1),
@@ -17,12 +13,7 @@ const RedeemGiftCardSchema = z.object({
   service_id: z.string().uuid(),
   start_time: z.string(),
   staff_ids: z.array(z.string().uuid()).min(1),
-  client_data: z.object({
-    first_name: z.string().min(1),
-    last_name: z.string().min(1),
-    phone: PhoneSchema,
-    email: z.string().email().optional(),
-  }),
+  client_data: ClientDataSchema,
   client_notes: z.string().optional(),
 })
 
@@ -82,111 +73,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Pas assez de prestataires assignés pour cette prestation" }, { status: 400 })
     }
 
-    let clientId: string | undefined
-
-    const { data: existingClient } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("phone", payload.client_data.phone)
-      .maybeSingle()
-
-    if (existingClient?.id) {
-      clientId = existingClient.id
-    } else {
-      const { data: newClient, error: clientError } = await supabase
-        .from("clients")
-        .insert([payload.client_data])
-        .select("id")
-        .single()
-
-      if (clientError) throw clientError
-
-      clientId = newClient.id
-
-      await supabase.from("loyalty_points").insert([{
-        client_id: newClient.id,
-        points_balance: 0,
-        total_earned: 0,
-        total_redeemed: 0,
-      }])
-    }
-
-    const startDate = new Date(payload.start_time)
-    const endDate = new Date(startDate.getTime() + (giftCard.service?.duration_minutes || 60) * 60000)
-
-    for (const staffId of assignedStaffIds) {
-      const { data: conflicts, error: conflictError } = await supabase
-        .from("appointments")
-        .select("id")
-        .eq("staff_id", staffId)
-        .in("status", ["confirmed", "pending", "blocked"])
-        .lt("start_time", endDate.toISOString())
-        .gt("end_time", payload.start_time)
-
-      if (conflictError) throw conflictError
-      if (conflicts && conflicts.length > 0) {
-        return NextResponse.json({ error: "Un ou plusieurs créneaux ne sont plus disponibles" }, { status: 409 })
-      }
-
-      const { data: deepConflicts, error: deepConflictError } = await supabase
-        .from("appointment_assignments")
-        .select("appointment:appointments!inner(start_time, end_time, status)")
-        .eq("staff_id", staffId)
-        .filter("appointment.status", "in", '("confirmed","pending","blocked")')
-        .filter("appointment.start_time", "lt", endDate.toISOString())
-        .filter("appointment.end_time", "gt", payload.start_time)
-
-      if (deepConflictError) throw deepConflictError
-      if (deepConflicts && deepConflicts.length > 0) {
-        return NextResponse.json({ error: "Un ou plusieurs créneaux ne sont plus disponibles" }, { status: 409 })
-      }
-    }
-
-    const { data: appointment, error: appointmentError } = await supabase
-      .from("appointments")
-      .insert([{
-        salon_id: payload.salon_id,
-        client_id: clientId,
-        staff_id: assignedStaffIds[0],
-        service_id: payload.service_id,
-        start_time: payload.start_time,
-        end_time: endDate.toISOString(),
-        client_notes: payload.client_notes || null,
-        status: "confirmed",
-        payment_status: "paid",
-        payment_method: "gift_card",
-        amount_paid_cents: giftCard.amount_cents,
-      }])
-      .select(`
-        *,
-        client:clients(*),
-        staff:staff(id, first_name, last_name, role, phone),
-        service:services(*),
-        salon:salons(id, name, city, address)
-      `)
-      .single()
-
-    if (appointmentError) throw appointmentError
-
-    const { error: assignmentError } = await supabase
-      .from("appointment_assignments")
-      .insert(assignedStaffIds.map((staffId) => ({
-        appointment_id: appointment.id,
-        staff_id: staffId,
-      })))
-
-    if (assignmentError) throw assignmentError
-
-    const { error: paymentInsertError } = await supabase
-      .from("payments")
-      .insert([{
-        appointment_id: appointment.id,
+    const appointment = await createBookableAppointment(supabase, {
+      salon_id: payload.salon_id,
+      service_id: payload.service_id,
+      start_time: payload.start_time,
+      staff_id: assignedStaffIds[0],
+      staff_ids: assignedStaffIds,
+      client_data: payload.client_data,
+      client_notes: payload.client_notes,
+      status: "confirmed",
+      payment_status: "paid",
+      payment_method: "gift_card",
+      amount_paid_cents: giftCard.amount_cents,
+      paid_at: new Date().toISOString(),
+    }, {
+      paymentRecord: {
         amount_cents: giftCard.amount_cents,
         method: "gift_card",
         notes: `Redeemed gift card ${giftCard.code}`,
-      }])
-
-    if (paymentInsertError) throw paymentInsertError
+      },
+    })
 
     const { error: giftCardUpdateError } = await supabase
       .from("gift_cards")

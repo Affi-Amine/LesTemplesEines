@@ -86,9 +86,12 @@ export interface Appointment {
   status: "confirmed" | "pending" | "in_progress" | "completed" | "cancelled" | "no_show" | "blocked"
   client_notes: string | null
   internal_notes: string | null
-  payment_status: "unpaid" | "partial" | "paid"
+  payment_status: "pending" | "paid" | "unpaid" | "failed" | "partial"
   payment_method: string | null
   amount_paid_cents: number
+  paid_at: string | null
+  stripe_checkout_session_id: string | null
+  stripe_payment_intent_id: string | null
   created_at: string
   updated_at: string
 }
@@ -145,9 +148,13 @@ export interface GiftCard {
   personal_message: string | null
   amount_cents: number
   status: "active" | "used" | "cancelled"
+  payment_status: "paid" | "unpaid"
   purchased_at: string
+  paid_at: string | null
   used_at: string | null
   redeemed_appointment_id: string | null
+  stripe_checkout_session_id: string | null
+  stripe_payment_intent_id: string | null
   created_at: string
   updated_at: string
 }

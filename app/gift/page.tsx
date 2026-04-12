@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { useSearchParams } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Card } from "@/components/ui/card"
@@ -19,18 +20,31 @@ type EmailStatus = {
   email_enabled: boolean
   email_from: string
   app_url: string
+  stripe_enabled: boolean
+}
+
+type CheckoutStatus = {
+  session_id: string
+  checkout_type: "gift_card" | "appointment"
+  status: "open" | "completed" | "failed"
+  gift_card?: {
+    code: string
+    recipient_email: string | null
+  } | null
 }
 
 export default function GiftPage() {
+  const searchParams = useSearchParams()
   const { data: services, isLoading } = useServices(undefined, true)
   const { data: emailStatus } = useQuery({
     queryKey: ["email-status"],
     queryFn: () => fetchAPI<EmailStatus>("/email/status"),
   })
+  const sessionId = searchParams.get("session_id")
+  const checkoutState = searchParams.get("checkout")
 
   const [selectedServiceId, setSelectedServiceId] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [result, setResult] = useState<any>(null)
   const [form, setForm] = useState({
     buyer_email: "",
     recipient_email: "",
@@ -43,6 +57,19 @@ export default function GiftPage() {
     [services, selectedServiceId]
   )
 
+  const { data: checkoutStatus } = useQuery({
+    queryKey: ["gift-checkout-status", sessionId],
+    queryFn: () => fetchAPI<CheckoutStatus>(`/stripe/checkout-status?session_id=${sessionId}`),
+    enabled: Boolean(sessionId),
+    refetchInterval: (query) => query.state.data?.status === "open" ? 3000 : false,
+  })
+
+  useEffect(() => {
+    if (checkoutState === "cancel") {
+      toast.error("Le paiement a ete annule.")
+    }
+  }, [checkoutState])
+
   const handlePurchase = async () => {
     if (!selectedService || !form.buyer_email) {
       toast.error("Veuillez choisir une prestation et renseigner l'email acheteur.")
@@ -51,7 +78,7 @@ export default function GiftPage() {
 
     setIsSubmitting(true)
     try {
-      const response = await fetchAPI<any>("/gift-cards/purchase", {
+      const response = await fetchAPI<{ url: string }>("/gift-cards/purchase", {
         method: "POST",
         body: JSON.stringify({
           service_id: selectedService.id,
@@ -62,8 +89,7 @@ export default function GiftPage() {
         }),
       })
 
-      setResult(response)
-      toast.success("Paiement simulé avec succès. La carte cadeau a été générée.")
+      window.location.href = response.url
     } catch (error: any) {
       toast.error(error.message || "Impossible de générer la carte cadeau.")
     } finally {
@@ -205,24 +231,38 @@ export default function GiftPage() {
               </div>
 
               <Button onClick={handlePurchase} disabled={!selectedService || !form.buyer_email || isSubmitting} className="w-full">
-                {isSubmitting ? "Paiement simulé..." : "Payer"}
+                {isSubmitting ? "Redirection vers Stripe..." : "Payer"}
               </Button>
 
               <p className="text-xs text-muted-foreground">
-                Le paiement est simulé dans cette première version. Une carte cadeau active sera créée immédiatement.
+                Le paiement en ligne est obligatoire. La carte cadeau sera creee uniquement apres confirmation Stripe.
               </p>
 
-              {result?.gift_card && (
+              {checkoutStatus?.status === "open" && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
+                  <p className="font-medium text-amber-800">Paiement confirme, finalisation en cours</p>
+                  <p className="text-sm text-amber-700">Nous attendons la confirmation finale de Stripe avant de generer la carte cadeau.</p>
+                </div>
+              )}
+
+              {checkoutStatus?.status === "completed" && checkoutStatus.gift_card && (
                 <div className="rounded-xl border border-green-200 bg-green-50 p-4 space-y-3">
                   <div className="flex items-center gap-2 text-green-700 font-medium">
                     <Mail className="w-4 h-4" />
-                    Carte cadeau générée
+                    Carte cadeau generee
                   </div>
                   <p className="text-sm">Code cadeau</p>
-                  <p className="font-mono text-lg">{formatGiftCardCode(result.gift_card.code)}</p>
+                  <p className="font-mono text-lg">{formatGiftCardCode(checkoutStatus.gift_card.code)}</p>
                   <p className="text-sm text-muted-foreground">
-                    L&apos;email acheteur a été traité{result.gift_card.recipient_email ? " ainsi qu'un email destinataire." : "."}
+                    L&apos;email acheteur a ete traite{checkoutStatus.gift_card.recipient_email ? " ainsi qu'un email destinataire." : "."}
                   </p>
+                </div>
+              )}
+
+              {checkoutStatus?.status === "failed" && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2">
+                  <p className="font-medium text-red-700">Le paiement a echoue ou la creation de la carte n'a pas pu etre finalisee.</p>
+                  <p className="text-sm text-red-600">Aucune carte cadeau n'a ete creee. Reessaie ou contacte le support.</p>
                 </div>
               )}
             </Card>

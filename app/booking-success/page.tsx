@@ -7,19 +7,29 @@ import { Card } from "@/components/ui/card"
 import { Footer } from "@/components/footer"
 import { Navbar } from "@/components/navbar"
 import { useTranslations } from "@/lib/i18n/use-translations"
+import { fetchAPI } from "@/lib/api/client"
 import { CheckCircle, Calendar, Clock, MapPin, User, Phone, Mail, ArrowLeft, Plus } from "lucide-react"
 import { formatInTimeZone } from "date-fns-tz"
 import { fr } from "date-fns/locale"
 import Link from "next/link"
+import { useQuery } from "@tanstack/react-query"
 
 function BookingSuccessContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { t } = useTranslations()
   const [mounted, setMounted] = useState(false)
+  const sessionId = searchParams.get("session_id")
+  const checkoutState = searchParams.get("checkout")
 
   // Get booking details from URL params or localStorage
   const [bookingDetails, setBookingDetails] = useState<any>(null)
+  const { data: checkoutStatus } = useQuery({
+    queryKey: ["booking-checkout-status", sessionId],
+    queryFn: () => fetchAPI<any>(`/stripe/checkout-status?session_id=${sessionId}`),
+    enabled: Boolean(sessionId),
+    refetchInterval: (query) => query.state.data?.status === "open" ? 3000 : false,
+  })
 
   useEffect(() => {
     setMounted(true)
@@ -34,6 +44,19 @@ function BookingSuccessContent() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (checkoutStatus?.appointment) {
+      setBookingDetails({
+        reference: checkoutStatus.appointment.id,
+        salon: checkoutStatus.appointment.salon,
+        service: checkoutStatus.appointment.service,
+        staff: checkoutStatus.appointment.staff,
+        start_time: checkoutStatus.appointment.start_time,
+        client: checkoutStatus.appointment.client,
+      })
+    }
+  }, [checkoutStatus])
 
   if (!mounted) {
     return null // Prevent hydration mismatch
@@ -57,7 +80,11 @@ function BookingSuccessContent() {
               {t("booking.success_subtitle")}
             </p>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              {t("booking.success_message")}
+              {checkoutState === "success" && checkoutStatus?.status === "open"
+                ? "Paiement confirme. La reservation est en cours de finalisation."
+                : checkoutState === "cancel"
+                  ? "Le paiement a ete annule. Aucun rendez-vous paye n'a ete cree."
+                  : t("booking.success_message")}
             </p>
           </div>
 

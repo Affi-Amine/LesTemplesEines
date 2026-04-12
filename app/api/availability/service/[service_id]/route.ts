@@ -247,7 +247,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
       service_id,
       date: dateParam,
       available_slots: availableSlots,
-      required_staff: requiredStaffCount
+      required_staff: requiredStaffCount,
+      salon_hours: salonHours,
+      total_slots: availableSlots.length,
+      service_duration_minutes: duration,
     })
 
   } catch (error: any) {

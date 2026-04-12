@@ -37,6 +37,28 @@ export function toQuarterTimeOptions(startHour: number, endHour: number): string
   return values
 }
 
+export function quarterOptionsBetween(startTime: string, endTime: string): string[] {
+  const [startHour, startMinute] = startTime.split(":").map((value) => Number.parseInt(value, 10))
+  const [endHour, endMinute] = endTime.split(":").map((value) => Number.parseInt(value, 10))
+
+  if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) {
+    return []
+  }
+
+  const values: string[] = []
+  let currentMinutes = startHour * 60 + startMinute
+  const endMinutes = endHour * 60 + endMinute
+
+  while (currentMinutes < endMinutes) {
+    const hour = Math.floor(currentMinutes / 60)
+    const minute = currentMinutes % 60
+    values.push(`${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`)
+    currentMinutes += QUARTER_MINUTES
+  }
+
+  return values
+}
+
 export function getAppointmentDurationMinutes(appointment: Pick<CalendarAppointmentLike, "start_time" | "end_time">): number {
   const start = new Date(appointment.start_time)
   const end = new Date(appointment.end_time)

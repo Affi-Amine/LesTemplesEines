@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -22,6 +22,7 @@ import { format } from "date-fns"
 import { fr, enUS } from "date-fns/locale"
 import { fromZonedTime } from "date-fns-tz"
 import type { Locale } from "@/i18n.config"
+import { quarterOptionsBetween } from "@/lib/calendar/scheduling"
 
 type BookingStep = "salon" | "service" | "time" | "info" | "confirm"
 
@@ -83,11 +84,11 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   )
 
   // Derive available start times (HH:mm) for quick lookup
-  const availableTimesSet = new Set(
+  const availableTimesSet = useMemo(() => new Set(
     (availabilityData?.available_slots || []).map((slot) =>
       new Date(slot.start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
     ),
-  )
+  ), [availabilityData?.available_slots])
 
   // Helper to get staff for selected slot in multi-staff scenario
   const getStaffForSelectedTime = () => {
@@ -98,34 +99,32 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     return selectedSlot?.available_staff || []
   }
 
-  // Generate time options from salon hours with 30-min steps if available, otherwise fallback
+  // Generate time options from salon hours with 15-min steps if available, otherwise fallback
   const defaultTimes = [
     "09:00",
+    "09:15",
+    "09:30",
+    "09:45",
     "10:00",
+    "10:15",
+    "10:30",
+    "10:45",
     "11:00",
-    "14:00",
-    "15:00",
-    "16:00",
-    "17:00",
-    "18:00",
-    "19:00",
   ]
-  const timeOptions = (() => {
+  const timeOptions = useMemo(() => {
     const open = availabilityData?.salon_hours?.open
     const close = availabilityData?.salon_hours?.close
-    if (data.date && open && close) {
-      const start = new Date(`${data.date}T${open}:00`)
-      const end = new Date(`${data.date}T${close}:00`)
-      const times: string[] = []
-      let cur = new Date(start)
-      while (cur < end) {
-        times.push(cur.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }))
-        cur = new Date(cur.getTime() + 30 * 60 * 1000)
-      }
-      return times
+    if (open && close) {
+      return quarterOptionsBetween(open, close)
     }
     return defaultTimes
-  })()
+  }, [availabilityData?.salon_hours?.close, availabilityData?.salon_hours?.open])
+
+  useEffect(() => {
+    if (data.time && !availableTimesSet.has(data.time)) {
+      setData((current) => ({ ...current, time: "" }))
+    }
+  }, [availableTimesSet, data.time])
 
   // Handle toggle for multi-staff selection
   const toggleEmployeeSelection = (employeeId: string, requiredCount: number) => {
@@ -491,7 +490,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                       key={time}
                       variant={isSelected ? "default" : "outline"}
                       onClick={() => setData({ ...data, time })}
-                      className={`w-full ${!isAvailable ? "opacity-50 cursor-not-allowed" : ""}`}
+                      className={`w-full ${!isAvailable ? "bg-muted text-muted-foreground border-muted-foreground/10 opacity-100 cursor-not-allowed hover:bg-muted hover:text-muted-foreground" : ""}`}
                       disabled={!isAvailable || availabilityLoading || (!data.employee && (currentService?.required_staff_count || 1) <= 1)}
                     >
                       {time}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
@@ -14,6 +14,7 @@ import { fetchAPI } from "@/lib/api/client"
 import { formatGiftCardCode } from "@/lib/gift-cards"
 import { CheckCircle2, Gift, CalendarDays } from "lucide-react"
 import { toast } from "sonner"
+import { quarterOptionsBetween } from "@/lib/calendar/scheduling"
 
 type GiftCardValidationResponse = {
   id: string
@@ -71,6 +72,19 @@ export default function RedeemGiftCardPage() {
 
   const compatibleSalons = giftCard?.service?.salons || []
   const requiredStaffCount = giftCard?.service?.required_staff_count || 1
+  const availableTimesSet = useMemo(() => new Set(
+    (availabilityData?.available_slots || []).map((slot) =>
+      new Date(slot.start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    ),
+  ), [availabilityData?.available_slots])
+  const timeOptions = useMemo(() => {
+    const open = availabilityData?.salon_hours?.open
+    const close = availabilityData?.salon_hours?.close
+    if (open && close) {
+      return quarterOptionsBetween(open, close)
+    }
+    return []
+  }, [availabilityData?.salon_hours?.close, availabilityData?.salon_hours?.open])
 
   const handleValidateCode = async () => {
     if (!codeInput.trim()) {
@@ -156,6 +170,19 @@ export default function RedeemGiftCardPage() {
       minute: "2-digit",
     })
   }, [])
+
+  useEffect(() => {
+    if (!selectedSlot) return
+
+    const selectedTime = new Date(selectedSlot.start).toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+
+    if (!availableTimesSet.has(selectedTime)) {
+      setSelectedSlot(null)
+    }
+  }, [availableTimesSet, selectedSlot])
 
   return (
     <main className="min-h-screen bg-background">
@@ -258,15 +285,19 @@ export default function RedeemGiftCardPage() {
                     <p className="text-sm text-muted-foreground">Chargement des créneaux...</p>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {availabilityData?.available_slots?.length ? availabilityData.available_slots.map((slot) => {
-                        const isSelected = selectedSlot?.start === slot.start
+                      {timeOptions.length ? timeOptions.map((time) => {
+                        const slot = availabilityData?.available_slots?.find((candidate) => slotLabel(candidate) === time)
+                        const isAvailable = Boolean(slot)
+                        const isSelected = selectedSlot?.start === slot?.start
                         return (
                           <Button
-                            key={slot.start}
+                            key={time}
                             variant={isSelected ? "default" : "outline"}
-                            onClick={() => setSelectedSlot(slot)}
+                            onClick={() => slot && setSelectedSlot(slot)}
+                            disabled={!isAvailable}
+                            className={!isAvailable ? "bg-muted text-muted-foreground border-muted-foreground/10 opacity-100 cursor-not-allowed hover:bg-muted hover:text-muted-foreground" : undefined}
                           >
-                            {slotLabel(slot)}
+                            {time}
                           </Button>
                         )
                       }) : (

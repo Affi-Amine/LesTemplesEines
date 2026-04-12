@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
 import { Navbar } from "@/components/navbar"
@@ -33,7 +33,7 @@ type CheckoutStatus = {
   } | null
 }
 
-export default function GiftPage() {
+function GiftPageContent() {
   const searchParams = useSearchParams()
   const { data: services, isLoading } = useServices(undefined, true)
   const { data: emailStatus } = useQuery({
@@ -271,5 +271,31 @@ export default function GiftPage() {
       </section>
       <Footer />
     </main>
+  )
+}
+
+function GiftPageFallback() {
+  return (
+    <main className="min-h-screen bg-background">
+      <Navbar />
+      <section className="pt-28 pb-16 px-4">
+        <div className="max-w-6xl mx-auto">
+          <Card className="p-6 animate-pulse">
+            <div className="h-8 w-64 bg-muted rounded mb-4" />
+            <div className="h-4 w-full bg-muted rounded mb-2" />
+            <div className="h-4 w-2/3 bg-muted rounded" />
+          </Card>
+        </div>
+      </section>
+      <Footer />
+    </main>
+  )
+}
+
+export default function GiftPage() {
+  return (
+    <Suspense fallback={<GiftPageFallback />}>
+      <GiftPageContent />
+    </Suspense>
   )
 }

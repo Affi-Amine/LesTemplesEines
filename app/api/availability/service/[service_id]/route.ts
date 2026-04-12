@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
-import { addMinutes, format, parse, startOfDay, endOfDay, isWithinInterval, areIntervalsOverlapping } from "date-fns"
+import { addMinutes, format, areIntervalsOverlapping } from "date-fns"
 import { fromZonedTime } from "date-fns-tz"
 
 const TIMEZONE = "Europe/Paris"
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .eq("id", targetSalonId)
       .single()
 
-    const requestedDate = fromZonedTime(dateParam, TIMEZONE)
+    const requestedDate = fromZonedTime(`${dateParam} 12:00:00`, TIMEZONE)
     const dayOfWeek = requestedDate.getDay()
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
     const dayName = dayNames[dayOfWeek]
@@ -119,6 +119,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const dayStart = fromZonedTime(`${dateParam} ${salonHours.open}:00`, TIMEZONE)
     const dayEnd = fromZonedTime(`${dateParam} ${salonHours.close}:00`, TIMEZONE)
 
+    const dayRangeStart = fromZonedTime(`${dateParam} 00:00:00`, TIMEZONE).toISOString()
+    const dayRangeEnd = fromZonedTime(`${dateParam} 23:59:59.999`, TIMEZONE).toISOString()
+
     for (const staff of allStaff) {
       // Get shift/availability for this staff
       const { data: shifts } = await supabase
@@ -157,8 +160,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
         .select("start_time, end_time")
         .eq("staff_id", staff.id)
         .in("status", ["confirmed", "pending", "blocked"])
-        .gte("start_time", format(startOfDay(requestedDate), "yyyy-MM-dd'T'HH:mm:ssXXX"))
-        .lte("start_time", format(endOfDay(requestedDate), "yyyy-MM-dd'T'HH:mm:ssXXX"))
+        .gte("start_time", dayRangeStart)
+        .lte("start_time", dayRangeEnd)
 
       // Check assignments table
       const { data: assignments } = await supabase
@@ -166,8 +169,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
         .select("appointment:appointments!inner(start_time, end_time, status)")
         .eq("staff_id", staff.id)
         .in("appointment.status", ["confirmed", "pending", "blocked"])
-        .gte("appointment.start_time", format(startOfDay(requestedDate), "yyyy-MM-dd'T'HH:mm:ssXXX"))
-        .lte("appointment.start_time", format(endOfDay(requestedDate), "yyyy-MM-dd'T'HH:mm:ssXXX"))
+        .gte("appointment.start_time", dayRangeStart)
+        .lte("appointment.start_time", dayRangeEnd)
 
       const busyRanges: Array<{start: Date, end: Date}> = []
       

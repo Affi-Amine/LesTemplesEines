@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
-import { addMinutes, format, parse, startOfDay, endOfDay, isWithinInterval } from "date-fns"
+import { addMinutes } from "date-fns"
 import { fromZonedTime } from "date-fns-tz"
 
 const TIMEZONE = "Europe/Paris"
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .single()
 
     // Parse date
-    const requestedDate = fromZonedTime(dateParam, TIMEZONE)
+    const requestedDate = fromZonedTime(`${dateParam} 12:00:00`, TIMEZONE)
     const dayOfWeek = requestedDate.getDay() // 0 = Sunday, 6 = Saturday
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
     const dayName = dayNames[dayOfWeek]
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     ]
 
     // Generate time slots (every 30 minutes)
-    const slotInterval = 30 // minutes
+    const slotInterval = 15 // minutes
     const availableSlots: Array<{ start: string; end: string }> = []
 
     for (const period of availabilityPeriods) {
@@ -155,12 +155,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
           const aptStart = new Date(apt.start_time)
           const aptEnd = new Date(apt.end_time)
 
-          // Check if there's any overlap
-          return (
-            (currentSlot >= aptStart && currentSlot < aptEnd) ||
-            (slotEnd > aptStart && slotEnd <= aptEnd) ||
-            (currentSlot <= aptStart && slotEnd >= aptEnd)
-          )
+          return currentSlot < aptEnd && slotEnd > aptStart
         })
 
         if (!hasConflict) {

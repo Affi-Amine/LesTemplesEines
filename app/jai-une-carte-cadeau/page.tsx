@@ -9,7 +9,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useAvailability } from "@/lib/hooks/use-availability"
+import { useStaff } from "@/lib/hooks/use-staff"
 import { fetchAPI } from "@/lib/api/client"
 import { formatGiftCardCode } from "@/lib/gift-cards"
 import { CheckCircle2, Gift, CalendarDays } from "lucide-react"
@@ -53,6 +56,8 @@ export default function RedeemGiftCardPage() {
   const [giftCard, setGiftCard] = useState<GiftCardValidationResponse | null>(null)
   const [selectedSalonId, setSelectedSalonId] = useState("")
   const [selectedDate, setSelectedDate] = useState("")
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("")
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null)
   const [clientForm, setClientForm] = useState({
     first_name: "",
@@ -62,16 +67,21 @@ export default function RedeemGiftCardPage() {
     notes: "",
   })
 
+  const { data: staff, isLoading: staffLoading } = useStaff(selectedSalonId || undefined)
+  const requiredStaffCount = giftCard?.service?.required_staff_count || 1
+  const isMultiStaff = requiredStaffCount > 1
+  const availabilitySelection = isMultiStaff
+    ? selectedEmployeeIds
+    : selectedEmployeeId || undefined
   const dateObject = selectedDate ? new Date(`${selectedDate}T00:00:00`) : undefined
   const { data: availabilityData, isLoading: isLoadingAvailability } = useAvailability(
-    undefined,
+    availabilitySelection,
     dateObject,
     giftCard?.service?.id,
     selectedSalonId || undefined
   )
 
   const compatibleSalons = giftCard?.service?.salons || []
-  const requiredStaffCount = giftCard?.service?.required_staff_count || 1
   const availableTimesSet = useMemo(() => new Set(
     (availabilityData?.available_slots || []).map((slot) =>
       new Date(slot.start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
@@ -98,6 +108,8 @@ export default function RedeemGiftCardPage() {
       setGiftCard(response)
       setSelectedSalonId("")
       setSelectedDate("")
+      setSelectedEmployeeId("")
+      setSelectedEmployeeIds([])
       setSelectedSlot(null)
       toast.success("Carte cadeau valide.")
     } catch (error: any) {
@@ -114,9 +126,18 @@ export default function RedeemGiftCardPage() {
       return
     }
 
-    const staffIds = (selectedSlot.available_staff || []).slice(0, requiredStaffCount)
+    const staffIds = isMultiStaff
+      ? selectedEmployeeIds
+      : (selectedEmployeeId ? [selectedEmployeeId] : [])
+
     if (staffIds.length < requiredStaffCount) {
-      toast.error("Le créneau sélectionné n'a plus assez de praticiens disponibles.")
+      toast.error("Sélectionne le ou les praticiens requis.")
+      return
+    }
+
+    const availableStaffIds = selectedSlot.available_staff || []
+    if (staffIds.some((staffId) => !availableStaffIds.includes(staffId))) {
+      toast.error("Le créneau sélectionné n'est plus disponible pour le ou les praticiens choisis.")
       return
     }
 
@@ -184,6 +205,22 @@ export default function RedeemGiftCardPage() {
     }
   }, [availableTimesSet, selectedSlot])
 
+  useEffect(() => {
+    setSelectedSlot(null)
+  }, [selectedSalonId, selectedDate, selectedEmployeeId, selectedEmployeeIds])
+
+  const toggleEmployeeSelection = (employeeId: string) => {
+    setSelectedEmployeeIds((current) => {
+      if (current.includes(employeeId)) {
+        return current.filter((id) => id !== employeeId)
+      }
+      if (current.length >= requiredStaffCount) {
+        return current
+      }
+      return [...current, employeeId]
+    })
+  }
+
   return (
     <main className="min-h-screen bg-background">
       <Navbar />
@@ -248,6 +285,8 @@ export default function RedeemGiftCardPage() {
                     value={selectedSalonId}
                     onChange={(e) => {
                       setSelectedSalonId(e.target.value)
+                      setSelectedEmployeeId("")
+                      setSelectedEmployeeIds([])
                       setSelectedSlot(null)
                     }}
                   >
@@ -260,6 +299,60 @@ export default function RedeemGiftCardPage() {
                   </select>
                 </div>
 
+                <div className="space-y-3">
+                  <Label className="font-semibold">
+                    {isMultiStaff ? `Choisir ${requiredStaffCount} praticiens` : "Choisir un praticien"}
+                  </Label>
+                  {!selectedSalonId ? (
+                    <p className="text-sm text-muted-foreground">Choisis d'abord un salon.</p>
+                  ) : staffLoading ? (
+                    <p className="text-sm text-muted-foreground">Chargement des praticiens...</p>
+                  ) : !staff?.length ? (
+                    <p className="text-sm text-muted-foreground">Aucun praticien disponible dans ce salon.</p>
+                  ) : !isMultiStaff ? (
+                    <RadioGroup value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+                      <div className="space-y-2">
+                        {staff.map((member) => (
+                          <div key={member.id} className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted cursor-pointer">
+                            <RadioGroupItem value={member.id} id={`gift-staff-${member.id}`} />
+                            <Label htmlFor={`gift-staff-${member.id}`} className="cursor-pointer flex-1">
+                              {member.first_name} {member.last_name}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </RadioGroup>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Sélection actuelle: {selectedEmployeeIds.length}/{requiredStaffCount}
+                      </p>
+                      {staff.map((member) => {
+                        const isSelected = selectedEmployeeIds.includes(member.id)
+                        const isFull = selectedEmployeeIds.length >= requiredStaffCount
+                        const disabled = !isSelected && isFull
+
+                        return (
+                          <div
+                            key={member.id}
+                            className={`flex items-center space-x-3 p-3 border rounded-lg transition-colors ${isSelected ? "bg-primary/5 border-primary" : "hover:bg-muted"} ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                            onClick={() => !disabled && toggleEmployeeSelection(member.id)}
+                          >
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => !disabled && toggleEmployeeSelection(member.id)}
+                              id={`gift-staff-${member.id}`}
+                            />
+                            <Label htmlFor={`gift-staff-${member.id}`} className="cursor-pointer flex-1 font-medium">
+                              {member.first_name} {member.last_name}
+                            </Label>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="gift-date">Date</Label>
                   <Input
@@ -270,7 +363,7 @@ export default function RedeemGiftCardPage() {
                       setSelectedDate(e.target.value)
                       setSelectedSlot(null)
                     }}
-                    disabled={!selectedSalonId}
+                    disabled={!selectedSalonId || (!isMultiStaff && !selectedEmployeeId) || (isMultiStaff && selectedEmployeeIds.length !== requiredStaffCount)}
                   />
                 </div>
 
@@ -279,8 +372,14 @@ export default function RedeemGiftCardPage() {
                     <CalendarDays className="w-4 h-4 text-muted-foreground" />
                     <p className="font-medium">Créneaux disponibles</p>
                   </div>
-                  {!selectedSalonId || !selectedDate ? (
-                    <p className="text-sm text-muted-foreground">Choisis d&apos;abord un salon et une date.</p>
+                  {!selectedSalonId || ((!isMultiStaff && !selectedEmployeeId) || (isMultiStaff && selectedEmployeeIds.length !== requiredStaffCount)) || !selectedDate ? (
+                    <p className="text-sm text-muted-foreground">
+                      {!selectedSalonId
+                        ? "Choisis d'abord un salon."
+                        : (!isMultiStaff && !selectedEmployeeId) || (isMultiStaff && selectedEmployeeIds.length !== requiredStaffCount)
+                          ? "Choisis d'abord le ou les praticiens."
+                          : "Choisis d'abord une date."}
+                    </p>
                   ) : isLoadingAvailability ? (
                     <p className="text-sm text-muted-foreground">Chargement des créneaux...</p>
                   ) : (
@@ -338,11 +437,31 @@ export default function RedeemGiftCardPage() {
                 <div className="rounded-lg bg-muted/50 p-4 text-sm space-y-1">
                   <p><strong>Prestation:</strong> {giftCard.service.name}</p>
                   <p><strong>Salon:</strong> {compatibleSalons.find((salon) => salon.id === selectedSalonId)?.name || "Aucun"}</p>
+                  <p>
+                    <strong>Praticien{isMultiStaff ? "s" : ""}:</strong>{" "}
+                    {isMultiStaff
+                      ? (staff || [])
+                          .filter((member) => selectedEmployeeIds.includes(member.id))
+                          .map((member) => `${member.first_name} ${member.last_name}`)
+                          .join(", ") || "Aucun"
+                      : (staff || []).find((member) => member.id === selectedEmployeeId)
+                        ? `${(staff || []).find((member) => member.id === selectedEmployeeId)?.first_name} ${(staff || []).find((member) => member.id === selectedEmployeeId)?.last_name}`
+                        : "Aucun"}
+                  </p>
                   <p><strong>Créneau:</strong> {selectedSlot ? new Date(selectedSlot.start).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "Non sélectionné"}</p>
                   <p><strong>Carte cadeau:</strong> {formatGiftCardCode(giftCard.code)}</p>
                 </div>
 
-                <Button onClick={handleRedeem} disabled={!selectedSlot || isSubmitting} className="w-full">
+                <Button
+                  onClick={handleRedeem}
+                  disabled={
+                    !selectedSlot ||
+                    isSubmitting ||
+                    (!isMultiStaff && !selectedEmployeeId) ||
+                    (isMultiStaff && selectedEmployeeIds.length !== requiredStaffCount)
+                  }
+                  className="w-full"
+                >
                   {isSubmitting ? "Confirmation..." : "Confirmer le rendez-vous"}
                 </Button>
               </Card>

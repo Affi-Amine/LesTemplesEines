@@ -52,17 +52,17 @@ export function HomeServicesSection() {
     <section id="services" className="py-20">
       <div className="max-w-7xl mx-auto px-4">
         <div className="mb-16 text-center">
-          <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos Services</span>
-          <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">Soins Thérapeutiques</h2>
+          <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos prestations</span>
+          <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">Des soins penses pour durer</h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
             Découvrez notre gamme de services de massage et de bien-être spécialisés
           </p>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
-          {uniqueServices?.slice(0, 5).map((service) => (
+          {uniqueServices?.slice(0, 5).map((service, index) => (
             <Card
               key={service.id}
-              className="p-6 text-center hover:shadow-lg transition-all duration-300 group border-primary/20 bg-card/92 backdrop-blur-sm hover:border-primary/35 cursor-pointer hover:-translate-y-1"
+              className={`p-6 text-center hover:shadow-lg transition-all duration-300 group border-primary/20 bg-card/92 backdrop-blur-sm hover:border-primary/35 cursor-pointer hover:-translate-y-1 home-reveal ${index === 0 ? "home-reveal-delay-1" : index === 1 ? "home-reveal-delay-2" : index === 2 ? "home-reveal-delay-3" : ""}`}
             >
               <div className="relative h-40 mb-4 bg-muted rounded-2xl overflow-hidden">
                 {service.image_url ? (
@@ -78,8 +78,8 @@ export function HomeServicesSection() {
                   </div>
                 )}
               </div>
-              <h3 className="font-semibold mb-2 text-foreground">{service.name}</h3>
-              <p className="text-xs text-muted-foreground mb-4">{service.duration_minutes} minutes</p>
+              <h3 className="font-semibold mb-2 text-foreground min-h-12">{service.name}</h3>
+              <p className="text-xs text-muted-foreground mb-4 uppercase tracking-[0.16em]">{service.duration_minutes} min</p>
               <p className="text-xl font-bold text-primary">{(service.price_cents / 100).toFixed(2)}€</p>
             </Card>
           ))}

@@ -9,7 +9,7 @@ export function Footer() {
           {/* Brand */}
           <div>
             <h3 className="text-lg font-bold text-primary mb-4">Les Temples</h3>
-            <p className="text-sm text-muted-foreground">Expérience bien-être premium partout en France</p>
+            <p className="text-sm text-muted-foreground">Maisons de massage premium inspirees par l'art du rituel.</p>
             <div className="flex gap-4 mt-4">
               <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
                 <Facebook className="w-5 h-5" />

@@ -49,14 +49,14 @@ export function HomeSalonsSection() {
     <section id="salons" className="py-20 bg-muted/30">
       <div className="max-w-7xl mx-auto px-4">
         <div className="mb-16 text-center">
-          <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos Temples</span>
-          <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">Trois Sanctuaires du Bien-être</h2>
+          <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos salons</span>
+          <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">Trois lieux, une meme exigence</h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
             Chaque établissement offre une atmosphère unique dédiée à votre détente et rajeunissement complets
           </p>
         </div>
         <div className="grid md:grid-cols-3 gap-8">
-          {salons?.map((salon) => {
+          {salons?.map((salon, index) => {
             // Parse opening hours for display
             const openingHours = salon.opening_hours as Record<string, { open: string; close: string }>
             const mondayHours = openingHours?.monday || { open: "10:00", close: "20:00" }
@@ -64,7 +64,7 @@ export function HomeSalonsSection() {
             return (
               <Card
                 key={salon.id}
-                className="overflow-hidden hover:shadow-xl transition-all duration-300 group border-primary/20 bg-card/92 backdrop-blur-sm cursor-pointer hover:-translate-y-1"
+                className={`overflow-hidden hover:shadow-xl transition-all duration-300 group border-primary/20 bg-card/92 backdrop-blur-sm cursor-pointer hover:-translate-y-1 home-reveal ${index === 0 ? "home-reveal-delay-1" : index === 1 ? "home-reveal-delay-2" : "home-reveal-delay-3"}`}
               >
                 <div className="relative h-56 bg-muted overflow-hidden">
                   {/* Use images array if available, otherwise fall back to single image_url */}
@@ -97,13 +97,20 @@ export function HomeSalonsSection() {
                   )}
                 </div>
                 <div className="p-6">
-                  <h3 className="text-2xl font-serif font-semibold mb-2">{salon.name}</h3>
-                  <p className="text-sm text-muted-foreground mb-6">Sanctuaire de bien-être à {salon.city}</p>
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="min-w-0">
+                      <h3 className="text-2xl font-serif font-semibold leading-tight truncate">{salon.name}</h3>
+                      <p className="text-sm text-primary/90 mt-1">{salon.city}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-primary">
+                      Temple
+                    </span>
+                  </div>
 
                   <div className="space-y-3 mb-6 text-sm">
                     <div className="flex items-start gap-3 text-muted-foreground">
                       <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
-                      <span>{salon.address}</span>
+                      <span className="line-clamp-2">{salon.address}</span>
                     </div>
                     <div className="flex items-center gap-3 text-muted-foreground">
                       <Clock className="w-4 h-4 flex-shrink-0 text-primary" />

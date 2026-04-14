@@ -25,11 +25,11 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="mb-16 text-center">
             <span className="text-sm font-semibold text-primary tracking-widest uppercase">Pourquoi nous choisir</span>
-            <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">La Différence Les Temples</h2>
+            <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">Une maison de massage, pas un simple spa</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center group">
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 transition-colors">
+            <div className="text-center group home-reveal home-reveal-delay-1">
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 group-hover:-translate-y-1 transition-all">
                 <Users className="w-8 h-8 text-primary" />
               </div>
               <h3 className="text-xl font-semibold mb-3">Thérapeutes Experts</h3>
@@ -37,18 +37,18 @@ export default function Home() {
                 Professionnels hautement formés avec des années d&apos;expérience spécialisée
               </p>
             </div>
-            <div className="text-center group">
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 transition-colors">
+            <div className="text-center group home-reveal home-reveal-delay-2">
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 group-hover:-translate-y-1 transition-all">
                 <Sparkles className="w-8 h-8 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">Expérience Premium</h3>
+              <h3 className="text-xl font-semibold mb-3">Rituels sur mesure</h3>
               <p className="text-muted-foreground">Ambiance luxueuse et attention personnalisée à chaque visite</p>
             </div>
-            <div className="text-center group">
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 transition-colors">
+            <div className="text-center group home-reveal home-reveal-delay-3">
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 group-hover:-translate-y-1 transition-all">
                 <MapPin className="w-8 h-8 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">Plusieurs Emplacements</h3>
+              <h3 className="text-xl font-semibold mb-3">Adresses choisies</h3>
               <p className="text-muted-foreground">Trois sanctuaires à Paris, Lyon et Marseille</p>
             </div>
           </div>
@@ -58,7 +58,7 @@ export default function Home() {
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <h2 className="text-4xl md:text-5xl font-serif font-bold mb-6">Prêt à vous échapper?</h2>
+          <h2 className="text-4xl md:text-5xl font-serif font-bold mb-6">Votre prochain moment de calme commence ici</h2>
           <p className="text-lg opacity-90 mb-8 max-w-2xl mx-auto">
             Réservez votre expérience de massage parfaite dès aujourd&apos;hui et découvrez le summum du bien-être
           </p>

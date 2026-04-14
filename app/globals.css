@@ -135,3 +135,58 @@
     transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
   }
 }
+
+@keyframes soft-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes soft-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(214, 171, 89, 0);
+  }
+  50% {
+    box-shadow: 0 0 32px rgba(214, 171, 89, 0.14);
+  }
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer components {
+  .home-reveal {
+    animation: reveal-up 700ms ease-out both;
+  }
+
+  .home-reveal-delay-1 {
+    animation-delay: 100ms;
+  }
+
+  .home-reveal-delay-2 {
+    animation-delay: 200ms;
+  }
+
+  .home-reveal-delay-3 {
+    animation-delay: 300ms;
+  }
+
+  .soft-float {
+    animation: soft-float 6s ease-in-out infinite;
+  }
+
+  .soft-glow {
+    animation: soft-glow 4s ease-in-out infinite;
+  }
+}

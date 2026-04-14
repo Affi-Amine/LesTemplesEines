@@ -12,7 +12,7 @@ export function HomeSalonsSection() {
 
   if (isLoading) {
     return (
-      <section id="salons" className="py-20 bg-muted/30">
+      <section id="salons" className="py-20 bg-transparent">
         <div className="max-w-7xl mx-auto px-4">
           <div className="mb-16 text-center">
             <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos Temples</span>
@@ -37,7 +37,7 @@ export function HomeSalonsSection() {
 
   if (error) {
     return (
-      <section id="salons" className="py-20 bg-muted/30">
+    <section id="salons" className="py-20 bg-transparent">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-destructive">Erreur lors du chargement des salons</p>
         </div>
@@ -64,7 +64,7 @@ export function HomeSalonsSection() {
             return (
               <Card
                 key={salon.id}
-                className="overflow-hidden hover:shadow-xl transition-all duration-300 group border-primary/10 cursor-pointer"
+                className="overflow-hidden hover:shadow-xl transition-all duration-300 group border-primary/20 bg-card/92 backdrop-blur-sm cursor-pointer hover:-translate-y-1"
               >
                 <div className="relative h-56 bg-muted overflow-hidden">
                   {/* Use images array if available, otherwise fall back to single image_url */}
@@ -87,7 +87,7 @@ export function HomeSalonsSection() {
                       <Icon icon="solar:buildings-3-bold" className="w-16 h-16 text-primary/30" />
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
                   {/* Show image count badge if multiple images */}
                   {(salon.images && salon.images.length > 1) && (
                     <div className="absolute top-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
@@ -113,12 +113,12 @@ export function HomeSalonsSection() {
 
                   <div className="flex gap-3">
                     <Link href={`/salons/${salon.slug}`} className="flex-1">
-                      <Button variant="outline" className="w-full border-primary/20 hover:bg-primary/5 cursor-pointer">
+                      <Button variant="outline" className="w-full border-primary/20 hover:bg-primary/8 bg-transparent cursor-pointer">
                         En savoir plus
                       </Button>
                     </Link>
                     <Link href={`/book/${salon.slug}`} className="flex-1">
-                      <Button className="w-full bg-primary hover:bg-primary/90 cursor-pointer">Réserver</Button>
+                      <Button className="w-full bg-primary hover:bg-primary/90 shadow-[0_10px_24px_rgba(214,171,89,0.16)] cursor-pointer">Réserver</Button>
                     </Link>
                   </div>
                 </div>

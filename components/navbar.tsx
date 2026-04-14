@@ -14,37 +14,37 @@ export function Navbar() {
   if (!mounted) return null
 
   return (
-    <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-primary/10">
+    <nav className="fixed top-0 w-full z-50 bg-background/72 backdrop-blur-xl border-b border-primary/15 shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
       <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/60 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-lg">✦</span>
+          <div className="w-9 h-9 bg-gradient-to-br from-primary via-primary to-primary/70 rounded-lg flex items-center justify-center shadow-[0_0_24px_rgba(214,171,89,0.22)]">
+            <span className="text-primary-foreground font-bold text-lg">✦</span>
           </div>
           <div className="flex flex-col">
-            <span className="text-lg font-semibold text-foreground tracking-tight">Les Temples</span>
-            <span className="text-xs text-muted-foreground">Wellness</span>
+            <span className="text-lg font-semibold text-foreground tracking-tight group-hover:text-primary">Les Temples</span>
+            <span className="text-xs text-primary/80">Wellness</span>
           </div>
         </Link>
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-8">
-          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             {t("nav.home")}
           </Link>
-          <Link href="/book" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/book" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             {t("nav.book")}
           </Link>
-          <Link href="/gift" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/gift" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             Cartes cadeaux
           </Link>
-          <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             J&apos;ai une carte cadeau
           </Link>
-          <Link href="#services" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="#services" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             {t("nav.salons")}
           </Link>
-          <Link href="#contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="#contact" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             Contact
           </Link>
         </div>
@@ -53,12 +53,12 @@ export function Navbar() {
         <div className="hidden md:flex items-center gap-3">
           <LanguageSwitcher />
           <Link href="/admin/login">
-            <Button variant="ghost" size="sm" className="text-sm">
+            <Button variant="ghost" size="sm" className="text-sm hover:bg-primary/10 hover:text-primary">
               {t("admin.login")}
             </Button>
           </Link>
           <Link href="/book">
-            <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_8px_24px_rgba(214,171,89,0.18)]">
               {t("home.cta_book")}
             </Button>
           </Link>
@@ -67,7 +67,7 @@ export function Navbar() {
         {/* Mobile Menu Button */}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="md:hidden p-2 hover:bg-muted rounded-lg transition-colors"
+          className="md:hidden p-2 hover:bg-primary/10 rounded-lg transition-colors"
         >
           {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
@@ -75,7 +75,7 @@ export function Navbar() {
 
       {/* Mobile Navigation */}
       {isOpen && (
-        <div className="md:hidden border-t border-primary/10 bg-background/95 backdrop-blur-sm">
+        <div className="md:hidden border-t border-primary/15 bg-background/95 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-4">
             <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               {t("nav.home")}

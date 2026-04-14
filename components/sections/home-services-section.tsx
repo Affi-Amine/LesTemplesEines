@@ -62,7 +62,7 @@ export function HomeServicesSection() {
           {uniqueServices?.slice(0, 5).map((service) => (
             <Card
               key={service.id}
-              className="p-6 text-center hover:shadow-lg transition-all duration-300 group border-primary/10 hover:border-primary/30 cursor-pointer"
+              className="p-6 text-center hover:shadow-lg transition-all duration-300 group border-primary/20 bg-card/92 backdrop-blur-sm hover:border-primary/35 cursor-pointer hover:-translate-y-1"
             >
               <div className="relative h-40 mb-4 bg-muted rounded-2xl overflow-hidden">
                 {service.image_url ? (

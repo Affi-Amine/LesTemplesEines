@@ -32,7 +32,8 @@ export function HeroSection() {
           className="object-cover"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/40" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(10,8,6,0.92)_0%,rgba(11,9,7,0.76)_42%,rgba(10,8,6,0.42)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_30%,rgba(214,171,89,0.16),transparent_24%)]" />
       </div>
 
       {/* Content */}
@@ -41,13 +42,13 @@ export function HeroSection() {
           {/* Left Content */}
           <div className="space-y-8">
             {/* Tagline */}
-            <div className="inline-block">
+            <div className="inline-block rounded-full border border-primary/20 bg-background/35 px-4 py-2 backdrop-blur-sm">
               <span className="text-sm font-semibold text-primary tracking-widest uppercase">{t("home.subtitle")}</span>
             </div>
 
             {/* Main Heading */}
             <div>
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif font-bold text-foreground leading-tight mb-4">
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif font-bold text-foreground leading-tight mb-4 drop-shadow-[0_10px_30px_rgba(0,0,0,0.38)]">
                 {t("home.title")} <span className="text-primary">Sérénité</span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-lg leading-relaxed">{t("home.description")}</p>
@@ -56,13 +57,13 @@ export function HeroSection() {
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Link href="/book">
-                <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground group">
+                <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground group shadow-[0_14px_34px_rgba(214,171,89,0.18)]">
                   {t("home.cta_book")}
                   <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
               <Link href="#salons">
-                <Button size="lg" variant="outline" className="border-primary/30 hover:bg-primary/5 bg-transparent">
+                <Button size="lg" variant="outline" className="border-primary/30 hover:bg-primary/8 bg-background/20 backdrop-blur-sm">
                   {t("home.cta_explore")}
                 </Button>
               </Link>
@@ -89,7 +90,7 @@ export function HeroSection() {
           <div className="hidden md:flex items-center justify-center">
             <div className="relative w-full aspect-square max-w-md">
               {/* Floating Cards */}
-              <div className="absolute top-0 right-0 w-48 h-64 bg-primary/10 rounded-3xl backdrop-blur-sm border border-primary/20 p-6 shadow-xl transform hover:scale-105 transition-transform duration-300">
+              <div className="absolute top-0 right-0 w-48 h-64 bg-background/35 rounded-3xl backdrop-blur-sm border border-primary/20 p-6 shadow-xl transform hover:scale-105 transition-transform duration-300">
                 <div className="space-y-4">
                   <div className="w-12 h-12 bg-primary/20 rounded-full" />
                   <div className="space-y-2">
@@ -99,7 +100,7 @@ export function HeroSection() {
                 </div>
               </div>
 
-              <div className="absolute bottom-0 left-0 w-48 h-64 bg-primary/5 rounded-3xl backdrop-blur-sm border border-primary/10 p-6 shadow-lg transform hover:scale-105 transition-transform duration-300">
+              <div className="absolute bottom-0 left-0 w-48 h-64 bg-background/25 rounded-3xl backdrop-blur-sm border border-primary/10 p-6 shadow-lg transform hover:scale-105 transition-transform duration-300">
                 <div className="space-y-4">
                   <div className="w-12 h-12 bg-primary/10 rounded-full" />
                   <div className="space-y-2">

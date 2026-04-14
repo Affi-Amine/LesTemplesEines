@@ -355,7 +355,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 {salons?.map((salon) => (
                   <div
                     key={salon.id}
-                    className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted hover:border-primary cursor-pointer transition-all"
+                    className="flex items-start space-x-3 p-4 border rounded-lg bg-card/65 hover:bg-muted hover:border-primary cursor-pointer transition-all"
                   >
                     <RadioGroupItem value={salon.id} id={salon.id} className="mt-1" />
                     <Label htmlFor={salon.id} className="flex-1 cursor-pointer">
@@ -399,7 +399,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 {services?.map((service) => (
                   <div
                     key={service.id}
-                    className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted hover:border-primary cursor-pointer transition-all"
+                    className="flex items-start space-x-3 p-4 border rounded-lg bg-card/65 hover:bg-muted hover:border-primary cursor-pointer transition-all"
                   >
                     <RadioGroupItem value={service.id} id={service.id} className="mt-1" />
                     <Label htmlFor={service.id} className="flex-1 cursor-pointer">
@@ -452,7 +452,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   <div className="space-y-2 mt-3">
                     {salonEmployees.length > 0 ? (
                       salonEmployees.map((emp) => (
-                        <div key={emp.id} className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted cursor-pointer">
+                        <div key={emp.id} className="flex items-center space-x-2 p-3 border rounded-lg bg-card/65 hover:bg-muted cursor-pointer">
                           <RadioGroupItem value={emp.id} id={emp.id} />
                           <Label htmlFor={emp.id} className="cursor-pointer flex-1">
                             {emp.first_name} {emp.last_name}
@@ -494,7 +494,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                         return (
                           <div 
                             key={emp.id} 
-                            className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-primary/5 border-primary' : 'hover:bg-muted'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-primary/12 border-primary' : 'bg-card/65 hover:bg-muted'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                             onClick={() => !disabled && toggleEmployeeSelection(emp.id, currentService.required_staff_count || 2)}
                           >
                             <Checkbox 
@@ -639,14 +639,14 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 onValueChange={(value: "stripe" | "on_site") => setData({ ...data, paymentOption: value })}
                 className="mt-3 space-y-3"
               >
-                <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted cursor-pointer">
+                <div className="flex items-start space-x-3 p-4 border rounded-lg bg-card/65 hover:bg-muted cursor-pointer">
                   <RadioGroupItem value="stripe" id="payment-stripe" className="mt-1" />
                   <Label htmlFor="payment-stripe" className="cursor-pointer flex-1">
                     <div className="font-medium">Payer maintenant</div>
                     <div className="text-sm text-muted-foreground">Paiement en ligne securise avec Stripe.</div>
                   </Label>
                 </div>
-                <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted cursor-pointer">
+                <div className="flex items-start space-x-3 p-4 border rounded-lg bg-card/65 hover:bg-muted cursor-pointer">
                   <RadioGroupItem value="on_site" id="payment-on-site" className="mt-1" />
                   <Label htmlFor="payment-on-site" className="cursor-pointer flex-1">
                     <div className="font-medium">Payer sur place</div>
@@ -674,7 +674,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           <p className="text-muted-foreground mb-6">{t(locale, "booking.step5_subtitle")}</p>
 
           {/* Booking Summary */}
-          <div className="space-y-4 bg-muted/50 p-6 rounded-lg mb-6 border">
+          <div className="space-y-4 bg-card/75 p-6 rounded-lg mb-6 border border-border/80">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">{t(locale, "booking.step1_title")}</p>
@@ -720,7 +720,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           </div>
 
           {/* Confirmation Info */}
-          <div className="bg-accent/10 p-4 rounded-lg mb-6 border border-accent/20">
+          <div className="bg-accent/12 p-4 rounded-lg mb-6 border border-accent/30">
             <p className="text-sm">
               <strong>✓ {t(locale, "booking.confirmation_sent")}:</strong> {data.phone}
             </p>

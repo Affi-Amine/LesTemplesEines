@@ -85,7 +85,7 @@ export function SalonCarousel({
 
   if (images.length === 1) {
     return (
-      <div className={cn("relative w-full h-full", className)}>
+      <div className={cn("relative w-full h-full temple-frame rounded-[1.75rem] overflow-hidden", className)}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={images[0]}
@@ -97,7 +97,7 @@ export function SalonCarousel({
   }
 
   return (
-    <div className={cn("relative w-full h-full group", className)}>
+    <div className={cn("relative w-full h-full group temple-frame rounded-[1.75rem] overflow-hidden", className)}>
       {/* Carousel Container */}
       <div className="overflow-hidden h-full" ref={emblaRef}>
         <div className="flex h-full touch-pan-y">
@@ -129,8 +129,8 @@ export function SalonCarousel({
               "absolute left-4 top-1/2 -translate-y-1/2",
               "hidden md:flex", // Desktop only
               "h-12 w-12 rounded-full",
-              "bg-background/90 hover:bg-background",
-              "border-border hover:border-primary",
+              "bg-background/82 hover:bg-background",
+              "border-primary/25 hover:border-primary",
               "text-foreground hover:text-primary",
               "shadow-lg hover:shadow-xl",
               "transition-all duration-200",
@@ -151,8 +151,8 @@ export function SalonCarousel({
               "absolute right-4 top-1/2 -translate-y-1/2",
               "hidden md:flex", // Desktop only
               "h-12 w-12 rounded-full",
-              "bg-background/90 hover:bg-background",
-              "border-border hover:border-primary",
+              "bg-background/82 hover:bg-background",
+              "border-primary/25 hover:border-primary",
               "text-foreground hover:text-primary",
               "shadow-lg hover:shadow-xl",
               "transition-all duration-200",
@@ -169,7 +169,7 @@ export function SalonCarousel({
 
       {/* Dots Pagination */}
       {showDots && images.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-background/30 backdrop-blur-sm px-3 py-2 rounded-full">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-background/38 backdrop-blur-sm px-3 py-2 rounded-full border border-primary/20">
           {images.map((_, index) => (
             <button
               key={index}
@@ -187,7 +187,7 @@ export function SalonCarousel({
       )}
 
       {/* Image Counter */}
-      <div className="absolute top-4 right-4 bg-background/70 backdrop-blur-sm text-foreground text-sm px-3 py-1 rounded-full border border-border">
+      <div className="absolute top-4 right-4 bg-background/70 backdrop-blur-sm text-foreground text-sm px-3 py-1 rounded-full border border-primary/25">
         {selectedIndex + 1} / {images.length}
       </div>
     </div>

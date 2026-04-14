@@ -104,15 +104,17 @@ export default async function SalonPage({ params }: SalonPageProps) {
       <SalonHours hours={salon.opening_hours} />
 
       {/* CTA Section */}
-      <section className="py-16 bg-primary text-primary-foreground">
+      <section className="py-20 bg-gradient-to-b from-background to-muted/20">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold mb-4">Prêt à vous évader ?</h2>
-          <p className="text-lg mb-8 opacity-90">Réservez votre expérience de massage idéale dès aujourd&apos;hui</p>
+          <div className="temple-frame temple-panel rounded-[1.75rem] px-8 py-12">
+          <h2 className="text-4xl font-serif font-bold mb-4 text-primary">Prenez le temps de choisir votre moment</h2>
+          <p className="text-lg mb-8 text-muted-foreground">Reservez votre experience de massage ideale dans ce salon des aujourd'hui.</p>
           <Link href={`/book/${salon.slug}`}>
-            <Button size="lg" variant="secondary">
+            <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_12px_30px_rgba(214,171,89,0.2)]">
               Réserver un rendez-vous
             </Button>
           </Link>
+          </div>
         </div>
       </section>
 

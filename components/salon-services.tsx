@@ -40,7 +40,7 @@ export function SalonServices({ services }: SalonServicesProps) {
             {/* Category Header */}
             <div className="flex items-center gap-4 mb-8">
               <div className="h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent flex-1" />
-              <h3 className="text-2xl font-serif font-semibold text-primary px-4">
+              <h3 className="text-2xl font-serif font-semibold text-primary px-4 rounded-full border border-primary/15 bg-primary/6 py-2">
                 {category}
               </h3>
               <div className="h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent flex-1" />
@@ -53,7 +53,7 @@ export function SalonServices({ services }: SalonServicesProps) {
                 .map((service) => (
                   <Card
                     key={service.id}
-                    className="group overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 border-0 bg-card shadow-md"
+                    className="group overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 bg-card shadow-md temple-frame rounded-[1.5rem]"
                   >
                     {/* Service Image with Overlay */}
                     <div className="relative h-48 bg-muted overflow-hidden">
@@ -74,7 +74,7 @@ export function SalonServices({ services }: SalonServicesProps) {
 
                       {/* Price Badge Overlay */}
                       <div className="absolute top-3 right-3">
-                        <Badge className="bg-white/95 backdrop-blur-sm text-primary border-0 shadow-lg px-3 py-1 font-bold">
+                        <Badge className="bg-background/88 backdrop-blur-sm text-primary border border-primary/20 shadow-lg px-3 py-1 font-bold">
                           <Euro className="w-3 h-3 mr-1" />
                           {service.price}
                         </Badge>

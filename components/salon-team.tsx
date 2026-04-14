@@ -39,7 +39,7 @@ export function SalonTeam({ employees, serviceNames }: SalonTeamProps) {
           {employees.map((emp) => (
             <Card
               key={emp.id}
-              className="group overflow-hidden hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 border-0 bg-card shadow-md"
+              className="group overflow-hidden hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 bg-card shadow-md temple-frame rounded-[1.5rem]"
             >
               {/* Employee Photo */}
               <div className="relative h-64 bg-muted overflow-hidden">
@@ -60,7 +60,7 @@ export function SalonTeam({ employees, serviceNames }: SalonTeamProps) {
 
                 {/* Role Badge */}
                 <div className="absolute bottom-3 left-3 right-3">
-                  <Badge className="bg-white/95 backdrop-blur-sm text-primary border-0 shadow-lg px-3 py-1.5 w-full justify-center font-medium">
+                  <Badge className="bg-background/88 backdrop-blur-sm text-primary border border-primary/20 shadow-lg px-3 py-1.5 w-full justify-center font-medium">
                     <Award className="w-3.5 h-3.5 mr-1.5" />
                     {emp.role}
                   </Badge>

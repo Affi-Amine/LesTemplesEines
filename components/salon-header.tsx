@@ -41,7 +41,7 @@ export function SalonHeader({ name, city, address, phone, image, images = [], sl
   return (
     <div className="w-full">
       {/* Enhanced Hero Image with Carousel */}
-      <div className="relative h-[450px] md:h-[550px] w-full bg-muted overflow-hidden">
+      <div className="relative h-[520px] w-full overflow-hidden bg-muted sm:h-[560px] md:h-[620px]">
         <SalonCarousel
           images={carouselImages}
           alt={name}
@@ -50,16 +50,17 @@ export function SalonHeader({ name, city, address, phone, image, images = [], sl
           showDots={true}
         />
         {/* Enhanced Gradient Overlay - pointer-events-none to allow carousel button clicks */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,10,8,0.2)_0%,rgba(11,8,6,0.18)_30%,rgba(7,6,5,0.82)_100%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(214,171,89,0.18),transparent_22%)] pointer-events-none" />
 
         {/* Hero Content Overlay - pointer-events-none on container, auto on interactive elements */}
         <div className="absolute inset-0 flex items-end pointer-events-none">
-          <div className="max-w-7xl mx-auto px-4 pb-12 w-full pointer-events-auto">
-            <div className="text-white space-y-4">
-              <div className="flex items-center gap-3 mb-2">
-                <Badge variant="secondary" className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30">
+          <div className="max-w-7xl mx-auto px-4 pb-10 sm:pb-12 md:pb-14 w-full pointer-events-auto">
+            <div className="text-white space-y-5 max-w-3xl">
+              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                <Badge variant="secondary" className="bg-background/38 backdrop-blur-sm text-primary border-primary/25 hover:bg-background/50">
                   <Sparkles className="w-3 h-3 mr-1" />
-                  Premium Spa Experience
+                  Maison de massage
                 </Badge>
                 {todayHours && (
                   <Badge
@@ -75,24 +76,25 @@ export function SalonHeader({ name, city, address, phone, image, images = [], sl
                   </Badge>
                 )}
               </div>
-              <h1 className="text-5xl md:text-7xl font-serif font-bold drop-shadow-2xl">
+              <h1 className="text-4xl font-serif font-bold leading-[0.95] drop-shadow-2xl sm:text-5xl md:text-7xl">
                 {name}
               </h1>
-              <p className="text-xl md:text-2xl font-light opacity-95 drop-shadow-lg">
-                Votre Sanctuaire de Bien-être à {city}
+              <p className="text-base font-light opacity-95 drop-shadow-lg sm:text-lg md:text-2xl">
+                Une adresse confidentielle a {city}, dediee au calme, a la precision du geste et au temps long.
               </p>
+              <div className="temple-divider max-w-sm" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Enhanced Info Bar */}
-      <div className="bg-card border-b shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="bg-card border-b border-primary/15 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-5 md:py-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             {/* Contact Info Grid */}
-            <div className="grid md:grid-cols-3 gap-6 flex-1">
-              <div className="flex items-start gap-3 group">
+            <div className="grid flex-1 gap-4 md:grid-cols-3 md:gap-6">
+              <div className="flex items-start gap-3 group temple-panel rounded-2xl p-4">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
                   <MapPin className="w-5 h-5 text-primary" />
                 </div>
@@ -103,7 +105,7 @@ export function SalonHeader({ name, city, address, phone, image, images = [], sl
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 group">
+              <div className="flex items-start gap-3 group temple-panel rounded-2xl p-4">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
                   <Phone className="w-5 h-5 text-primary" />
                 </div>
@@ -120,7 +122,7 @@ export function SalonHeader({ name, city, address, phone, image, images = [], sl
               </div>
 
               {todayHours && (
-                <div className="flex items-start gap-3 group">
+                <div className="flex items-start gap-3 group temple-panel rounded-2xl p-4">
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
                     <Clock className="w-5 h-5 text-primary" />
                   </div>

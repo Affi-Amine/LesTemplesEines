@@ -26,11 +26,11 @@ export function SalonHours({ hours }: SalonHoursProps) {
     <section className="py-16 bg-muted/30">
       <div className="max-w-7xl mx-auto px-4">
         <div className="mb-12">
-          <h2 className="text-3xl font-bold mb-2">Horaires d'ouverture</h2>
+          <h2 className="text-3xl font-serif font-bold mb-2">Horaires d'ouverture</h2>
           <p className="text-muted-foreground">Venez nous rendre visite pendant nos horaires d'ouverture</p>
         </div>
 
-        <Card className="p-8">
+        <Card className="p-8 temple-frame rounded-[1.5rem]">
           <div className="flex items-start gap-4 mb-6">
             <Clock className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
             <div>
@@ -41,7 +41,7 @@ export function SalonHours({ hours }: SalonHoursProps) {
                   if (!dayHours) return null
 
                   return (
-                    <div key={day} className="flex justify-between items-center pb-3 border-b">
+                    <div key={day} className="flex justify-between items-center pb-3 border-b border-primary/10">
                       <span className="font-medium">{dayLabels[day]}</span>
                       <span className="text-muted-foreground">
                         {dayHours.open} - {dayHours.close}

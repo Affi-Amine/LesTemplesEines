@@ -21,11 +21,11 @@ export default function Home() {
       <HomeServicesSection />
 
       {/* Why Choose Us */}
-      <section className="py-20 bg-muted/30">
+      <section className="bg-muted/30 py-16 md:py-20">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="mb-16 text-center">
+          <div className="mb-12 text-center md:mb-16">
             <span className="text-sm font-semibold text-primary tracking-widest uppercase">Pourquoi nous choisir</span>
-            <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">Une maison de massage, pas un simple spa</h2>
+            <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">Une maison de massage, pas un simple spa</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center group home-reveal home-reveal-delay-1">
@@ -56,10 +56,10 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground">
+      <section className="bg-[linear-gradient(135deg,rgba(214,171,89,0.96),rgba(171,122,47,0.92))] py-16 text-primary-foreground md:py-20">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <h2 className="text-4xl md:text-5xl font-serif font-bold mb-6">Votre prochain moment de calme commence ici</h2>
-          <p className="text-lg opacity-90 mb-8 max-w-2xl mx-auto">
+          <h2 className="mb-6 text-3xl font-serif font-bold md:text-5xl">Votre prochain moment de calme commence ici</h2>
+          <p className="mx-auto mb-8 max-w-2xl text-base opacity-90 md:text-lg">
             Réservez votre expérience de massage parfaite dès aujourd&apos;hui et découvrez le summum du bien-être
           </p>
           <Link href="/book">

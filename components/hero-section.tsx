@@ -63,17 +63,17 @@ export function HeroSection() {
 
             {/* CTA Buttons */}
             <div className="home-reveal home-reveal-delay-2 flex flex-col gap-3 pt-2 sm:flex-row sm:gap-4 sm:pt-4">
-              <Link href="/book" className="w-full sm:w-auto">
-                <Button size="lg" className="group w-full bg-primary text-primary-foreground shadow-[0_14px_34px_rgba(214,171,89,0.18)] hover:bg-primary/90 sm:w-auto">
+              <Button asChild size="lg" className="group w-full bg-primary text-primary-foreground shadow-[0_14px_34px_rgba(214,171,89,0.18)] hover:bg-primary/90 sm:w-auto">
+                <Link href="/book" className="w-full sm:w-auto">
                   {t("home.cta_book")}
                   <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-              <Link href="#salons" className="w-full sm:w-auto">
-                <Button size="lg" variant="outline" className="w-full border-primary/30 bg-background/20 backdrop-blur-sm hover:bg-primary/8 sm:w-auto">
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="w-full border-primary/30 bg-background/20 backdrop-blur-sm hover:bg-primary/8 sm:w-auto">
+                <Link href="#salons" className="w-full sm:w-auto">
                   {t("home.cta_explore")}
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
 
             {/* Stats */}

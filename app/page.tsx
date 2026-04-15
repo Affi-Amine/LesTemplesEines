@@ -62,11 +62,9 @@ export default function Home() {
           <p className="mx-auto mb-8 max-w-2xl text-base opacity-90 md:text-lg">
             Réservez votre expérience de massage parfaite dès aujourd&apos;hui et découvrez le summum du bien-être
           </p>
-          <Link href="/book">
-            <Button size="lg" variant="secondary" className="hover:scale-105 transition-transform cursor-pointer">
-              Réserver Votre Expérience
-            </Button>
-          </Link>
+          <Button asChild size="lg" variant="secondary" className="cursor-pointer transition-transform hover:scale-105">
+            <Link href="/book">Réserver Votre Expérience</Link>
+          </Button>
         </div>
       </section>
 

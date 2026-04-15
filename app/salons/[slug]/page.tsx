@@ -3,6 +3,7 @@ import { SalonServices } from "@/components/salon-services"
 import { SalonTeam } from "@/components/salon-team"
 import { SalonHours } from "@/components/salon-hours"
 import { Footer } from "@/components/footer"
+import { Navbar } from "@/components/navbar"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -41,12 +42,13 @@ export default async function SalonPage({ params }: SalonPageProps) {
   if (!salon) {
     return (
       <main className="min-h-screen bg-background py-8">
+        <Navbar />
         <div className="max-w-7xl mx-auto px-4 text-center">
           <h1 className="text-2xl font-bold mb-4">Salon introuvable</h1>
           <p className="text-muted-foreground mb-6">Le salon que vous recherchez n&apos;existe pas.</p>
-          <Link href="/">
-            <Button>Retour à l&apos;accueil</Button>
-          </Link>
+          <Button asChild>
+            <Link href="/">Retour à l&apos;accueil</Link>
+          </Button>
         </div>
       </main>
     )
@@ -98,7 +100,8 @@ export default async function SalonPage({ params }: SalonPageProps) {
 
   return (
     <main className="min-h-screen bg-background">
-      <SalonHeader {...salon} image={salon.image_url} images={salon.images || []} hours={salon.opening_hours} autoplay={false} />
+      <Navbar />
+      <SalonHeader {...salon} image={salon.image_url} images={salon.images || []} hours={salon.opening_hours} autoplay={true} />
       <SalonServices services={transformedServices} />
       <SalonTeam employees={salonEmployees} serviceNames={serviceNames} />
       <SalonHours hours={salon.opening_hours} />
@@ -109,11 +112,9 @@ export default async function SalonPage({ params }: SalonPageProps) {
           <div className="temple-frame temple-panel rounded-[1.75rem] px-8 py-12">
           <h2 className="text-4xl font-serif font-bold mb-4 text-primary">Prenez le temps de choisir votre moment</h2>
           <p className="text-lg mb-8 text-muted-foreground">Reservez votre experience de massage ideale dans ce salon des aujourd'hui.</p>
-          <Link href={`/book/${salon.slug}`}>
-            <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_12px_30px_rgba(214,171,89,0.2)]">
-              Réserver un rendez-vous
-            </Button>
-          </Link>
+          <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_12px_30px_rgba(214,171,89,0.2)]">
+            <Link href={`/book/${salon.slug}`}>Réserver un rendez-vous</Link>
+          </Button>
           </div>
         </div>
       </section>

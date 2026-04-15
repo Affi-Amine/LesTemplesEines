@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -8,16 +8,25 @@ import { MapPin, Clock } from "lucide-react"
 import { Icon } from "@iconify/react"
 import { useSalons } from "@/lib/hooks/use-salons"
 import useEmblaCarousel from "embla-carousel-react"
+import Autoplay from "embla-carousel-autoplay"
 
 export function HomeSalonsSection() {
   const { data: salons, isLoading, error } = useSalons()
   const salonCount = salons?.length ?? 0
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const autoplayPlugin = useRef(
+    Autoplay({
+      delay: 4500,
+      stopOnInteraction: false,
+      stopOnMouseEnter: true,
+    })
+  )
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: "start",
     containScroll: "trimSnaps",
     dragFree: true,
-  })
+    loop: true,
+  }, [autoplayPlugin.current])
 
   const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi])
   const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi])
@@ -72,13 +81,14 @@ export function HomeSalonsSection() {
   }
 
   return (
-    <section id="salons" className="bg-muted/30 py-16 md:py-20">
+    <section id="salons" className="relative overflow-hidden bg-muted/30 py-16 md:py-20">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(214,171,89,0.08),transparent_25%),radial-gradient(circle_at_85%_78%,rgba(214,171,89,0.06),transparent_28%)]" />
       <div className="max-w-7xl mx-auto px-4">
-        <div className="mb-12 text-center md:mb-16">
+        <div className="relative mb-12 text-center md:mb-16">
           <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos salons</span>
           <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">{salonCount} salons, une meme exigence</h2>
           <p className="mx-auto max-w-2xl text-sm text-muted-foreground sm:text-base">
-            Chaque établissement offre une atmosphère unique dédiée à votre détente et rajeunissement complets
+            Trois lieux, trois atmosphères, une meme obsession du detail, du silence et de la qualité du geste.
           </p>
         </div>
         <div className="relative">
@@ -150,14 +160,12 @@ export function HomeSalonsSection() {
                   </div>
 
                   <div className="flex flex-col gap-3 sm:flex-row">
-                    <Link href={`/salons/${salon.slug}`} className="flex-1">
-                      <Button variant="outline" className="w-full border-primary/20 bg-transparent cursor-pointer hover:bg-primary/8">
-                        En savoir plus
-                      </Button>
-                    </Link>
-                    <Link href={`/book/${salon.slug}`} className="flex-1">
-                      <Button className="w-full bg-primary shadow-[0_10px_24px_rgba(214,171,89,0.16)] cursor-pointer hover:bg-primary/90">Réserver</Button>
-                    </Link>
+                    <Button asChild variant="outline" className="flex-1 w-full border-primary/20 bg-transparent cursor-pointer hover:bg-primary/8">
+                      <Link href={`/salons/${salon.slug}`}>En savoir plus</Link>
+                    </Button>
+                    <Button asChild className="flex-1 w-full bg-primary shadow-[0_10px_24px_rgba(214,171,89,0.16)] cursor-pointer hover:bg-primary/90">
+                      <Link href={`/book/${salon.slug}`}>Réserver</Link>
+                    </Button>
                   </div>
                 </div>
               </Card>

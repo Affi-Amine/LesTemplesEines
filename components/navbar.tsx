@@ -52,16 +52,12 @@ export function Navbar() {
         {/* CTA Buttons */}
         <div className="hidden md:flex items-center gap-3">
           <LanguageSwitcher />
-          <Link href="/admin/login">
-            <Button variant="ghost" size="sm" className="text-sm hover:bg-primary/10 hover:text-primary">
-              {t("admin.login")}
-            </Button>
-          </Link>
-          <Link href="/book">
-            <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_8px_24px_rgba(214,171,89,0.18)]">
-              {t("home.cta_book")}
-            </Button>
-          </Link>
+          <Button asChild variant="ghost" size="sm" className="text-sm hover:bg-primary/10 hover:text-primary">
+            <Link href="/admin/login">{t("admin.login")}</Link>
+          </Button>
+          <Button asChild size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_8px_24px_rgba(214,171,89,0.18)]">
+            <Link href="/book">{t("home.cta_book")}</Link>
+          </Button>
         </div>
 
         {/* Mobile Menu Button */}
@@ -99,16 +95,12 @@ export function Navbar() {
               <LanguageSwitcher />
             </div>
             <div className="flex gap-2 pt-2">
-              <Link href="/admin/login" className="flex-1">
-                <Button variant="outline" size="sm" className="w-full bg-transparent">
-                  {t("admin.login")}
-                </Button>
-              </Link>
-              <Link href="/book" className="flex-1">
-                <Button size="sm" className="w-full bg-primary hover:bg-primary/90">
-                  {t("home.cta_book")}
-                </Button>
-              </Link>
+              <Button asChild variant="outline" size="sm" className="flex-1 w-full bg-transparent">
+                <Link href="/admin/login">{t("admin.login")}</Link>
+              </Button>
+              <Button asChild size="sm" className="flex-1 w-full bg-primary hover:bg-primary/90">
+                <Link href="/book">{t("home.cta_book")}</Link>
+              </Button>
             </div>
           </div>
         </div>

@@ -140,15 +140,16 @@ export function SalonHeader({ name, city, address, phone, image, images = [], sl
             </div>
 
             {/* Enhanced CTA Button */}
-            <Link href={`/book/${slug}`} className="lg:flex-shrink-0">
-              <Button
-                size="lg"
-                className="w-full lg:w-auto bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer group"
-              >
+            <Button
+              asChild
+              size="lg"
+              className="w-full lg:w-auto bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer group lg:flex-shrink-0"
+            >
+              <Link href={`/book/${slug}`}>
                 Réserver Maintenant
                 <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </div>
       </div>

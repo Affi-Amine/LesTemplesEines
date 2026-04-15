@@ -66,6 +66,49 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   })
   const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false)
 
+  const updateData = (updates: Partial<BookingData>) => {
+    setData((current) => ({ ...current, ...updates }))
+  }
+
+  const handleSalonChange = (salonId: string) => {
+    setData((current) => ({
+      ...current,
+      salon: salonId,
+      service: "",
+      employee: "",
+      employees: [],
+      date: "",
+      time: "",
+    }))
+  }
+
+  const handleServiceChange = (serviceId: string) => {
+    setData((current) => ({
+      ...current,
+      service: serviceId,
+      employee: "",
+      employees: [],
+      date: "",
+      time: "",
+    }))
+  }
+
+  const handleEmployeeChange = (employeeId: string) => {
+    setData((current) => ({
+      ...current,
+      employee: employeeId,
+      time: "",
+    }))
+  }
+
+  const handleDateChange = (date: string) => {
+    setData((current) => ({
+      ...current,
+      date,
+      time: "",
+    }))
+  }
+
   // Fetch data using hooks
   const { data: salons, isLoading: salonsLoading } = useSalons()
   const { data: services, isLoading: servicesLoading } = useServices(data.salon || undefined)
@@ -147,7 +190,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
          if (newSelection.length >= requiredCount) return
       }
     }
-    setData({ ...data, employees: newSelection })
+    setData((current) => ({ ...current, employees: newSelection, time: "" }))
   }
 
   const isMultiStaff = (currentService?.required_staff_count || 1) > 1
@@ -350,15 +393,20 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               ))}
             </div>
           ) : (
-            <RadioGroup value={data.salon} onValueChange={(value) => setData({ ...data, salon: value })}>
+            <RadioGroup value={data.salon} onValueChange={handleSalonChange}>
               <div className="space-y-3">
                 {salons?.map((salon) => (
                   <div
                     key={salon.id}
-                    className="flex items-start space-x-3 p-4 border rounded-lg bg-card/65 hover:bg-muted hover:border-primary cursor-pointer transition-all"
+                    onClick={() => handleSalonChange(salon.id)}
+                    className={`flex items-start space-x-3 rounded-lg border p-4 transition-all cursor-pointer ${
+                      data.salon === salon.id
+                        ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
+                        : "bg-card/65 hover:bg-muted hover:border-primary"
+                    }`}
                   >
-                    <RadioGroupItem value={salon.id} id={salon.id} className="mt-1" />
-                    <Label htmlFor={salon.id} className="flex-1 cursor-pointer">
+                    <RadioGroupItem value={salon.id} id={salon.id} className="mt-1 pointer-events-none" />
+                    <Label htmlFor={salon.id} className="flex-1 cursor-pointer pointer-events-none">
                       <div className="font-semibold">{salon.name}</div>
                       <div className="text-sm text-muted-foreground">{salon.address}</div>
                       <div className="text-xs text-muted-foreground mt-1">{salon.phone}</div>
@@ -394,18 +442,23 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               ))}
             </div>
           ) : (
-            <RadioGroup value={data.service} onValueChange={(value) => setData({ ...data, service: value })}>
+            <RadioGroup value={data.service} onValueChange={handleServiceChange}>
               <div className="space-y-3">
                 {services?.map((service) => (
                   <div
                     key={service.id}
-                    className="flex items-start space-x-3 p-4 border rounded-lg bg-card/65 hover:bg-muted hover:border-primary cursor-pointer transition-all"
+                    onClick={() => handleServiceChange(service.id)}
+                    className={`flex items-start space-x-3 rounded-lg border p-4 transition-all cursor-pointer ${
+                      data.service === service.id
+                        ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
+                        : "bg-card/65 hover:bg-muted hover:border-primary"
+                    }`}
                   >
-                    <RadioGroupItem value={service.id} id={service.id} className="mt-1" />
-                    <Label htmlFor={service.id} className="flex-1 cursor-pointer">
-                      <div className="font-semibold">{service.name}</div>
-                      <div className="text-sm text-muted-foreground">{service.description}</div>
-                      <div className="flex justify-between mt-2 text-sm">
+                    <RadioGroupItem value={service.id} id={service.id} className="mt-1 pointer-events-none" />
+                    <Label htmlFor={service.id} className="flex-1 cursor-pointer pointer-events-none">
+                      <div className="pr-2 text-base font-semibold leading-snug sm:text-lg">{service.name}</div>
+                      <div className="mt-1 line-clamp-3 text-sm leading-6 text-muted-foreground">{service.description}</div>
+                      <div className="mt-3 flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
                         <span className="text-muted-foreground">
                           {service.duration_minutes} {t(locale, "booking.duration")}
                         </span>
@@ -448,13 +501,21 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   ))}
                 </div>
               ) : (
-                <RadioGroup value={data.employee} onValueChange={(value) => setData({ ...data, employee: value })}>
+                <RadioGroup value={data.employee} onValueChange={handleEmployeeChange}>
                   <div className="space-y-2 mt-3">
                     {salonEmployees.length > 0 ? (
                       salonEmployees.map((emp) => (
-                        <div key={emp.id} className="flex items-center space-x-2 p-3 border rounded-lg bg-card/65 hover:bg-muted cursor-pointer">
-                          <RadioGroupItem value={emp.id} id={emp.id} />
-                          <Label htmlFor={emp.id} className="cursor-pointer flex-1">
+                        <div
+                          key={emp.id}
+                          onClick={() => handleEmployeeChange(emp.id)}
+                          className={`flex items-center space-x-3 rounded-lg border p-3 transition-all cursor-pointer ${
+                            data.employee === emp.id
+                              ? "border-primary bg-primary/10"
+                              : "bg-card/65 hover:bg-muted hover:border-primary"
+                          }`}
+                        >
+                          <RadioGroupItem value={emp.id} id={emp.id} className="pointer-events-none" />
+                          <Label htmlFor={emp.id} className="flex-1 cursor-pointer pointer-events-none">
                             {emp.first_name} {emp.last_name}
                           </Label>
                         </div>
@@ -499,10 +560,11 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                           >
                             <Checkbox 
                               checked={isSelected}
-                              onCheckedChange={() => !disabled && toggleEmployeeSelection(emp.id, currentService.required_staff_count || 2)}
+                              onCheckedChange={() => {}}
                               id={`staff-${emp.id}`}
+                              className="pointer-events-none"
                             />
-                            <Label htmlFor={`staff-${emp.id}`} className="cursor-pointer flex-1 font-medium">
+                            <Label htmlFor={`staff-${emp.id}`} className="cursor-pointer flex-1 font-medium pointer-events-none">
                               {emp.first_name} {emp.last_name}
                             </Label>
                           </div>
@@ -516,13 +578,13 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               <Label htmlFor="date" className="font-semibold">
                 {t(locale, "booking.select_date")}
               </Label>
-              <Input
-                id="date"
-                type="date"
-                value={data.date}
-                onChange={(e) => setData({ ...data, date: e.target.value })}
-                className="mt-2"
-              />
+                <Input
+                  id="date"
+                  type="date"
+                  value={data.date}
+                  onChange={(e) => handleDateChange(e.target.value)}
+                  className="mt-2"
+                />
             </div>
             <div>
               <Label className="font-semibold">{t(locale, "booking.select_time")}</Label>
@@ -538,7 +600,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                     <Button
                       key={time}
                       variant={isSelected ? "default" : "outline"}
-                      onClick={() => setData({ ...data, time })}
+                      onClick={() => updateData({ time })}
                       className={`w-full ${!isAvailable ? "bg-muted text-muted-foreground border-muted-foreground/10 opacity-100 cursor-not-allowed hover:bg-muted hover:text-muted-foreground" : ""}`}
                       disabled={!isAvailable || availabilityLoading || (!data.employee && (currentService?.required_staff_count || 1) <= 1)}
                     >
@@ -574,7 +636,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 <Input
                   id="firstName"
                   value={data.firstName}
-                  onChange={(e) => setData({ ...data, firstName: e.target.value })}
+                  onChange={(e) => updateData({ firstName: e.target.value })}
                   className="mt-2"
                   placeholder="Jean"
                 />
@@ -586,7 +648,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 <Input
                   id="lastName"
                   value={data.lastName}
-                  onChange={(e) => setData({ ...data, lastName: e.target.value })}
+                  onChange={(e) => updateData({ lastName: e.target.value })}
                   className="mt-2"
                   placeholder="Dupont"
                 />
@@ -601,7 +663,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 id="phone"
                 type="tel"
                 value={data.phone}
-                onChange={(e) => setData({ ...data, phone: e.target.value })}
+                onChange={(e) => updateData({ phone: e.target.value })}
                 placeholder="+33 6 12 34 56 78"
                 className="mt-1"
               />
@@ -614,9 +676,9 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 id="email"
                 type="email"
                 value={data.email}
-                onChange={(e) => setData({ ...data, email: e.target.value })}
-            className="mt-2"
-                  placeholder="john@example.com"
+                onChange={(e) => updateData({ email: e.target.value })}
+                className="mt-2"
+                placeholder="john@example.com"
               />
             </div>
             <div>
@@ -626,7 +688,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               <Textarea
                 id="notes"
                 value={data.notes}
-                onChange={(e) => setData({ ...data, notes: e.target.value })}
+                onChange={(e) => updateData({ notes: e.target.value })}
                 placeholder="Ex: allergies, préférences, niveau de pression..."
                 className="mt-2"
                 rows={3}
@@ -636,19 +698,33 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               <Label className="font-semibold">Paiement</Label>
               <RadioGroup
                 value={data.paymentOption}
-                onValueChange={(value: "stripe" | "on_site") => setData({ ...data, paymentOption: value })}
+                onValueChange={(value: "stripe" | "on_site") => updateData({ paymentOption: value })}
                 className="mt-3 space-y-3"
               >
-                <div className="flex items-start space-x-3 p-4 border rounded-lg bg-card/65 hover:bg-muted cursor-pointer">
-                  <RadioGroupItem value="stripe" id="payment-stripe" className="mt-1" />
-                  <Label htmlFor="payment-stripe" className="cursor-pointer flex-1">
+                <div
+                  onClick={() => updateData({ paymentOption: "stripe" })}
+                  className={`flex items-start space-x-3 rounded-lg border p-4 transition-all cursor-pointer ${
+                    data.paymentOption === "stripe"
+                      ? "border-primary bg-primary/10"
+                      : "bg-card/65 hover:bg-muted hover:border-primary"
+                  }`}
+                >
+                  <RadioGroupItem value="stripe" id="payment-stripe" className="mt-1 pointer-events-none" />
+                  <Label htmlFor="payment-stripe" className="cursor-pointer flex-1 pointer-events-none">
                     <div className="font-medium">Payer maintenant</div>
                     <div className="text-sm text-muted-foreground">Paiement en ligne securise avec Stripe.</div>
                   </Label>
                 </div>
-                <div className="flex items-start space-x-3 p-4 border rounded-lg bg-card/65 hover:bg-muted cursor-pointer">
-                  <RadioGroupItem value="on_site" id="payment-on-site" className="mt-1" />
-                  <Label htmlFor="payment-on-site" className="cursor-pointer flex-1">
+                <div
+                  onClick={() => updateData({ paymentOption: "on_site" })}
+                  className={`flex items-start space-x-3 rounded-lg border p-4 transition-all cursor-pointer ${
+                    data.paymentOption === "on_site"
+                      ? "border-primary bg-primary/10"
+                      : "bg-card/65 hover:bg-muted hover:border-primary"
+                  }`}
+                >
+                  <RadioGroupItem value="on_site" id="payment-on-site" className="mt-1 pointer-events-none" />
+                  <Label htmlFor="payment-on-site" className="cursor-pointer flex-1 pointer-events-none">
                     <div className="font-medium">Payer sur place</div>
                     <div className="text-sm text-muted-foreground">Le rendez-vous est cree comme non paye.</div>
                   </Label>

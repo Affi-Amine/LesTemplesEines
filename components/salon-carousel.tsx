@@ -38,7 +38,7 @@ export function SalonCarousel({
   )
 
   const [emblaRef, emblaApi] = useEmblaCarousel(
-    { loop: true, align: "start" },
+    { loop: false, align: "start" },
     autoplay ? [autoplayPlugin.current] : []
   )
 
@@ -135,10 +135,12 @@ export function SalonCarousel({
               "shadow-lg hover:shadow-xl",
               "transition-all duration-200",
               "cursor-pointer",
-              "backdrop-blur-sm"
+              "backdrop-blur-sm",
+              "disabled:cursor-not-allowed disabled:opacity-35"
             )}
             onClick={scrollPrev}
             aria-label="Image précédente"
+            disabled={!canScrollPrev}
           >
             <Icon icon="solar:alt-arrow-left-bold" className="h-6 w-6" />
           </Button>
@@ -157,10 +159,12 @@ export function SalonCarousel({
               "shadow-lg hover:shadow-xl",
               "transition-all duration-200",
               "cursor-pointer",
-              "backdrop-blur-sm"
+              "backdrop-blur-sm",
+              "disabled:cursor-not-allowed disabled:opacity-35"
             )}
             onClick={scrollNext}
             aria-label="Image suivante"
+            disabled={!canScrollNext}
           >
             <Icon icon="solar:alt-arrow-right-bold" className="h-6 w-6" />
           </Button>

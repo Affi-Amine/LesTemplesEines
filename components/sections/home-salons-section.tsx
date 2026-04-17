@@ -14,6 +14,8 @@ export function HomeSalonsSection() {
   const { data: salons, isLoading, error } = useSalons()
   const salonCount = salons?.length ?? 0
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [canScrollPrev, setCanScrollPrev] = useState(false)
+  const [canScrollNext, setCanScrollNext] = useState(false)
   const autoplayPlugin = useRef(
     Autoplay({
       delay: 4500,
@@ -24,8 +26,8 @@ export function HomeSalonsSection() {
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: "start",
     containScroll: "trimSnaps",
-    dragFree: true,
-    loop: true,
+    dragFree: false,
+    loop: false,
   }, [autoplayPlugin.current])
 
   const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi])
@@ -34,7 +36,11 @@ export function HomeSalonsSection() {
   useEffect(() => {
     if (!emblaApi) return
 
-    const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap())
+    const onSelect = () => {
+      setSelectedIndex(emblaApi.selectedScrollSnap())
+      setCanScrollPrev(emblaApi.canScrollPrev())
+      setCanScrollNext(emblaApi.canScrollNext())
+    }
     onSelect()
     emblaApi.on("select", onSelect)
     emblaApi.on("reInit", onSelect)
@@ -105,7 +111,7 @@ export function HomeSalonsSection() {
             return (
               <Card
                 key={salon.id}
-                className={`min-w-0 flex-[0_0_88%] sm:flex-[0_0_68%] lg:flex-[0_0_38%] xl:flex-[0_0_32%] overflow-hidden rounded-[1.5rem] border-primary/20 bg-card/92 backdrop-blur-sm transition-all duration-500 group cursor-pointer hover:-translate-y-1 hover:shadow-xl temple-frame home-reveal ${index === 0 ? "home-reveal-delay-1" : index === 1 ? "home-reveal-delay-2" : "home-reveal-delay-3"}`}
+                className={`min-w-0 flex-[0_0_88%] gap-0 py-0 sm:flex-[0_0_68%] lg:flex-[0_0_38%] xl:flex-[0_0_32%] rounded-[1.5rem] border-primary/20 bg-card/92 backdrop-blur-sm transition-all duration-500 group cursor-pointer hover:-translate-y-1 hover:shadow-xl temple-frame home-reveal ${index === 0 ? "home-reveal-delay-1" : index === 1 ? "home-reveal-delay-2" : "home-reveal-delay-3"}`}
               >
                 <div className="relative h-52 overflow-hidden bg-muted sm:h-56">
                   {/* Use images array if available, otherwise fall back to single image_url */}
@@ -187,10 +193,10 @@ export function HomeSalonsSection() {
             </div>
 
             <div className="flex items-center gap-3 self-end sm:self-auto">
-              <Button variant="outline" size="icon" className="h-10 w-10 border-primary/25 bg-background/40 hover:bg-primary/10" onClick={scrollPrev}>
+              <Button variant="outline" size="icon" className="h-10 w-10 border-primary/25 bg-background/40 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40" onClick={scrollPrev} disabled={!canScrollPrev}>
                 <Icon icon="solar:alt-arrow-left-bold" className="h-5 w-5" />
               </Button>
-              <Button variant="outline" size="icon" className="h-10 w-10 border-primary/25 bg-background/40 hover:bg-primary/10" onClick={scrollNext}>
+              <Button variant="outline" size="icon" className="h-10 w-10 border-primary/25 bg-background/40 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40" onClick={scrollNext} disabled={!canScrollNext}>
                 <Icon icon="solar:alt-arrow-right-bold" className="h-5 w-5" />
               </Button>
             </div>

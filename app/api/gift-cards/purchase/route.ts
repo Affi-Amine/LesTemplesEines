@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     const baseUrl = getBaseUrl(request.nextUrl.origin)
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      success_url: `${baseUrl}/gift?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${baseUrl}/gift/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/gift?checkout=cancel`,
       customer_email: payload.buyer_email,
       metadata: {

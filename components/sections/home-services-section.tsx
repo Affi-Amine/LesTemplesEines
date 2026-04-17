@@ -66,10 +66,10 @@ export function HomeServicesSection() {
           {uniqueServices?.slice(0, 5).map((service, index) => (
             <Card
               key={service.id}
-              className={`group relative overflow-hidden rounded-[1.6rem] border border-primary/20 bg-[linear-gradient(180deg,rgba(35,28,22,0.96),rgba(23,19,16,0.98))] p-6 text-left shadow-[0_24px_50px_rgba(0,0,0,0.18)] transition-all duration-500 hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_28px_60px_rgba(214,171,89,0.12)] temple-frame home-reveal ${index === 0 ? "home-reveal-delay-1" : index === 1 ? "home-reveal-delay-2" : index === 2 ? "home-reveal-delay-3" : ""}`}
+              className={`group relative gap-0 overflow-hidden rounded-[1.6rem] border border-primary/20 bg-[linear-gradient(180deg,rgba(35,28,22,0.96),rgba(23,19,16,0.98))] p-6 py-0 text-left shadow-[0_24px_50px_rgba(0,0,0,0.18)] transition-all duration-500 hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_28px_60px_rgba(214,171,89,0.12)] temple-frame home-reveal ${index === 0 ? "home-reveal-delay-1" : index === 1 ? "home-reveal-delay-2" : index === 2 ? "home-reveal-delay-3" : ""}`}
             >
               <div className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-              <div className="relative mb-5 h-44 overflow-hidden rounded-[1.25rem] bg-muted">
+              <div className="relative mb-5 mt-6 h-44 overflow-hidden rounded-[1.25rem] bg-muted">
                 {service.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img

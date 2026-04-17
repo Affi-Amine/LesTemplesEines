@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
 
     let appointment = null
     let giftCard = null
+    let service = null
 
     if (checkoutSession.appointment_id) {
       const { data } = await supabase
@@ -60,10 +61,36 @@ export async function GET(request: NextRequest) {
       giftCard = data || null
     }
 
+    const payload = checkoutSession.payload && typeof checkoutSession.payload === "object"
+      ? checkoutSession.payload
+      : null
+
+    const payloadServiceId = typeof payload?.service_id === "string" ? payload.service_id : null
+
+    if (payloadServiceId) {
+      const { data } = await supabase
+        .from("services")
+        .select("id, name, duration_minutes, price_cents")
+        .eq("id", payloadServiceId)
+        .maybeSingle()
+
+      service = data || null
+    }
+
     return NextResponse.json({
       session_id: checkoutSession.stripe_checkout_session_id,
       checkout_type: checkoutSession.checkout_type,
       status: checkoutSession.status,
+      amount_cents: checkoutSession.amount_cents,
+      currency: checkoutSession.currency,
+      payload: payload ? {
+        buyer_email: typeof payload.buyer_email === "string" ? payload.buyer_email : null,
+        recipient_email: typeof payload.recipient_email === "string" ? payload.recipient_email : null,
+        recipient_name: typeof payload.recipient_name === "string" ? payload.recipient_name : null,
+        personal_message: typeof payload.personal_message === "string" ? payload.personal_message : null,
+        service_id: payloadServiceId,
+      } : null,
+      service,
       appointment,
       gift_card: giftCard,
     })

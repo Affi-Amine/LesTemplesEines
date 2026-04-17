@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const supabase = createAdminClient()
     const { service } = await validateBookableAppointment(supabase, payload)
     const stripe = getStripeClient()
-    const baseUrl = getBaseUrl()
+    const baseUrl = getBaseUrl(request.nextUrl.origin)
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",

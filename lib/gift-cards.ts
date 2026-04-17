@@ -13,10 +13,17 @@ export function generateGiftCardCode() {
   return normalizeGiftCardCode(randomBytes(6).toString("hex").toUpperCase())
 }
 
-export function getBaseUrl() {
-  return (
+export function getBaseUrl(fallbackOrigin?: string) {
+  const vercelUrl =
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+    process.env.VERCEL_URL
+
+  const baseUrl =
     process.env.APP_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
+    fallbackOrigin ||
+    (vercelUrl ? `https://${vercelUrl}` : undefined) ||
     "http://localhost:3000"
-  ).replace(/\/+$/, "")
+
+  return baseUrl.replace(/\/+$/, "")
 }

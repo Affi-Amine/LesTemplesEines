@@ -57,7 +57,7 @@ export function HomeSalonsSection() {
       <section id="salons" className="bg-transparent py-16 md:py-20">
         <div className="max-w-7xl mx-auto px-4">
           <div className="mb-12 text-center md:mb-16">
-            <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos maisons de massage thai</span>
+            <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos adresses de massage thailandais</span>
             <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">Des adresses pensees pour le meme niveau de soin</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
@@ -94,7 +94,7 @@ export function HomeSalonsSection() {
         <div className="relative mb-12 text-center md:mb-16">
           <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos salons</span>
           <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">
-            {salonCount > 0 ? `${salonCount} adresse${salonCount > 1 ? "s" : ""}, un meme geste thai` : "Nos adresses Les Temples"}
+            {salonCount > 0 ? `${salonCount} adresse${salonCount > 1 ? "s" : ""}, un meme geste thailandais` : "Nos adresses Les Temples"}
           </h2>
           <p className="mx-auto max-w-2xl text-sm text-muted-foreground sm:text-base">
             Chaque etablissement reprend le meme langage: bois sombres, lumiere basse, accueil calme et massage thailandais travaille avec precision, sans folklore inutile.

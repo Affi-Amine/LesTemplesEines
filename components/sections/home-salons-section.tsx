@@ -12,7 +12,8 @@ import Autoplay from "embla-carousel-autoplay"
 
 export function HomeSalonsSection() {
   const { data: salons, isLoading, error } = useSalons()
-  const salonCount = salons?.length ?? 0
+  const activeSalons = salons?.filter((salon) => salon.is_active) ?? []
+  const salonCount = activeSalons.length
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [canScrollPrev, setCanScrollPrev] = useState(false)
   const [canScrollNext, setCanScrollNext] = useState(false)
@@ -56,8 +57,8 @@ export function HomeSalonsSection() {
       <section id="salons" className="bg-transparent py-16 md:py-20">
         <div className="max-w-7xl mx-auto px-4">
           <div className="mb-12 text-center md:mb-16">
-            <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos Temples</span>
-            <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">{salonCount || 3} salons, une meme exigence</h2>
+            <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos maisons de massage thai</span>
+            <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">Des adresses pensees pour le meme niveau de soin</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {[1, 2, 3].map((i) => (
@@ -92,9 +93,11 @@ export function HomeSalonsSection() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="relative mb-12 text-center md:mb-16">
           <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos salons</span>
-          <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">{salonCount} salons, une meme exigence</h2>
+          <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">
+            {salonCount > 0 ? `${salonCount} adresse${salonCount > 1 ? "s" : ""}, un meme geste thai` : "Nos adresses Les Temples"}
+          </h2>
           <p className="mx-auto max-w-2xl text-sm text-muted-foreground sm:text-base">
-            Trois lieux, trois atmosphères, une meme obsession du detail, du silence et de la qualité du geste.
+            Chaque etablissement reprend le meme langage: bois sombres, lumiere basse, accueil calme et massage thailandais travaille avec precision, sans folklore inutile.
           </p>
         </div>
         <div className="relative">
@@ -103,7 +106,7 @@ export function HomeSalonsSection() {
 
           <div className="overflow-hidden" ref={emblaRef}>
             <div className="flex gap-4 md:gap-6">
-          {salons?.map((salon, index) => {
+          {activeSalons.map((salon, index) => {
             // Parse opening hours for display
             const openingHours = salon.opening_hours as Record<string, { open: string; close: string }>
             const mondayHours = openingHours?.monday || { open: "10:00", close: "20:00" }
@@ -150,7 +153,7 @@ export function HomeSalonsSection() {
                       <p className="text-sm text-primary/90 mt-1">{salon.city}</p>
                     </div>
                     <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-primary">
-                      Temple
+                      Thai
                     </span>
                   </div>
 
@@ -167,10 +170,10 @@ export function HomeSalonsSection() {
 
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Button asChild variant="outline" className="flex-1 w-full border-primary/20 bg-transparent cursor-pointer hover:bg-primary/8">
-                      <Link href={`/salons/${salon.slug}`}>En savoir plus</Link>
+                      <Link href={`/salons/${salon.slug}`}>Decouvrir l'adresse</Link>
                     </Button>
                     <Button asChild className="flex-1 w-full bg-primary shadow-[0_10px_24px_rgba(214,171,89,0.16)] cursor-pointer hover:bg-primary/90">
-                      <Link href={`/book/${salon.slug}`}>Réserver</Link>
+                      <Link href={`/book/${salon.slug}`}>Reserver ici</Link>
                     </Button>
                   </div>
                 </div>
@@ -182,7 +185,7 @@ export function HomeSalonsSection() {
 
           <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
-              {(salons || []).map((_, index) => (
+              {activeSalons.map((_, index) => (
                 <button
                   key={index}
                   onClick={() => emblaApi?.scrollTo(index)}

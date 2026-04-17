@@ -6,6 +6,66 @@ import { useServices } from "@/lib/hooks/use-services"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
+function normalize(value: string | null | undefined) {
+  return (value || "").toLowerCase()
+}
+
+function getServiceBadge(name: string, category: string | null) {
+  const haystack = `${normalize(name)} ${normalize(category)}`
+
+  if (haystack.includes("thai") || haystack.includes("thaï")) return "Nuad Thai"
+  if (haystack.includes("huile") || haystack.includes("oil")) return "Huile thai"
+  if (haystack.includes("pied") || haystack.includes("planta")) return "Foot massage"
+  if (haystack.includes("duo")) return "Massage duo"
+  if (haystack.includes("sport")) return "Recuperation"
+  if (haystack.includes("pierre")) return "Chaleur profonde"
+
+  return "Massage thai"
+}
+
+function getServiceDescription(name: string, category: string | null, description: string | null) {
+  const haystack = `${normalize(name)} ${normalize(category)}`
+  const current = (description || "").trim()
+  const genericDescription = !current || [
+    "experience unique",
+    "ambiance luxueuse",
+    "professionnels hautement formes",
+    "relaxation",
+    "therapeutic massage",
+    "soothing full-body massage",
+    "couples massage experience",
+    "deep tissue massage",
+  ].some((snippet) => normalize(current).includes(snippet))
+
+  if (!genericDescription) return current
+
+  if (haystack.includes("thai") || haystack.includes("thaï")) {
+    return "Pressions thailandaises, mobilisations et etirements inspires du Nuad Thai pour relancer le corps avec profondeur."
+  }
+
+  if (haystack.includes("huile") || haystack.includes("oil")) {
+    return "Un massage a l'huile aux manoeuvres enveloppantes, ideal pour apaiser le systeme nerveux et delier les tensions diffuses."
+  }
+
+  if (haystack.includes("pied") || haystack.includes("planta")) {
+    return "Travail des pieds et des mollets inspire de la reflexologie thai, utile quand les jambes sont lourdes ou tres sollicitees."
+  }
+
+  if (haystack.includes("duo")) {
+    return "Deux praticiennes, deux tables et le meme protocole de soin pour partager un vrai temps de massage dans le calme."
+  }
+
+  if (haystack.includes("sport")) {
+    return "Pressions plus soutenues, travail cible des chaines musculaires et etirements pour accompagner la recuperation."
+  }
+
+  if (haystack.includes("pierre")) {
+    return "La chaleur prolonge le travail manuel, aide les tissus a se detendre et rend le massage plus profond sans durete."
+  }
+
+  return "Pressions des paumes, travail des lignes Sen et rythme progressif pour retrouver de la souplesse et une sensation de relachement net."
+}
+
 export function HomeServicesSection() {
   // Fetch all services (no salon filter for homepage)
   const { data: services, isLoading, error } = useServices(undefined, true)
@@ -14,10 +74,10 @@ export function HomeServicesSection() {
     return (
       <section id="services" className="py-20">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="mb-16 text-center">
-            <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos Services</span>
-            <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">Soins Thérapeutiques</h2>
-          </div>
+        <div className="mb-16 text-center">
+          <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos massages thai</span>
+          <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">Des soins du corps ancrés dans la tradition thai</h2>
+        </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
             {[1, 2, 3, 4, 5].map((i) => (
               <Card key={i} className="p-6 text-center border-primary/10 animate-pulse">
@@ -57,9 +117,9 @@ export function HomeServicesSection() {
       <div className="relative max-w-7xl mx-auto px-4">
         <div className="mb-16 text-center">
           <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos prestations</span>
-          <h2 className="mt-2 mb-4 text-4xl font-serif font-bold md:text-5xl">Des soins penses pour durer</h2>
+          <h2 className="mt-2 mb-4 text-4xl font-serif font-bold md:text-5xl">Massage thai traditionnel, huile, duo et recuperation</h2>
           <p className="mx-auto max-w-2xl text-muted-foreground">
-            Une selection de rituels signatures pensés pour relâcher le corps, ralentir le rythme et installer un vrai calme.
+            Notre carte reunit des soins inspires du Nuad Thai, du massage thai a l'huile et de la reflexologie thaie, avec des intensites adaptees a votre besoin du jour.
           </p>
         </div>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
@@ -84,7 +144,7 @@ export function HomeServicesSection() {
                 )}
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(8,7,6,0.15)_50%,rgba(8,7,6,0.72)_100%)]" />
                 <div className="absolute left-4 top-4 rounded-full border border-primary/25 bg-background/55 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-primary backdrop-blur-sm">
-                  Rituel
+                  {getServiceBadge(service.name, service.category)}
                 </div>
               </div>
               <div className="mb-4 flex items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-primary/80">
@@ -93,10 +153,10 @@ export function HomeServicesSection() {
               </div>
               <h3 className="mb-3 min-h-12 text-lg font-semibold text-foreground">{service.name}</h3>
               <p className="mb-5 line-clamp-3 text-sm leading-6 text-muted-foreground">
-                {service.description || "Un protocole de massage pensé pour dénouer les tensions et retrouver une sensation de présence au corps."}
+                {getServiceDescription(service.name, service.category, service.description)}
               </p>
               <Button asChild variant="outline" className="w-full border-primary/20 bg-background/35 hover:bg-primary/8">
-                <Link href="/book">Reserver ce soin</Link>
+                <Link href="/book">Choisir ce massage</Link>
               </Button>
             </Card>
           ))}

@@ -3,14 +3,12 @@
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowRight } from "lucide-react"
-import { useTranslations } from "@/lib/i18n/use-translations"
+import { ArrowRight, Gift, Mail, Sparkles } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import { fetchAPI } from "@/lib/api/client"
 import { useSalons } from "@/lib/hooks/use-salons"
 
 export function HeroSection() {
-  const { t, mounted } = useTranslations()
   const { data: salons } = useSalons()
 
   // Fetch therapist count
@@ -22,15 +20,13 @@ export function HeroSection() {
   const therapistCount = staff?.filter((s: any) => s.role === "therapist" && s.is_active).length || 15
   const activeSalonCount = salons?.filter((salon) => salon.is_active).length || 3
 
-  if (!mounted) return null
-
   return (
     <section className="relative flex min-h-[100svh] items-center justify-center overflow-hidden pt-24 md:min-h-screen md:pt-20">
       {/* Background Image with Overlay */}
       <div className="absolute inset-0 z-0">
         <Image
           src="/luxury-spa-massage-relaxation.jpg"
-          alt="Luxury spa background"
+          alt="Cabine de massage thailandais Les Temples"
           fill
           className="object-cover"
           priority
@@ -46,18 +42,18 @@ export function HeroSection() {
           <div className="space-y-7 md:space-y-8">
             {/* Tagline */}
             <div className="home-reveal inline-block rounded-full border border-primary/20 bg-background/35 px-4 py-2 backdrop-blur-sm">
-              <span className="text-sm font-semibold text-primary tracking-widest uppercase">{t("home.subtitle")}</span>
+              <span className="text-sm font-semibold text-primary tracking-widest uppercase">Massage thailandais traditionnel</span>
             </div>
 
             {/* Main Heading */}
             <div className="home-reveal home-reveal-delay-1">
               <h1 className="mb-4 text-4xl font-serif font-bold leading-[0.95] text-foreground drop-shadow-[0_10px_30px_rgba(0,0,0,0.38)] sm:text-5xl md:text-6xl lg:text-7xl">
-                Le massage
+                Le massage thai
                 <br />
-                comme <span className="text-primary">art de vivre</span>
+                avec <span className="text-primary">calme et justesse</span>
               </h1>
               <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                Trois adresses pensees pour ralentir, respirer et retrouver une sensation rare de calme profond.
+                Les Temples propose des massages inspires du savoir-faire thailandais: pressions des paumes, etirements guides, travail des lignes d'energie et gestes a l'huile, dans des salons sobres inspires des temples thai.
               </p>
             </div>
 
@@ -65,13 +61,20 @@ export function HeroSection() {
             <div className="home-reveal home-reveal-delay-2 flex flex-col gap-3 pt-2 sm:flex-row sm:gap-4 sm:pt-4">
               <Button asChild size="lg" className="group w-full bg-primary text-primary-foreground shadow-[0_14px_34px_rgba(214,171,89,0.18)] hover:bg-primary/90 sm:w-auto">
                 <Link href="/book" className="w-full sm:w-auto">
-                  {t("home.cta_book")}
+                  Reserver un massage thai
                   <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="w-full border-primary/30 bg-background/20 backdrop-blur-sm hover:bg-primary/8 sm:w-auto">
                 <Link href="#salons" className="w-full sm:w-auto">
-                  {t("home.cta_explore")}
+                  Decouvrir nos adresses
+                </Link>
+              </Button>
+            </div>
+            <div className="home-reveal home-reveal-delay-2 md:hidden">
+              <Button asChild size="lg" variant="outline" className="w-full border-primary/30 bg-background/20 backdrop-blur-sm hover:bg-primary/8">
+                <Link href="/gift" className="w-full">
+                  Offrir une carte cadeau
                 </Link>
               </Button>
             </div>
@@ -80,15 +83,15 @@ export function HeroSection() {
             <div className="home-reveal home-reveal-delay-3 grid grid-cols-3 gap-4 border-t border-primary/10 pt-6 sm:pt-8 md:flex md:gap-8">
               <div className="min-w-0">
                 <p className="text-2xl font-bold text-foreground">{activeSalonCount}</p>
-                <p className="text-xs text-muted-foreground sm:text-sm">{activeSalonCount > 1 ? "Salons signature" : "Salon signature"}</p>
+                <p className="text-xs text-muted-foreground sm:text-sm">{activeSalonCount > 1 ? "Adresses Les Temples" : "Adresse Les Temples"}</p>
               </div>
               <div className="min-w-0">
                 <p className="text-2xl font-bold text-foreground">500+</p>
-                <p className="text-xs text-muted-foreground sm:text-sm">Clients fideles</p>
+                <p className="text-xs text-muted-foreground sm:text-sm">Clients reguliers</p>
               </div>
               <div className="min-w-0">
                 <p className="text-2xl font-bold text-foreground">{therapistCount}+</p>
-                <p className="text-xs text-muted-foreground sm:text-sm">Therapeutes experts</p>
+                <p className="text-xs text-muted-foreground sm:text-sm">Therapeutes en massage</p>
               </div>
             </div>
           </div>
@@ -97,25 +100,49 @@ export function HeroSection() {
           <div className="hidden md:flex items-center justify-center">
             <div className="relative w-full aspect-square max-w-md">
               {/* Floating Cards */}
-              <div className="absolute top-0 right-0 w-48 h-64 bg-background/35 rounded-3xl backdrop-blur-sm border border-primary/20 p-6 shadow-xl transform hover:scale-105 transition-transform duration-300 soft-float soft-glow">
+              <Link
+                href="/gift"
+                className="absolute top-0 right-0 flex h-64 w-48 flex-col justify-between rounded-3xl border border-primary/20 bg-background/35 p-6 shadow-xl backdrop-blur-sm transition-transform duration-300 hover:scale-105 soft-float soft-glow"
+              >
                 <div className="space-y-4">
-                  <div className="w-12 h-12 bg-primary/20 rounded-full" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20">
+                    <Gift className="h-6 w-6 text-primary" />
+                  </div>
                   <div className="space-y-2">
-                    <div className="h-3 bg-primary/20 rounded w-3/4" />
-                    <div className="h-3 bg-primary/20 rounded w-1/2" />
+                    <p className="text-xs uppercase tracking-[0.24em] text-primary/80">Carte cadeau</p>
+                    <h3 className="text-xl font-semibold text-foreground">Offrir un massage thai</h3>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      Choisissez un soin et laissez le destinataire reserver quand il le souhaite.
+                    </p>
                   </div>
                 </div>
-              </div>
+                <div className="flex items-center text-sm font-medium text-primary">
+                  Acheter une carte cadeau
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </div>
+              </Link>
 
-              <div className="absolute bottom-0 left-0 w-48 h-64 bg-background/25 rounded-3xl backdrop-blur-sm border border-primary/10 p-6 shadow-lg transform hover:scale-105 transition-transform duration-300 soft-float [animation-delay:1.8s]">
+              <Link
+                href="/gift"
+                className="absolute bottom-0 left-0 flex h-64 w-48 flex-col justify-between rounded-3xl border border-primary/10 bg-background/25 p-6 shadow-lg backdrop-blur-sm transition-transform duration-300 hover:scale-105 soft-float [animation-delay:1.8s]"
+              >
                 <div className="space-y-4">
-                  <div className="w-12 h-12 bg-primary/10 rounded-full" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                    <Mail className="h-6 w-6 text-primary" />
+                  </div>
                   <div className="space-y-2">
-                    <div className="h-3 bg-primary/10 rounded w-3/4" />
-                    <div className="h-3 bg-primary/10 rounded w-1/2" />
+                    <p className="text-xs uppercase tracking-[0.24em] text-primary/80">A distance</p>
+                    <h3 className="text-lg font-semibold text-foreground">Envoyer en quelques minutes</h3>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      Par email, avec un message personnel et un recapitulatif clair apres paiement.
+                    </p>
                   </div>
                 </div>
-              </div>
+                <div className="flex items-center text-sm font-medium text-primary">
+                  Voir les cartes cadeaux
+                  <Sparkles className="ml-2 h-4 w-4" />
+                </div>
+              </Link>
 
               <div className="absolute left-12 top-10 h-24 w-24 rounded-full border border-primary/20 bg-primary/8 blur-3xl" />
               <div className="absolute bottom-14 right-12 h-20 w-20 rounded-full border border-primary/15 bg-primary/10 blur-2xl" />

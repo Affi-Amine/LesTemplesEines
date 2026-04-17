@@ -116,11 +116,6 @@ function GiftSuccessContent() {
                       {service?.duration_minutes ? `${service.duration_minutes} min` : "Duree a confirmer"}
                     </p>
                   </div>
-
-                  <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
-                    <p className="text-sm text-muted-foreground">Session Stripe</p>
-                    <p className="mt-1 break-all font-mono text-sm">{data?.session_id || sessionId || "Indisponible"}</p>
-                  </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">

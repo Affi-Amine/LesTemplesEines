@@ -1,11 +1,20 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist } from "next/font/google"
+import { Cormorant_Garamond, Manrope } from "next/font/google"
 import { Toaster } from "@/components/ui/sonner"
 import { QueryProvider } from "@/lib/providers/query-provider"
 import "./globals.css"
 
-const geist = Geist({ subsets: ["latin"] })
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+})
+
+const cormorant = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-cormorant",
+})
 
 export const metadata: Metadata = {
   title: "Les Temples - Réservation de Massage",
@@ -20,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
-      <body className={`${geist.className} antialiased`}>
+      <body className={`${manrope.variable} ${cormorant.variable} antialiased`}>
         <QueryProvider>
           {children}
           <Toaster />

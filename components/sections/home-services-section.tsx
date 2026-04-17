@@ -75,8 +75,8 @@ export function HomeServicesSection() {
       <section id="services" className="py-20">
         <div className="max-w-7xl mx-auto px-4">
         <div className="mb-16 text-center">
-          <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos massages thailandais</span>
-          <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">Des soins du corps ancrés dans la tradition thailandaise</h2>
+          <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos massages</span>
+          <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">Une carte courte, des mains sures</h2>
         </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -117,9 +117,9 @@ export function HomeServicesSection() {
       <div className="relative max-w-7xl mx-auto px-4">
         <div className="mb-16 text-center">
           <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos prestations</span>
-          <h2 className="mt-2 mb-4 text-4xl font-serif font-bold md:text-5xl">Massage thailandais traditionnel, huile, duo et recuperation</h2>
+          <h2 className="mt-2 mb-4 text-4xl font-serif font-bold md:text-5xl">Tradition, huile, duo, recuperation</h2>
           <p className="mx-auto max-w-2xl text-muted-foreground">
-            Notre carte reunit des soins inspires du massage thailandais traditionnel, du massage a l'huile et de la reflexologie plantaire, avec des intensites adaptees a votre besoin du jour.
+            Des protocoles venus du massage thaïlandais, lus avec sobriete: plus de pression quand le corps l'appelle, plus de lenteur quand il faut relacher.
           </p>
         </div>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">

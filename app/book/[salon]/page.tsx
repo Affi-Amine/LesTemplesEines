@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { BookingFlow } from "@/components/booking-flow"
 import { Footer } from "@/components/footer"
 import { createClient } from "@/lib/supabase/server"
@@ -43,7 +44,9 @@ export default async function SalonBookingPage({ params }: SalonBookingPageProps
             <h1 className="text-3xl font-bold mb-2">Réserver chez {salon.name}</h1>
             <p className="text-muted-foreground">Terminez votre réservation en 5 étapes simples</p>
           </div>
-          <BookingFlow initialSalon={salon.id} />
+          <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Chargement...</div>}>
+            <BookingFlow initialSalon={salon.id} />
+          </Suspense>
         </div>
       </div>
       <Footer />

@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { BookingFlow } from "@/components/booking-flow"
 import { Footer } from "@/components/footer"
 
@@ -10,7 +11,9 @@ export default function BookPage() {
             <h1 className="text-3xl font-bold mb-2">Réservez votre massage</h1>
             <p className="text-muted-foreground">Terminez votre réservation en 5 étapes simples</p>
           </div>
-          <BookingFlow />
+          <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Chargement...</div>}>
+            <BookingFlow />
+          </Suspense>
         </div>
       </div>
       <Footer />

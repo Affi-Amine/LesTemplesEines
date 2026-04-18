@@ -40,30 +40,30 @@ function getServiceDescription(name: string, category: string | null, descriptio
   if (!genericDescription) return current
 
   if (haystack.includes("thai") || haystack.includes("thaï")) {
-    return "Pressions thailandaises, mobilisations et etirements inspires du Nuad Thai pour relancer le corps avec profondeur."
+    return "Pressions, etirements et mobilisations inspires du Nuad Thai pour liberer le corps en profondeur."
   }
 
   if (haystack.includes("huile") || haystack.includes("oil")) {
-    return "Un massage a l'huile aux manoeuvres enveloppantes, ideal pour apaiser le systeme nerveux et delier les tensions diffuses."
+    return "Un rituel a l'huile aux gestes lents et enveloppants, ideal pour apaiser les tensions diffuses."
   }
 
   if (haystack.includes("pied") || haystack.includes("planta")) {
-    return "Travail des pieds et des mollets inspire de la reflexologie thai, utile quand les jambes sont lourdes ou tres sollicitees."
+    return "Un travail precis des pieds et des mollets, ideal lorsque les jambes sont lourdes ou tres sollicitees."
   }
 
   if (haystack.includes("duo")) {
-    return "Deux praticiennes, deux tables et le meme protocole de soin pour partager un vrai temps de massage dans le calme."
+    return "Deux tables, le meme tempo de soin, pour partager un veritable moment de relachement."
   }
 
   if (haystack.includes("sport")) {
-    return "Pressions plus soutenues, travail cible des chaines musculaires et etirements pour accompagner la recuperation."
+    return "Un travail cible, plus soutenu, pour accompagner la recuperation et delier les tensions musculaires."
   }
 
   if (haystack.includes("pierre")) {
-    return "La chaleur prolonge le travail manuel, aide les tissus a se detendre et rend le massage plus profond sans durete."
+    return "La chaleur prolonge le geste, detend les tissus et donne au soin une profondeur plus fondue."
   }
 
-  return "Pressions des paumes, travail des lignes Sen et rythme progressif pour retrouver de la souplesse et une sensation de relachement net."
+  return "Un rituel mesure, entre pressions et relachement, pour rendre au corps sa souplesse."
 }
 
 export function HomeServicesSection() {
@@ -116,10 +116,10 @@ export function HomeServicesSection() {
       <div className="absolute left-1/2 top-16 h-32 w-[38rem] -translate-x-1/2 rounded-full bg-primary/8 blur-3xl" />
       <div className="relative max-w-7xl mx-auto px-4">
         <div className="mb-16 text-center">
-          <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos prestations</span>
-          <h2 className="mt-2 mb-4 text-4xl font-serif font-bold md:text-5xl">Tradition, huile, duo, recuperation</h2>
+          <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos massages</span>
+          <h2 className="mt-2 mb-4 text-4xl font-serif font-bold md:text-5xl">Des rituels penses pour chaque besoin</h2>
           <p className="mx-auto max-w-2xl text-muted-foreground">
-            Des protocoles venus du massage thaïlandais, lus avec sobriete: plus de pression quand le corps l'appelle, plus de lenteur quand il faut relacher.
+            Une carte sobre, portee par le geste thai, pour apaiser, relacher ou travailler plus en profondeur.
           </p>
         </div>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
@@ -156,7 +156,7 @@ export function HomeServicesSection() {
                 {getServiceDescription(service.name, service.category, service.description)}
               </p>
               <Button asChild variant="outline" className="w-full border-primary/20 bg-background/35 hover:bg-primary/8">
-                <Link href="/book">Choisir ce massage</Link>
+                <Link href="/book">Choisir</Link>
               </Button>
             </Card>
           ))}

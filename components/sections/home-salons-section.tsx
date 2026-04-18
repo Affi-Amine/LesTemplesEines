@@ -92,12 +92,12 @@ export function HomeSalonsSection() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(214,171,89,0.08),transparent_25%),radial-gradient(circle_at_85%_78%,rgba(214,171,89,0.06),transparent_28%)]" />
       <div className="max-w-7xl mx-auto px-4">
         <div className="relative mb-12 text-center md:mb-16">
-          <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos salons</span>
+            <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos adresses</span>
           <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">
-            {salonCount > 0 ? `${salonCount} adresse${salonCount > 1 ? "s" : ""}, une meme exigence` : "Nos adresses Les Temples"}
+            {salonCount > 0 ? `${salonCount} adresse${salonCount > 1 ? "s" : ""}, un meme niveau d'exigence` : "Nos adresses Les Temples"}
           </h2>
           <p className="mx-auto max-w-2xl text-sm text-muted-foreground sm:text-base">
-            Chaque lieu reprend le meme rythme: accueil discret, cabines feutrees, soin net, sans theatre inutile.
+            Dans chaque maison, le meme accueil discret, le meme soin juste, la meme serenite.
           </p>
         </div>
         <div className="relative">
@@ -170,10 +170,10 @@ export function HomeSalonsSection() {
 
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Button asChild variant="outline" className="flex-1 w-full border-primary/20 bg-transparent cursor-pointer hover:bg-primary/8">
-                      <Link href={`/salons/${salon.slug}`}>Decouvrir l'adresse</Link>
+                      <Link href={`/salons/${salon.slug}`}>Voir l'adresse</Link>
                     </Button>
                     <Button asChild className="flex-1 w-full bg-primary shadow-[0_10px_24px_rgba(214,171,89,0.16)] cursor-pointer hover:bg-primary/90">
-                      <Link href={`/book/${salon.slug}`}>Reserver ici</Link>
+                      <Link href={`/book/${salon.slug}`}>Reserver</Link>
                     </Button>
                   </div>
                 </div>

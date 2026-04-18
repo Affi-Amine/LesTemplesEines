@@ -29,6 +29,7 @@ export const BookableAppointmentSchema = z.object({
   payment_method: z.string().optional(),
   amount_paid_cents: z.number().int().min(0).optional(),
   paid_at: z.string().optional(),
+  client_pack_id: z.string().uuid().optional(),
 }).refine((data) => data.client_id || data.client_data, {
   message: "Either client_id or client_data must be provided",
 }).refine((data) => data.staff_id || (data.staff_ids && data.staff_ids.length > 0), {
@@ -133,12 +134,50 @@ async function resolveClientId(supabase: SupabaseClient, input: BookableAppointm
 
   const { data: existingClient } = await supabase
     .from("clients")
-    .select("id")
+    .select("*")
     .eq("phone", input.client_data.phone)
     .maybeSingle()
 
   if (existingClient?.id) {
+    const updates: Record<string, unknown> = {}
+    if (!existingClient.email && input.client_data.email) updates.email = input.client_data.email
+    if (!existingClient.first_name) updates.first_name = input.client_data.first_name
+    if (!existingClient.last_name) updates.last_name = input.client_data.last_name
+
+    if (Object.keys(updates).length > 0) {
+      await supabase
+        .from("clients")
+        .update(updates)
+        .eq("id", existingClient.id)
+    }
+
     return existingClient.id
+  }
+
+  if (input.client_data.email) {
+    const { data: emailClient } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("email", input.client_data.email)
+      .maybeSingle()
+
+    if (emailClient?.id) {
+      const updates: Record<string, unknown> = {
+        first_name: input.client_data.first_name,
+        last_name: input.client_data.last_name,
+      }
+
+      if (!emailClient.phone) {
+        updates.phone = input.client_data.phone
+      }
+
+      await supabase
+        .from("clients")
+        .update(updates)
+        .eq("id", emailClient.id)
+
+      return emailClient.id
+    }
   }
 
   const { data: newClient, error: clientError } = await supabase
@@ -161,6 +200,64 @@ async function resolveClientId(supabase: SupabaseClient, input: BookableAppointm
   return newClient.id
 }
 
+async function validateAndConsumePack(
+  supabase: SupabaseClient,
+  params: {
+    clientPackId: string
+    clientId: string
+    serviceId: string
+    appointmentId: string
+  }
+) {
+  const { data: clientPack, error } = await supabase
+    .from("client_packs")
+    .select(`
+      *,
+      pack:packs(*)
+    `)
+    .eq("id", params.clientPackId)
+    .eq("client_id", params.clientId)
+    .single()
+
+  if (error || !clientPack) {
+    throw new Error("Pack client introuvable")
+  }
+
+  if (clientPack.remaining_sessions <= 0) {
+    throw new Error("Aucune séance restante sur ce forfait")
+  }
+
+  if (!clientPack.pack?.allowed_services?.includes(params.serviceId)) {
+    throw new Error("Cette prestation n'est pas autorisée pour ce forfait")
+  }
+
+  const { error: updateError } = await supabase
+    .from("client_packs")
+    .update({
+      remaining_sessions: clientPack.remaining_sessions - 1,
+      payment_status: clientPack.payment_status === "pending" ? "active" : clientPack.payment_status,
+    })
+    .eq("id", clientPack.id)
+    .eq("remaining_sessions", clientPack.remaining_sessions)
+
+  if (updateError) {
+    throw new Error(updateError.message)
+  }
+
+  const { error: usageError } = await supabase
+    .from("client_pack_usages")
+    .insert([{
+      client_pack_id: clientPack.id,
+      appointment_id: params.appointmentId,
+    }])
+
+  if (usageError) {
+    throw new Error(usageError.message)
+  }
+
+  return clientPack
+}
+
 export async function createBookableAppointment(
   supabase: SupabaseClient,
   input: BookableAppointmentInput,
@@ -173,7 +270,7 @@ export async function createBookableAppointment(
     }
   }
 ) {
-  const { endTime, allStaffIds } = await validateBookableAppointment(supabase, input)
+  const { endTime, allStaffIds, service } = await validateBookableAppointment(supabase, input)
   const clientId = await resolveClientId(supabase, input)
   const primaryStaffId = input.staff_id || allStaffIds[0]
   const paymentStatus = input.payment_status || "unpaid"
@@ -235,6 +332,28 @@ export async function createBookableAppointment(
 
     if (paymentError) {
       throw new Error(paymentError.message)
+    }
+  }
+
+  if (input.payment_method === "pack" && input.client_pack_id) {
+    await validateAndConsumePack(supabase, {
+      clientPackId: input.client_pack_id,
+      clientId,
+      serviceId: input.service_id,
+      appointmentId: appointment.id,
+    })
+
+    const { error: packPaymentError } = await supabase
+      .from("payments")
+      .insert([{
+        appointment_id: appointment.id,
+        amount_cents: service.price_cents,
+        method: "pack",
+        notes: `Pack usage ${input.client_pack_id}`,
+      }])
+
+    if (packPaymentError) {
+      throw new Error(packPaymentError.message)
     }
   }
 

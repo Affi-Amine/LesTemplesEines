@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
 
     let appointment = null
     let giftCard = null
+    let clientPack = null
     let service = null
+    let pack = null
 
     if (checkoutSession.appointment_id) {
       const { data } = await supabase
@@ -61,11 +63,26 @@ export async function GET(request: NextRequest) {
       giftCard = data || null
     }
 
+    if (checkoutSession.client_pack_id) {
+      const { data } = await supabase
+        .from("client_packs")
+        .select(`
+          *,
+          pack:packs(*)
+        `)
+        .eq("id", checkoutSession.client_pack_id)
+        .maybeSingle()
+
+      clientPack = data || null
+      pack = data?.pack || null
+    }
+
     const payload = checkoutSession.payload && typeof checkoutSession.payload === "object"
       ? checkoutSession.payload
       : null
 
     const payloadServiceId = typeof payload?.service_id === "string" ? payload.service_id : null
+    const payloadPackId = typeof payload?.pack_id === "string" ? payload.pack_id : null
 
     if (payloadServiceId) {
       const { data } = await supabase
@@ -75,6 +92,16 @@ export async function GET(request: NextRequest) {
         .maybeSingle()
 
       service = data || null
+    }
+
+    if (!pack && payloadPackId) {
+      const { data } = await supabase
+        .from("packs")
+        .select("*")
+        .eq("id", payloadPackId)
+        .maybeSingle()
+
+      pack = data || null
     }
 
     return NextResponse.json({
@@ -89,10 +116,15 @@ export async function GET(request: NextRequest) {
         recipient_name: typeof payload.recipient_name === "string" ? payload.recipient_name : null,
         personal_message: typeof payload.personal_message === "string" ? payload.personal_message : null,
         service_id: payloadServiceId,
+        pack_id: payloadPackId,
+        customer_email: typeof payload?.customer_email === "string" ? payload.customer_email : null,
+        customer_name: typeof payload?.customer_name === "string" ? payload.customer_name : null,
       } : null,
       service,
+      pack,
       appointment,
       gift_card: giftCard,
+      client_pack: clientPack,
     })
   } catch (error) {
     console.error("[stripe] Checkout status error:", error)

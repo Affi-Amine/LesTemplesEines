@@ -16,7 +16,7 @@ const UpdateAppointmentSchema = z.object({
   paid_at: z.string().nullable().optional(),
   payments: z.array(z.object({
     amount_cents: z.number(),
-    method: z.enum(["stripe", "gift_card", "on_site", "cash", "card", "check", "other", "treatwell", "loyalty"])
+    method: z.enum(["stripe", "gift_card", "pack", "on_site", "cash", "card", "check", "other", "treatwell", "loyalty"])
   })).optional(),
   // New fields for modification
   service_id: z.string().uuid().optional(),

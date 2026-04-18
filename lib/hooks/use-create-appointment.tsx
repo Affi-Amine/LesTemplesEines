@@ -29,6 +29,7 @@ interface CreateAppointmentData {
   payment_method?: string
   amount_paid_cents?: number
   paid_at?: string
+  client_pack_id?: string
 }
 
 export function useCreateAppointment() {

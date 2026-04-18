@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -17,13 +18,13 @@ import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
 import { t } from "@/lib/i18n/get-translations"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
-import { useRouter } from "next/navigation"
-import { format } from "date-fns"
-import { fr, enUS } from "date-fns/locale"
+import { useRouter, useSearchParams } from "next/navigation"
 import { fromZonedTime } from "date-fns-tz"
 import type { Locale } from "@/i18n.config"
 import { quarterOptionsBetween } from "@/lib/calendar/scheduling"
 import { fetchAPI } from "@/lib/api/client"
+import { createClient } from "@/lib/supabase/client"
+import type { ClientPack } from "@/lib/types/database"
 
 type BookingStep = "salon" | "service" | "time" | "info" | "confirm"
 
@@ -39,7 +40,8 @@ interface BookingData {
   phone: string
   email: string
   notes: string
-  paymentOption: "stripe" | "on_site"
+  paymentOption: "stripe" | "on_site" | "pack"
+  clientPackId: string
 }
 
 interface BookingFlowProps {
@@ -49,6 +51,7 @@ interface BookingFlowProps {
 
 export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [step, setStep] = useState<BookingStep>(initialSalon ? "service" : "salon")
   const [data, setData] = useState<BookingData>({
     salon: initialSalon || "",
@@ -63,8 +66,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     email: "",
     notes: "",
     paymentOption: "on_site",
+    clientPackId: searchParams.get("client_pack_id") || "",
   })
   const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false)
+  const [hasClientSession, setHasClientSession] = useState(false)
 
   const updateData = (updates: Partial<BookingData>) => {
     setData((current) => ({ ...current, ...updates }))
@@ -115,11 +120,42 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   const { data: staff, isLoading: staffLoading } = useStaff(data.salon || undefined)
   const createAppointment = useCreateAppointment()
 
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data: authData }) => {
+      if (authData.user?.email) {
+        setHasClientSession(true)
+        setData((current) => ({
+          ...current,
+          email: current.email || authData.user?.email || "",
+        }))
+      }
+    })
+  }, [])
+
+  const { data: clientPacks } = useQuery({
+    queryKey: ["booking-client-packs"],
+    queryFn: () => fetchAPI<ClientPack[]>("/client-packs/me"),
+    enabled: hasClientSession,
+  })
+
   // Find current selections
   const currentSalon = salons?.find((s) => s.id === data.salon || s.slug === data.salon)
   const currentService = services?.find((s) => s.id === data.service)
   const currentEmployee = staff?.find((e) => e.id === data.employee)
   const salonEmployees = staff || []
+  const eligiblePacks = (clientPacks || []).filter((clientPack) =>
+    clientPack.remaining_sessions > 0 && clientPack.pack?.allowed_services?.includes(data.service)
+  )
+
+  useEffect(() => {
+    if (data.clientPackId && !eligiblePacks.some((pack) => pack.id === data.clientPackId)) {
+      setData((current) => ({
+        ...current,
+        clientPackId: "",
+        paymentOption: current.paymentOption === "pack" ? "on_site" : current.paymentOption,
+      }))
+    }
+  }, [data.clientPackId, eligiblePacks])
 
   // Availability based on selected therapist and date
   const selectedDateObj = data.date ? new Date(data.date) : undefined
@@ -264,6 +300,11 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
        return
     }
 
+    if (data.paymentOption === "pack" && !data.clientPackId) {
+      toast.error("Sélectionnez un forfait valide pour cette prestation.")
+      return
+    }
+
     const bookingDetails = {
       salon: currentSalon,
       service: currentService,
@@ -330,9 +371,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           email: data.email || undefined,
         },
         notes: data.notes || undefined,
-        payment_method: "on_site",
-        payment_status: "unpaid",
-        amount_paid_cents: 0,
+        payment_method: data.paymentOption === "pack" ? "pack" : "on_site",
+        payment_status: data.paymentOption === "pack" ? "paid" : "unpaid",
+        amount_paid_cents: data.paymentOption === "pack" ? currentService.price_cents : 0,
+        client_pack_id: data.paymentOption === "pack" ? data.clientPackId : undefined,
       },
       {
         onSuccess: (appointment) => {
@@ -698,7 +740,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               <Label className="font-semibold">Paiement</Label>
               <RadioGroup
                 value={data.paymentOption}
-                onValueChange={(value: "stripe" | "on_site") => updateData({ paymentOption: value })}
+                onValueChange={(value: "stripe" | "on_site" | "pack") => updateData({ paymentOption: value })}
                 className="mt-3 space-y-3"
               >
                 <div
@@ -715,6 +757,38 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                     <div className="text-sm text-muted-foreground">Paiement en ligne securise avec Stripe.</div>
                   </Label>
                 </div>
+                <div
+                  onClick={() => eligiblePacks.length > 0 && updateData({ paymentOption: "pack" })}
+                  className={`flex items-start space-x-3 rounded-lg border p-4 transition-all ${
+                    data.paymentOption === "pack"
+                      ? "border-primary bg-primary/10"
+                      : "bg-card/65 hover:bg-muted hover:border-primary"
+                  } ${eligiblePacks.length === 0 ? "opacity-50" : "cursor-pointer"}`}
+                >
+                  <RadioGroupItem value="pack" id="payment-pack" className="mt-1 pointer-events-none" disabled={eligiblePacks.length === 0} />
+                  <Label htmlFor="payment-pack" className="cursor-pointer flex-1 pointer-events-none">
+                    <div className="font-medium">Utiliser un forfait</div>
+                    <div className="text-sm text-muted-foreground">
+                      {eligiblePacks.length > 0 ? `${eligiblePacks.length} forfait(s) compatible(s) disponible(s).` : "Connectez-vous avec un compte client ayant un forfait compatible."}
+                    </div>
+                  </Label>
+                </div>
+                {data.paymentOption === "pack" && eligiblePacks.length > 0 && (
+                  <div className="space-y-2 pl-3">
+                    {eligiblePacks.map((clientPack) => (
+                      <div
+                        key={clientPack.id}
+                        onClick={() => updateData({ clientPackId: clientPack.id })}
+                        className={`rounded-lg border p-3 cursor-pointer ${data.clientPackId === clientPack.id ? "border-primary bg-primary/10" : "bg-card/65"}`}
+                      >
+                        <p className="font-medium">{clientPack.pack?.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {clientPack.remaining_sessions} / {clientPack.total_sessions} séance(s) restante(s)
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div
                   onClick={() => updateData({ paymentOption: "on_site" })}
                   className={`flex items-start space-x-3 rounded-lg border p-4 transition-all cursor-pointer ${
@@ -736,7 +810,12 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
-            <Button onClick={handleNext} disabled={!data.firstName || !data.lastName || !data.phone} size="lg" className="cursor-pointer w-full sm:w-auto">
+            <Button
+              onClick={handleNext}
+              disabled={!data.firstName || !data.lastName || !data.phone || (data.paymentOption === "pack" && !data.clientPackId)}
+              size="lg"
+              className="cursor-pointer w-full sm:w-auto"
+            >
               {t(locale, "common.next")}
             </Button>
           </div>
@@ -784,7 +863,9 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Paiement</p>
-                <p className="font-semibold text-lg">{data.paymentOption === "stripe" ? "Stripe" : "Sur place"}</p>
+                <p className="font-semibold text-lg">
+                  {data.paymentOption === "stripe" ? "Stripe" : data.paymentOption === "pack" ? "Forfait" : "Sur place"}
+                </p>
               </div>
             </div>
 
@@ -823,7 +904,11 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   {isRedirectingToStripe ? "Redirection..." : t(locale, "common.loading")}
                 </>
               ) : (
-                data.paymentOption === "stripe" ? "Payer avec Stripe" : t(locale, "booking.confirm_booking")
+                data.paymentOption === "stripe"
+                  ? "Payer avec Stripe"
+                  : data.paymentOption === "pack"
+                    ? "Réserver avec mon forfait"
+                    : t(locale, "booking.confirm_booking")
               )}
             </Button>
           </div>

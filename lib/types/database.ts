@@ -62,8 +62,9 @@ export interface StaffAvailability {
 
 export interface Client {
   id: string
-  phone: string
+  phone: string | null
   email: string | null
+  auth_user_id?: string | null
   first_name: string
   last_name: string
   internal_notes: string | null
@@ -94,13 +95,17 @@ export interface Appointment {
   stripe_payment_intent_id: string | null
   created_at: string
   updated_at: string
+  client?: Client | null
+  staff?: Partial<Staff> | null
+  service?: Service | null
+  salon?: Partial<Salon> | null
 }
 
 export interface Payment {
   id: string
   appointment_id: string
   amount_cents: number
-  method: "cash" | "card" | "check" | "other" | "treatwell" | "gift_card" | "loyalty"
+  method: "cash" | "card" | "check" | "other" | "treatwell" | "gift_card" | "pack" | "loyalty" | "stripe" | "on_site"
   reference: string | null
   notes: string | null
   recorded_by_staff_id: string | null
@@ -157,4 +162,46 @@ export interface GiftCard {
   stripe_payment_intent_id: string | null
   created_at: string
   updated_at: string
+}
+
+export interface Pack {
+  id: string
+  name: string
+  description: string | null
+  price: number
+  number_of_sessions: number
+  allowed_services: string[]
+  allowed_installments: number[]
+  is_active: boolean
+  created_at: string
+  updated_at?: string
+}
+
+export interface ClientPack {
+  id: string
+  client_id: string
+  pack_id: string
+  total_sessions: number
+  remaining_sessions: number
+  installment_count?: number
+  paid_installments?: number
+  purchase_date: string
+  payment_status: "pending" | "active" | "partially_paid" | "paid" | "failed" | "cancelled"
+  stripe_subscription_id: string | null
+  stripe_subscription_schedule_id?: string | null
+  stripe_checkout_session_id?: string | null
+  created_at: string
+  updated_at?: string
+  pack?: Pack | null
+  client?: Client | null
+  usages?: ClientPackUsage[]
+}
+
+export interface ClientPackUsage {
+  id: string
+  client_pack_id: string
+  appointment_id: string
+  used_at: string
+  created_at?: string
+  appointment?: Appointment | null
 }

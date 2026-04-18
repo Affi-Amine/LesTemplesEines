@@ -22,6 +22,7 @@ const AppointmentSchema = z.object({
   payment_method: z.string().optional(),
   amount_paid_cents: z.number().int().min(0).optional(),
   paid_at: z.string().optional(),
+  client_pack_id: z.string().uuid().optional(),
 }).refine((data) => data.status === "blocked" || data.client_id || data.client_data, {
   message: "Either client_id or client_data must be provided (unless status is blocked)",
 }).refine((data) => data.status === "blocked" || data.service_id, {
@@ -120,6 +121,7 @@ export async function POST(request: NextRequest) {
         payment_method: appointmentData.payment_method || "on_site",
         amount_paid_cents: appointmentData.amount_paid_cents || 0,
         paid_at: appointmentData.paid_at,
+        client_pack_id: appointmentData.client_pack_id,
       })
 
       try {

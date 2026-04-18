@@ -9,6 +9,9 @@ import { generateGiftCardCode } from "@/lib/gift-cards"
 import { sendGiftCardEmails } from "@/lib/email/gift-cards"
 import { createBookableAppointment } from "@/lib/appointments/create"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
+import { ensureClientAccount } from "@/lib/client-auth"
+import { sendPackReadyEmail } from "@/lib/email/packs"
+import { getPackPaymentStatus } from "@/lib/packs"
 
 const GiftCardPayloadSchema = z.object({
   service_id: z.string().uuid(),
@@ -16,6 +19,14 @@ const GiftCardPayloadSchema = z.object({
   recipient_email: z.string().email().optional(),
   recipient_name: z.string().optional(),
   personal_message: z.string().optional(),
+})
+
+const PackPayloadSchema = z.object({
+  pack_id: z.string().uuid(),
+  installment_count: z.number().int().min(1).max(3),
+  installment_amounts: z.array(z.number().int().positive()).min(1),
+  customer_email: z.string().email(),
+  customer_name: z.string().min(1),
 })
 
 async function generateUniqueGiftCardCode(supabase: ReturnType<typeof createAdminClient>) {
@@ -191,6 +202,162 @@ async function handleAppointmentCheckout(
   }
 }
 
+async function configurePackSubscriptionSchedule(params: {
+  stripe: Stripe
+  subscriptionId: string
+  packName: string
+  installmentAmounts: number[]
+}) {
+  const subscription = await params.stripe.subscriptions.retrieve(params.subscriptionId) as Stripe.Subscription & {
+    current_period_start?: number
+    current_period_end?: number
+  }
+  const item = subscription.items.data[0]
+
+  if (!item?.price?.id) {
+    throw new Error("Subscription item not found for installment plan")
+  }
+
+  const productId = typeof item.price.product === "string" ? item.price.product : item.price.product?.id
+
+  if (!productId) {
+    throw new Error("Subscription product not found for installment plan")
+  }
+
+  if (!subscription.current_period_start || !subscription.current_period_end) {
+    throw new Error("Subscription billing period not available for installment plan")
+  }
+
+  const schedule = await params.stripe.subscriptionSchedules.create({
+    from_subscription: params.subscriptionId,
+  })
+
+  const phases: Stripe.SubscriptionScheduleUpdateParams.Phase[] = [
+    {
+      start_date: subscription.current_period_start,
+      end_date: subscription.current_period_end,
+      items: [{
+        price: item.price.id,
+        quantity: item.quantity || 1,
+      }],
+    },
+  ]
+
+  for (let index = 1; index < params.installmentAmounts.length; index += 1) {
+    phases.push({
+      items: [{
+        price_data: {
+          currency: "eur",
+          unit_amount: params.installmentAmounts[index],
+          product: productId,
+          recurring: {
+            interval: "month",
+            interval_count: 1,
+          },
+        },
+        quantity: 1,
+      }],
+      duration: {
+        interval: "month",
+        interval_count: 1,
+      },
+    })
+  }
+
+  return params.stripe.subscriptionSchedules.update(schedule.id, {
+    end_behavior: "cancel",
+    phases,
+  })
+}
+
+async function handlePackCheckout(
+  supabase: ReturnType<typeof createAdminClient>,
+  checkoutSession: Stripe.Checkout.Session,
+  storedSession: any
+) {
+  if (storedSession.client_pack_id) {
+    return
+  }
+
+  const payload = PackPayloadSchema.parse(storedSession.payload)
+  const { data: pack, error: packError } = await supabase
+    .from("packs")
+    .select("*")
+    .eq("id", payload.pack_id)
+    .single()
+
+  if (packError || !pack) {
+    throw new Error("Pack not found for payment")
+  }
+
+  const { client } = await ensureClientAccount({
+    email: payload.customer_email,
+    fullName: payload.customer_name,
+  })
+
+  const stripe = getStripeClient()
+  let subscriptionScheduleId: string | null = null
+  const subscriptionId = typeof checkoutSession.subscription === "string" ? checkoutSession.subscription : null
+
+  if (subscriptionId && payload.installment_count > 1) {
+    const schedule = await configurePackSubscriptionSchedule({
+      stripe,
+      subscriptionId,
+      packName: pack.name,
+      installmentAmounts: payload.installment_amounts,
+    })
+    subscriptionScheduleId = schedule.id
+  }
+
+  const paidInstallments = checkoutSession.mode === "subscription" ? 1 : payload.installment_count
+  const paymentStatus =
+    payload.installment_count === 1
+      ? "paid"
+      : getPackPaymentStatus(payload.installment_count, paidInstallments)
+
+  const { data: clientPack, error: insertError } = await supabase
+    .from("client_packs")
+    .insert([{
+      client_id: client.id,
+      pack_id: pack.id,
+      total_sessions: pack.number_of_sessions,
+      remaining_sessions: pack.number_of_sessions,
+      installment_count: payload.installment_count,
+      paid_installments: paidInstallments,
+      purchase_date: new Date().toISOString(),
+      payment_status: paymentStatus === "pending" ? "active" : paymentStatus,
+      stripe_subscription_id: subscriptionId,
+      stripe_subscription_schedule_id: subscriptionScheduleId,
+      stripe_checkout_session_id: checkoutSession.id,
+    }])
+    .select("*")
+    .single()
+
+  if (insertError || !clientPack) {
+    throw new Error(insertError?.message || "Failed to create client pack")
+  }
+
+  await markCheckoutSession(supabase, checkoutSession.id, {
+    status: "completed",
+    completed_at: new Date().toISOString(),
+    client_pack_id: clientPack.id,
+    stripe_subscription_id: subscriptionId,
+    stripe_subscription_schedule_id: subscriptionScheduleId,
+  })
+
+  try {
+    await sendPackReadyEmail({
+      to: payload.customer_email,
+      packName: pack.name,
+      totalSessions: pack.number_of_sessions,
+      purchaseDate: clientPack.purchase_date,
+      price: Number(pack.price),
+    })
+  } catch (emailError) {
+    console.error("[stripe] Failed to send pack ready email:", emailError)
+  }
+}
+
 export async function POST(request: NextRequest) {
   if (!stripeWebhookSecret) {
     return NextResponse.json({ error: "STRIPE_WEBHOOK_SECRET is not configured" }, { status: 500 })
@@ -234,6 +401,8 @@ export async function POST(request: NextRequest) {
           await handleGiftCardCheckout(supabase, checkoutSession, storedSession)
         } else if (storedSession.checkout_type === "appointment") {
           await handleAppointmentCheckout(supabase, checkoutSession, storedSession)
+        } else if (storedSession.checkout_type === "pack") {
+          await handlePackCheckout(supabase, checkoutSession, storedSession)
         }
       } catch (processingError) {
         console.error("[stripe] Webhook processing error:", processingError)
@@ -271,6 +440,52 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq("stripe_payment_intent_id", paymentIntent.id)
+    }
+
+    if (event.type === "invoice.paid") {
+      const invoice = event.data.object as any
+      const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : null
+
+      if (subscriptionId) {
+        const { data: clientPack } = await supabase
+          .from("client_packs")
+          .select("*")
+          .eq("stripe_subscription_id", subscriptionId)
+          .maybeSingle()
+
+        if (clientPack) {
+          if (invoice.billing_reason === "subscription_create" && (clientPack.paid_installments || 0) >= 1) {
+            return NextResponse.json({ received: true })
+          }
+
+          const nextPaidInstallments = Math.min(
+            clientPack.installment_count || 1,
+            Math.max(clientPack.paid_installments || 0, 0) + 1
+          )
+
+          await supabase
+            .from("client_packs")
+            .update({
+              paid_installments: nextPaidInstallments,
+              payment_status: getPackPaymentStatus(clientPack.installment_count || 1, nextPaidInstallments),
+            })
+            .eq("id", clientPack.id)
+        }
+      }
+    }
+
+    if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as any
+      const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : null
+
+      if (subscriptionId) {
+        await supabase
+          .from("client_packs")
+          .update({
+            payment_status: "failed",
+          })
+          .eq("stripe_subscription_id", subscriptionId)
+      }
     }
 
     if (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed") {

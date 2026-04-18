@@ -36,6 +36,12 @@ export function Navbar() {
           <Link href="/gift" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             Cartes cadeaux
           </Link>
+          <Link href="/forfaits" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            Forfaits
+          </Link>
+          <Link href="/mes-forfaits" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            Mes forfaits
+          </Link>
           <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             J&apos;ai une carte cadeau
           </Link>
@@ -76,6 +82,12 @@ export function Navbar() {
             </Link>
             <Link href="/gift" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Cartes cadeaux
+            </Link>
+            <Link href="/forfaits" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Forfaits
+            </Link>
+            <Link href="/mes-forfaits" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Mes forfaits
             </Link>
             <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               J&apos;ai une carte cadeau

@@ -22,7 +22,7 @@ export function Navbar() {
           </div>
           <div className="flex flex-col">
             <span className="text-lg font-semibold text-foreground tracking-tight group-hover:text-primary">Les Temples</span>
-            <span className="text-xs text-primary/80">Massage thai raffine</span>
+            <span className="text-xs text-primary/80">Bien etre thailandais</span>
           </div>
         </Link>
 

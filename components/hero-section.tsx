@@ -37,17 +37,17 @@ export function HeroSection() {
         <div className="max-w-3xl space-y-7 md:space-y-8">
           <div className="home-reveal inline-flex items-center gap-2 rounded-full border border-primary/20 bg-background/35 px-4 py-2 backdrop-blur-sm">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span className="text-sm font-semibold tracking-widest text-primary uppercase">L'art du massage thai</span>
+            <span className="text-sm font-semibold tracking-widest text-primary uppercase">Bien-etre thailandais</span>
           </div>
 
           <div className="home-reveal home-reveal-delay-1">
             <h1 className="mb-5 text-4xl font-serif font-bold leading-[0.95] text-foreground drop-shadow-[0_10px_30px_rgba(0,0,0,0.38)] sm:text-5xl md:text-6xl lg:text-7xl">
-              Le calme s'installe.
+              Massage thai traditionnel,
               <br />
-              <span className="text-primary">Le corps s'apaise.</span>
+              <span className="text-primary">huile ou duo.</span>
             </h1>
             <p className="max-w-2xl text-base leading-relaxed text-[#d8cebf] sm:text-lg">
-              Des rituels thai precis et enveloppants, dans un cadre feutre pense pour le lacher-prise.
+              Des soins precis et profonds, dans un cadre calme et elegant.
             </p>
           </div>
 
@@ -60,13 +60,13 @@ export function HeroSection() {
           <div className="home-reveal home-reveal-delay-2 flex flex-col gap-3 pt-2 sm:flex-row sm:gap-4 sm:pt-4">
             <Button asChild size="lg" className="group w-full bg-primary text-primary-foreground shadow-[0_14px_34px_rgba(214,171,89,0.18)] hover:bg-primary/90 sm:w-auto">
               <Link href="/book" className="w-full sm:w-auto">
-                  Reserver
+                Reserver maintenant
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="w-full border-primary/30 bg-background/20 backdrop-blur-sm hover:bg-primary/8 sm:w-auto">
               <Link href="/gift" className="w-full sm:w-auto">
-                Offrir
+                Offrir une carte cadeau
               </Link>
             </Button>
           </div>

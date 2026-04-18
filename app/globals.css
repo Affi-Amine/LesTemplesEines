@@ -79,8 +79,7 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-manrope);
-  --font-serif: var(--font-cormorant);
+  --font-sans: "Geist", "Geist Fallback";
   --font-mono: "Geist Mono", "Geist Mono Fallback";
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -125,7 +124,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-background text-foreground;
     background:
       radial-gradient(circle at top, rgb(214 171 89 / 0.08), transparent 26%),
       linear-gradient(180deg, #0e0b09 0%, #14100d 100%);
@@ -235,54 +234,5 @@
   .temple-divider {
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(214, 171, 89, 0.7), transparent);
-  }
-
-  .temple-surface {
-    background:
-      linear-gradient(180deg, rgba(36, 28, 22, 0.92), rgba(19, 15, 12, 0.96)),
-      radial-gradient(circle at top, rgba(214, 171, 89, 0.08), transparent 42%);
-    border: 1px solid rgba(214, 171, 89, 0.18);
-    box-shadow:
-      0 24px 60px rgba(0, 0, 0, 0.22),
-      inset 0 1px 0 rgba(255, 240, 214, 0.05);
-    backdrop-filter: blur(16px);
-  }
-
-  .section-shell {
-    position: relative;
-    overflow: hidden;
-  }
-
-  .section-shell::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(circle at 20% 15%, rgba(214, 171, 89, 0.08), transparent 20%),
-      radial-gradient(circle at 80% 80%, rgba(214, 171, 89, 0.06), transparent 22%);
-  }
-
-  .section-kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.75rem;
-    letter-spacing: 0.28em;
-    text-transform: uppercase;
-    color: rgba(214, 171, 89, 0.88);
-    font-size: 0.72rem;
-    font-weight: 600;
-  }
-
-  .section-kicker::before,
-  .section-kicker::after {
-    content: "";
-    width: 2.75rem;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(214, 171, 89, 0.65));
-  }
-
-  .section-kicker::after {
-    background: linear-gradient(90deg, rgba(214, 171, 89, 0.65), transparent);
   }
 }

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Flower2, Menu, X } from "lucide-react"
+import { Menu, X } from "lucide-react"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { LanguageSwitcher } from "@/components/language-switcher"
 
@@ -14,20 +14,18 @@ export function Navbar() {
   if (!mounted) return null
 
   return (
-    <nav className="fixed top-0 z-50 w-full border-b border-primary/15 bg-background/72 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
+    <nav className="fixed top-0 w-full z-50 bg-background/72 backdrop-blur-xl border-b border-primary/15 shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
       <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-        {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-[radial-gradient(circle_at_30%_30%,rgba(255,230,184,0.25),rgba(214,171,89,0.12)_45%,rgba(14,11,9,0.5)_100%)] shadow-[0_0_24px_rgba(214,171,89,0.14)]">
-            <Flower2 className="h-4.5 w-4.5 text-primary" />
+          <div className="w-9 h-9 bg-gradient-to-br from-primary via-primary to-primary/70 rounded-lg flex items-center justify-center shadow-[0_0_24px_rgba(214,171,89,0.22)]">
+            <span className="text-primary-foreground font-bold text-lg">✦</span>
           </div>
           <div className="flex flex-col">
-            <span className="font-serif text-xl font-semibold tracking-[0.08em] text-foreground group-hover:text-primary">Les Temples</span>
-            <span className="text-[10px] uppercase tracking-[0.28em] text-primary/80">Massage thailandais</span>
+            <span className="text-lg font-semibold text-foreground tracking-tight group-hover:text-primary">Les Temples</span>
+            <span className="text-xs text-primary/80">Maisons de massage</span>
           </div>
         </Link>
 
-        {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-8">
           <Link href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             {t("nav.home")}
@@ -41,21 +39,14 @@ export function Navbar() {
           <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             J&apos;ai une carte cadeau
           </Link>
-          <Link href="#salons" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-            Salons
-          </Link>
-          <Link href="#rituels" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-            Rituels
-          </Link>
           <Link href="#services" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-            Soins
+            {t("nav.salons")}
           </Link>
           <Link href="#contact" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             Contact
           </Link>
         </div>
 
-        {/* CTA Buttons */}
         <div className="hidden md:flex items-center gap-3">
           <LanguageSwitcher />
           <Button asChild variant="ghost" size="sm" className="text-sm hover:bg-primary/10 hover:text-primary">
@@ -66,7 +57,6 @@ export function Navbar() {
           </Button>
         </div>
 
-        {/* Mobile Menu Button */}
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="md:hidden p-2 hover:bg-primary/10 rounded-lg transition-colors"
@@ -75,7 +65,6 @@ export function Navbar() {
         </button>
       </div>
 
-      {/* Mobile Navigation */}
       {isOpen && (
         <div className="md:hidden border-t border-primary/15 bg-background/95 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-4">
@@ -91,14 +80,8 @@ export function Navbar() {
             <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               J&apos;ai une carte cadeau
             </Link>
-            <Link href="#salons" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Salons
-            </Link>
-            <Link href="#rituels" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Rituels
-            </Link>
             <Link href="#services" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Soins
+              {t("nav.salons")}
             </Link>
             <Link href="#contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Contact

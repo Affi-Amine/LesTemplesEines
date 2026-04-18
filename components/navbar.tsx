@@ -14,19 +14,19 @@ export function Navbar() {
   if (!mounted) return null
 
   return (
-    <nav className="fixed top-0 w-full z-50 bg-background/72 backdrop-blur-xl border-b border-primary/15 shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
-      <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-9 h-9 bg-gradient-to-br from-primary via-primary to-primary/70 rounded-lg flex items-center justify-center shadow-[0_0_24px_rgba(214,171,89,0.22)]">
-            <span className="text-primary-foreground font-bold text-lg">✦</span>
+    <nav className="fixed top-0 z-50 w-full border-b border-primary/15 bg-background/78 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+        <Link href="/" className="group flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/25 bg-gradient-to-br from-primary via-primary to-primary/70 shadow-[0_0_24px_rgba(214,171,89,0.18)]">
+            <span className="text-lg font-bold text-primary-foreground">✦</span>
           </div>
           <div className="flex flex-col">
-            <span className="text-lg font-semibold text-foreground tracking-tight group-hover:text-primary">Les Temples</span>
-            <span className="text-xs text-primary/80">Maisons de massage</span>
+            <span className="text-lg font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary">Les Temples</span>
+            <span className="text-[11px] uppercase tracking-[0.24em] text-primary/80">Thaïlande • maisons de massage</span>
           </div>
         </Link>
 
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden items-center gap-8 md:flex">
           <Link href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             {t("nav.home")}
           </Link>
@@ -39,15 +39,18 @@ export function Navbar() {
           <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             J&apos;ai une carte cadeau
           </Link>
+          <Link href="#salons" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            Salons
+          </Link>
           <Link href="#services" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-            {t("nav.salons")}
+            Soins
           </Link>
           <Link href="#contact" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             Contact
           </Link>
         </div>
 
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden items-center gap-3 md:flex">
           <LanguageSwitcher />
           <Button asChild variant="ghost" size="sm" className="text-sm hover:bg-primary/10 hover:text-primary">
             <Link href="/admin/login">{t("admin.login")}</Link>
@@ -59,7 +62,7 @@ export function Navbar() {
 
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="md:hidden p-2 hover:bg-primary/10 rounded-lg transition-colors"
+          className="rounded-lg p-2 transition-colors hover:bg-primary/10 md:hidden"
         >
           {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
@@ -67,7 +70,7 @@ export function Navbar() {
 
       {isOpen && (
         <div className="md:hidden border-t border-primary/15 bg-background/95 backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-4">
+          <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4">
             <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               {t("nav.home")}
             </Link>
@@ -80,8 +83,11 @@ export function Navbar() {
             <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               J&apos;ai une carte cadeau
             </Link>
+            <Link href="#salons" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Salons
+            </Link>
             <Link href="#services" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              {t("nav.salons")}
+              Soins
             </Link>
             <Link href="#contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Contact

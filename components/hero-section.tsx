@@ -40,10 +40,10 @@ export function HeroSection() {
             <h1 className="mb-4 max-w-4xl text-4xl font-serif font-bold leading-[0.95] text-foreground drop-shadow-[0_10px_30px_rgba(0,0,0,0.38)] sm:mb-5 sm:text-5xl md:text-6xl lg:text-7xl">
               Le massage thaï,
               <br />
-              <span className="text-primary">pensé pour ralentir vraiment.</span>
+              <span className="text-primary">détendre le corps et apaiser l’esprit.</span>
             </h1>
             <p className="max-w-xl text-sm leading-relaxed text-[#d8cebf] sm:text-base md:text-lg">
-              Réservez votre soin, offrez une carte cadeau ou choisissez un forfait en quelques minutes, avec un parcours simple du début à la fin.
+              Réservez votre soin, offrez une carte cadeau ou choisissez un forfait en quelques minutes, simplement et sans complication.
             </p>
           </div>
 

@@ -126,7 +126,7 @@ export function HomeServicesSection() {
           {uniqueServices?.slice(0, 5).map((service, index) => (
             <Card
               key={service.id}
-              className={`group relative gap-0 overflow-hidden rounded-[1.6rem] border border-primary/20 bg-[linear-gradient(180deg,rgba(35,28,22,0.96),rgba(23,19,16,0.98))] p-6 py-0 text-left shadow-[0_24px_50px_rgba(0,0,0,0.18)] transition-all duration-500 hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_28px_60px_rgba(214,171,89,0.12)] temple-frame home-reveal ${index === 0 ? "home-reveal-delay-1" : index === 1 ? "home-reveal-delay-2" : index === 2 ? "home-reveal-delay-3" : ""}`}
+              className={`group relative flex h-full flex-col gap-0 overflow-hidden rounded-[1.6rem] border border-primary/20 bg-[linear-gradient(180deg,rgba(35,28,22,0.96),rgba(23,19,16,0.98))] p-6 py-0 text-left shadow-[0_24px_50px_rgba(0,0,0,0.18)] transition-all duration-500 hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_28px_60px_rgba(214,171,89,0.12)] temple-frame home-reveal ${index === 0 ? "home-reveal-delay-1" : index === 1 ? "home-reveal-delay-2" : index === 2 ? "home-reveal-delay-3" : ""}`}
             >
               <div className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
               <div className="relative mb-5 mt-6 h-44 overflow-hidden rounded-[1.25rem] bg-muted">
@@ -151,11 +151,13 @@ export function HomeServicesSection() {
                 <span>{service.duration_minutes} min</span>
                 <span>{(service.price_cents / 100).toFixed(2)}€</span>
               </div>
-              <h3 className="mb-3 min-h-12 break-words pr-6 text-lg font-semibold text-foreground">{service.name}</h3>
-              <p className="mb-5 line-clamp-3 text-sm leading-6 text-muted-foreground">
+              <h3 className="mb-3 min-h-[3.5rem] break-words text-lg font-semibold leading-snug text-foreground">
+                {service.name}
+              </h3>
+              <p className="mb-5 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-muted-foreground">
                 {getServiceDescription(service.name, service.category, service.description)}
               </p>
-              <Button asChild variant="outline" className="w-full border-primary/20 bg-background/35 hover:bg-primary/8">
+              <Button asChild variant="outline" className="mt-auto w-full border-primary/20 bg-background/35 hover:bg-primary/8">
                 <Link href="/book">Choisir</Link>
               </Button>
             </Card>

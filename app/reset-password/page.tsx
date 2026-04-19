@@ -13,7 +13,7 @@ import { toast } from "sonner"
 
 export default function ResetPasswordPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -38,11 +38,18 @@ export default function ResetPasswordPage() {
           return
         }
 
-        const { data, error } = await supabase.auth.getUser()
+        const sessionResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error("session_timeout")), 8000)
+          }),
+        ])
+
+        const { data, error } = sessionResult as Awaited<ReturnType<typeof supabase.auth.getSession>>
 
         if (!isMounted) return
 
-        if (error || !data.user) {
+        if (error || !data.session?.user) {
           setHasValidSession(false)
           setSessionError("Lien invalide ou expiré. Demandez un nouveau lien de création de mot de passe.")
           setIsCheckingSession(false)
@@ -52,10 +59,14 @@ export default function ResetPasswordPage() {
         setHasValidSession(true)
         setSessionError(null)
         setIsCheckingSession(false)
-      } catch {
+      } catch (error) {
         if (!isMounted) return
         setHasValidSession(false)
-        setSessionError("Impossible de valider le lien. Demandez un nouveau lien.")
+        setSessionError(
+          error instanceof Error && error.message === "session_timeout"
+            ? "La vérification de session a expiré. Rechargez la page ou demandez un nouveau lien."
+            : "Impossible de valider le lien. Demandez un nouveau lien."
+        )
         setIsCheckingSession(false)
       }
     }
@@ -65,7 +76,7 @@ export default function ResetPasswordPage() {
     return () => {
       isMounted = false
     }
-  }, [supabase.auth])
+  }, [supabase])
 
   const handleSubmit = async () => {
     if (!hasValidSession) {

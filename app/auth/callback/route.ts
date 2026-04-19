@@ -8,7 +8,13 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createClient()
-    await supabase.auth.exchangeCodeForSession(code)
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (error) {
+      const resetUrl = new URL("/reset-password", url.origin)
+      resetUrl.hash = `error=access_denied&error_code=exchange_failed&error_description=${encodeURIComponent(error.message)}`
+      return NextResponse.redirect(resetUrl)
+    }
   }
 
   return NextResponse.redirect(new URL(next, url.origin))

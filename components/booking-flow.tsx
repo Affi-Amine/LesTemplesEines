@@ -143,19 +143,49 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   const currentService = services?.find((s) => s.id === data.service)
   const currentEmployee = staff?.find((e) => e.id === data.employee)
   const salonEmployees = staff || []
+  const selectedClientPack = (clientPacks || []).find((clientPack) => clientPack.id === data.clientPackId)
   const eligiblePacks = (clientPacks || []).filter((clientPack) =>
     clientPack.remaining_sessions > 0 && clientPack.pack?.allowed_services?.includes(data.service)
   )
 
   useEffect(() => {
-    if (data.clientPackId && !eligiblePacks.some((pack) => pack.id === data.clientPackId)) {
+    if (!data.clientPackId || !selectedClientPack) {
+      return
+    }
+
+    if (!data.service) {
+      return
+    }
+
+    const isEligibleForSelectedService =
+      selectedClientPack.remaining_sessions > 0 &&
+      selectedClientPack.pack?.allowed_services?.includes(data.service)
+
+    if (!isEligibleForSelectedService) {
       setData((current) => ({
         ...current,
         clientPackId: "",
         paymentOption: current.paymentOption === "pack" ? "on_site" : current.paymentOption,
       }))
     }
-  }, [data.clientPackId, eligiblePacks])
+  }, [data.clientPackId, data.service, selectedClientPack])
+
+  useEffect(() => {
+    if (!data.clientPackId || !selectedClientPack || !data.service) {
+      return
+    }
+
+    const isEligibleForSelectedService =
+      selectedClientPack.remaining_sessions > 0 &&
+      selectedClientPack.pack?.allowed_services?.includes(data.service)
+
+    if (isEligibleForSelectedService && data.paymentOption !== "pack") {
+      setData((current) => ({
+        ...current,
+        paymentOption: "pack",
+      }))
+    }
+  }, [data.clientPackId, data.paymentOption, data.service, selectedClientPack])
 
   // Availability based on selected therapist and date
   const selectedDateObj = data.date ? new Date(data.date) : undefined

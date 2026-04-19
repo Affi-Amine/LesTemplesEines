@@ -11,6 +11,25 @@ import { fetchAPI } from "@/lib/api/client"
 import { createClient } from "@/lib/supabase/client"
 import type { ClientPack } from "@/lib/types/database"
 
+function getClientPackPaymentStatusLabel(status: ClientPack["payment_status"]) {
+  switch (status) {
+    case "paid":
+      return "Payé"
+    case "active":
+      return "Actif"
+    case "partially_paid":
+      return "Paiement en cours"
+    case "pending":
+      return "En attente"
+    case "failed":
+      return "Échoué"
+    case "cancelled":
+      return "Annulé"
+    default:
+      return status
+  }
+}
+
 export default function MesForfaitsPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
 
@@ -65,7 +84,7 @@ export default function MesForfaitsPage() {
                         Restant : {clientPack.remaining_sessions} / {clientPack.total_sessions}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Statut paiement : {clientPack.payment_status}
+                        Statut paiement : {getClientPackPaymentStatusLabel(clientPack.payment_status)}
                       </p>
                     </div>
                     <Button asChild>

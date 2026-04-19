@@ -4,6 +4,10 @@ import { sendEmail } from "@/lib/email/resend"
 import { extractFirstAndLastName } from "@/lib/packs"
 import { generateClientPasswordToken } from "@/lib/auth/client-password-token"
 
+function normalizePhone(phone?: string | null) {
+  return (phone || "").replace(/[\s\u00A0\-\.\(\)\/]/g, "").trim() || null
+}
+
 function randomPassword() {
   return `${Math.random().toString(36).slice(2)}A!9${Date.now().toString(36)}`
 }
@@ -57,13 +61,23 @@ export async function ensureClientAuthUser(params: {
   const fallbackName = extractFirstAndLastName(params.fullName || normalizedEmail)
   const first_name = params.firstName?.trim() || fallbackName.first_name
   const last_name = params.lastName?.trim() || fallbackName.last_name
-  const phone = params.phone?.trim() || null
+  const phone = normalizePhone(params.phone)
 
-  let { data: client } = await supabase
+  const { data: emailClient } = await supabase
     .from("clients")
     .select("*")
     .eq("email", normalizedEmail)
     .maybeSingle()
+
+  const { data: phoneClient } = phone
+    ? await supabase
+        .from("clients")
+        .select("*")
+        .eq("phone", phone)
+        .maybeSingle()
+    : { data: null }
+
+  let client = emailClient || phoneClient || null
 
   if (!client) {
     const { data: newClient, error: insertError } = await supabase
@@ -91,6 +105,11 @@ export async function ensureClientAuthUser(params: {
     }])
   } else {
     const updates: Record<string, unknown> = {}
+    const phoneBelongsToAnotherClient = Boolean(phone && phoneClient && phoneClient.id !== client.id)
+
+    if (!client.email) {
+      updates.email = normalizedEmail
+    }
 
     if (first_name && client.first_name !== first_name) {
       updates.first_name = first_name
@@ -100,7 +119,7 @@ export async function ensureClientAuthUser(params: {
       updates.last_name = last_name
     }
 
-    if (phone && client.phone !== phone) {
+    if (phone && client.phone !== phone && !phoneBelongsToAnotherClient) {
       updates.phone = phone
     }
 

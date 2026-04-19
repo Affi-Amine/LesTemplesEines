@@ -202,63 +202,6 @@ async function handleAppointmentCheckout(
   }
 }
 
-async function configurePackSubscriptionSchedule(params: {
-  stripe: Stripe
-  subscriptionId: string
-  packName: string
-  installmentAmounts: number[]
-}) {
-  const subscription = await params.stripe.subscriptions.retrieve(params.subscriptionId)
-  const item = subscription.items.data[0]
-
-  if (!item?.price?.id) {
-    throw new Error("Subscription item not found for installment plan")
-  }
-
-  const productId = typeof item.price.product === "string" ? item.price.product : item.price.product?.id
-
-  if (!productId) {
-    throw new Error("Subscription product not found for installment plan")
-  }
-
-  const schedule = await params.stripe.subscriptionSchedules.create({
-    from_subscription: params.subscriptionId,
-  })
-
-  const phases: Stripe.SubscriptionScheduleUpdateParams.Phase[] = [
-    {
-      items: [{
-        price: item.price.id,
-        quantity: item.quantity || 1,
-      }],
-      iterations: 1,
-    },
-  ]
-
-  for (let index = 1; index < params.installmentAmounts.length; index += 1) {
-    phases.push({
-      items: [{
-        price_data: {
-          currency: "eur",
-          unit_amount: params.installmentAmounts[index],
-          product: productId,
-          recurring: {
-            interval: "month",
-            interval_count: 1,
-          },
-        },
-        quantity: 1,
-      }],
-      iterations: 1,
-    })
-  }
-
-  return params.stripe.subscriptionSchedules.update(schedule.id, {
-    end_behavior: "cancel",
-    phases,
-  })
-}
-
 async function handlePackCheckout(
   supabase: ReturnType<typeof createAdminClient>,
   checkoutSession: Stripe.Checkout.Session,
@@ -285,17 +228,12 @@ async function handlePackCheckout(
   })
 
   const stripe = getStripeClient()
-  let subscriptionScheduleId: string | null = null
   const subscriptionId = typeof checkoutSession.subscription === "string" ? checkoutSession.subscription : null
 
   if (subscriptionId && payload.installment_count > 1) {
-    const schedule = await configurePackSubscriptionSchedule({
-      stripe,
-      subscriptionId,
-      packName: pack.name,
-      installmentAmounts: payload.installment_amounts,
+    await stripe.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: false,
     })
-    subscriptionScheduleId = schedule.id
   }
 
   const paidInstallments = checkoutSession.mode === "subscription" ? 1 : payload.installment_count
@@ -316,7 +254,7 @@ async function handlePackCheckout(
       purchase_date: new Date().toISOString(),
       payment_status: paymentStatus === "pending" ? "active" : paymentStatus,
       stripe_subscription_id: subscriptionId,
-      stripe_subscription_schedule_id: subscriptionScheduleId,
+      stripe_subscription_schedule_id: null,
       stripe_checkout_session_id: checkoutSession.id,
     }])
     .select("*")
@@ -331,7 +269,7 @@ async function handlePackCheckout(
     completed_at: new Date().toISOString(),
     client_pack_id: clientPack.id,
     stripe_subscription_id: subscriptionId,
-    stripe_subscription_schedule_id: subscriptionScheduleId,
+    stripe_subscription_schedule_id: null,
   })
 
   try {
@@ -451,6 +389,12 @@ export async function POST(request: NextRequest) {
             clientPack.installment_count || 1,
             Math.max(clientPack.paid_installments || 0, 0) + 1
           )
+
+          if (nextPaidInstallments >= (clientPack.installment_count || 1)) {
+            await stripe.subscriptions.update(subscriptionId, {
+              cancel_at_period_end: true,
+            })
+          }
 
           await supabase
             .from("client_packs")

@@ -77,6 +77,22 @@ export async function GET(request: NextRequest) {
       pack = data?.pack || null
     }
 
+    if (!clientPack && checkoutSession.checkout_type === "pack") {
+      const { data } = await supabase
+        .from("client_packs")
+        .select(`
+          *,
+          pack:packs(*)
+        `)
+        .eq("stripe_checkout_session_id", checkoutSession.stripe_checkout_session_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      clientPack = data || null
+      pack = data?.pack || pack
+    }
+
     const payload = checkoutSession.payload && typeof checkoutSession.payload === "object"
       ? checkoutSession.payload
       : null
@@ -104,10 +120,15 @@ export async function GET(request: NextRequest) {
       pack = data || null
     }
 
+    const resolvedStatus =
+      checkoutSession.checkout_type === "pack" && clientPack
+        ? "completed"
+        : checkoutSession.status
+
     return NextResponse.json({
       session_id: checkoutSession.stripe_checkout_session_id,
       checkout_type: checkoutSession.checkout_type,
-      status: checkoutSession.status,
+      status: resolvedStatus,
       amount_cents: checkoutSession.amount_cents,
       currency: checkoutSession.currency,
       payload: payload ? {

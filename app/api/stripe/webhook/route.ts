@@ -208,10 +208,7 @@ async function configurePackSubscriptionSchedule(params: {
   packName: string
   installmentAmounts: number[]
 }) {
-  const subscription = await params.stripe.subscriptions.retrieve(params.subscriptionId) as Stripe.Subscription & {
-    current_period_start?: number
-    current_period_end?: number
-  }
+  const subscription = await params.stripe.subscriptions.retrieve(params.subscriptionId)
   const item = subscription.items.data[0]
 
   if (!item?.price?.id) {
@@ -224,22 +221,17 @@ async function configurePackSubscriptionSchedule(params: {
     throw new Error("Subscription product not found for installment plan")
   }
 
-  if (!subscription.current_period_start || !subscription.current_period_end) {
-    throw new Error("Subscription billing period not available for installment plan")
-  }
-
   const schedule = await params.stripe.subscriptionSchedules.create({
     from_subscription: params.subscriptionId,
   })
 
   const phases: Stripe.SubscriptionScheduleUpdateParams.Phase[] = [
     {
-      start_date: subscription.current_period_start,
-      end_date: subscription.current_period_end,
       items: [{
         price: item.price.id,
         quantity: item.quantity || 1,
       }],
+      iterations: 1,
     },
   ]
 
@@ -257,10 +249,7 @@ async function configurePackSubscriptionSchedule(params: {
         },
         quantity: 1,
       }],
-      duration: {
-        interval: "month",
-        interval_count: 1,
-      },
+      iterations: 1,
     })
   }
 

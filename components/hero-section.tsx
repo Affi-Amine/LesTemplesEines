@@ -9,15 +9,11 @@ import { fetchAPI } from "@/lib/api/client"
 import { useSalons } from "@/lib/hooks/use-salons"
 
 export function HeroSection() {
-  const { data: salons } = useSalons()
-
-  const { data: staff } = useQuery({
+  useSalons()
+  useQuery({
     queryKey: ["staff-count"],
     queryFn: () => fetchAPI<any[]>("/staff"),
   })
-
-  const therapistCount = staff?.filter((s: any) => s.role === "therapist" && s.is_active).length || 15
-  const activeSalonCount = salons?.filter((salon) => salon.is_active).length || 3
 
   return (
     <section className="relative flex min-h-[100svh] items-center justify-center overflow-hidden pt-24 md:min-h-screen md:pt-20">
@@ -79,26 +75,17 @@ export function HeroSection() {
 
           <div className="home-reveal home-reveal-delay-3 grid grid-cols-3 gap-4 border-t border-primary/10 pt-6 sm:pt-8 md:flex md:gap-8">
             <div className="min-w-0">
-              <p className="text-2xl font-bold text-foreground">{activeSalonCount}</p>
-              <p className="text-xs text-muted-foreground sm:text-sm">{activeSalonCount > 1 ? "Adresses Les Temples" : "Adresse Les Temples"}</p>
+              <p className="text-2xl font-bold text-foreground">5</p>
+              <p className="text-xs text-muted-foreground sm:text-sm">Adresses Les Temples</p>
             </div>
             <div className="min-w-0">
-              <p className="text-2xl font-bold text-foreground">500+</p>
+              <p className="text-2xl font-bold text-foreground">20 000+</p>
               <p className="text-xs text-muted-foreground sm:text-sm">Clients fidèles</p>
             </div>
             <div className="min-w-0">
-              <p className="text-2xl font-bold text-foreground">{therapistCount}+</p>
-              <p className="text-xs text-muted-foreground sm:text-sm">Thérapeutes expertes</p>
+              <p className="text-2xl font-bold text-foreground">50+</p>
+              <p className="text-xs text-muted-foreground sm:text-sm">Thérapeutes</p>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 transform sm:bottom-8">
-        <div className="flex flex-col items-center gap-2 animate-bounce">
-          <span className="text-xs text-muted-foreground uppercase tracking-widest">Découvrir</span>
-          <div className="flex h-9 w-5 items-start justify-center rounded-full border-2 border-primary/30 p-1.5 sm:h-10 sm:w-6 sm:p-2">
-            <div className="w-1 h-2 bg-primary rounded-full animate-pulse" />
           </div>
         </div>
       </div>

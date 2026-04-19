@@ -131,7 +131,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     // Generate time slots (every 30 minutes)
     const slotInterval = 15 // minutes
-    const availableSlots: Array<{ start: string; end: string }> = []
+    const availableSlots: Array<{ start: string; end: string; available_staff: string[] }> = []
 
     for (const period of availabilityPeriods) {
         // Ensure time format is correct (HH:mm or HH:mm:ss)
@@ -162,6 +162,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
           availableSlots.push({
             start: currentSlot.toISOString(),
             end: slotEnd.toISOString(),
+            available_staff: [staff_id],
           })
         }
 

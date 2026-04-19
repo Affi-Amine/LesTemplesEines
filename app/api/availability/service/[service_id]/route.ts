@@ -144,13 +144,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
            if (activeShift.end_time) shiftEnd = fromZonedTime(`${dateParam} ${activeShift.end_time}`, TIMEZONE)
         }
       } else {
-         // No shift found for this day -> staff is NOT available
-         // Previously we might have defaulted to salon hours, but with explicit shifts table,
-         // absence of shift record usually means day off.
-         // HOWEVER, since we just populated defaults, if no shift is found, it really means OFF.
-         // So we should set start=end to indicate no availability.
+         // Keep the same fallback as the single-staff availability route:
+         // if no staff_availability row exists, assume salon opening hours.
          shiftStart = dayStart
-         shiftEnd = dayStart // 0 duration
+         shiftEnd = dayEnd
       }
 
       // Get existing appointments (assignments + primary staff_id legacy)

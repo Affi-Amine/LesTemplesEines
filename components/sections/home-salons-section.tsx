@@ -114,7 +114,7 @@ export function HomeSalonsSection() {
             return (
               <Card
                 key={salon.id}
-                className={`min-w-0 flex-[0_0_88%] gap-0 py-0 sm:flex-[0_0_68%] lg:flex-[0_0_38%] xl:flex-[0_0_32%] rounded-[1.5rem] border-primary/20 bg-card/92 backdrop-blur-sm transition-all duration-500 group cursor-pointer hover:-translate-y-1 hover:shadow-xl temple-frame home-reveal ${index === 0 ? "home-reveal-delay-1" : index === 1 ? "home-reveal-delay-2" : "home-reveal-delay-3"}`}
+                className={`min-w-0 flex-[0_0_88%] gap-0 py-0 sm:flex-[0_0_68%] lg:flex-[0_0_38%] xl:flex-[0_0_32%] rounded-[1.5rem] border-primary/20 bg-card/92 backdrop-blur-sm transition-all duration-500 group cursor-pointer hover:-translate-y-1 hover:shadow-xl temple-frame home-reveal home-reveal-soft ${index === 0 ? "home-reveal-delay-1" : index === 1 ? "home-reveal-delay-2" : "home-reveal-delay-3"}`}
               >
                 <div className="relative h-52 overflow-hidden bg-muted sm:h-56">
                   {/* Use images array if available, otherwise fall back to single image_url */}

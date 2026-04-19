@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -53,6 +53,7 @@ interface BookingFlowProps {
 export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const [step, setStep] = useState<BookingStep>(initialSalon ? "service" : "salon")
   const [data, setData] = useState<BookingData>({
     salon: initialSalon || "",
@@ -281,6 +282,11 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     }
   }, [availableTimesSet, data.time])
 
+  useEffect(() => {
+    containerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    window.scrollTo({ top: Math.max(window.scrollY - 24, 0), behavior: "smooth" })
+  }, [step])
+
   // Handle toggle for multi-staff selection
   const toggleEmployeeSelection = (employeeId: string, requiredCount: number) => {
     let newSelection = [...data.employees]
@@ -488,7 +494,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   const stepIndex = ["salon", "service", "time", "info", "confirm"].indexOf(step) + 1
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-4">
+    <div ref={containerRef} className="w-full max-w-2xl mx-auto p-4 scroll-mt-28">
       <StepIndicator currentStep={stepIndex} totalSteps={5} stepLabels={stepLabels} />
 
       {/* Step 1: Select Salon */}
@@ -743,7 +749,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   type="date"
                   value={data.date}
                   onChange={(e) => handleDateChange(e.target.value)}
-                  className="mt-2"
+                  className="mt-2 w-full min-w-0 max-w-full"
                 />
             </div>
             <div>

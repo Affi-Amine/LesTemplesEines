@@ -166,6 +166,28 @@
   }
 }
 
+@keyframes reveal-soft {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.985);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes hero-image-pan {
+  0%, 100% {
+    transform: scale(1.02) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: scale(1.08) translate3d(1.5%, -1.5%, 0);
+  }
+}
+
 @layer components {
   .home-reveal {
     animation: reveal-up 700ms ease-out both;
@@ -183,12 +205,23 @@
     animation-delay: 300ms;
   }
 
+  .home-reveal-soft {
+    animation-name: reveal-soft;
+    animation-duration: 900ms;
+    animation-timing-function: cubic-bezier(0.2, 0.65, 0.2, 1);
+  }
+
   .soft-float {
     animation: soft-float 6s ease-in-out infinite;
   }
 
   .soft-glow {
     animation: soft-glow 4s ease-in-out infinite;
+  }
+
+  .hero-image-pan {
+    animation: hero-image-pan 16s ease-in-out infinite;
+    will-change: transform;
   }
 
   .temple-frame {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
@@ -53,6 +53,7 @@ type AvailabilitySlot = {
 
 export default function RedeemGiftCardPage() {
   const router = useRouter()
+  const formRef = useRef<HTMLDivElement | null>(null)
   const [codeInput, setCodeInput] = useState("")
   const [isCheckingCode, setIsCheckingCode] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -225,6 +226,13 @@ export default function RedeemGiftCardPage() {
     setSelectedSlot(null)
   }, [selectedSalonId, selectedDate, selectedEmployeeId, selectedEmployeeIds])
 
+  useEffect(() => {
+    if (!giftCard) return
+
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    window.scrollTo({ top: Math.max(window.scrollY - 24, 0), behavior: "smooth" })
+  }, [giftCard, step])
+
   const toggleEmployeeSelection = (employeeId: string) => {
     setSelectedEmployeeIds((current) => {
       if (current.includes(employeeId)) {
@@ -285,7 +293,7 @@ export default function RedeemGiftCardPage() {
           </Card>
 
           {giftCard && giftCard.service && (
-            <div className="max-w-2xl mx-auto">
+            <div ref={formRef} className="max-w-2xl mx-auto scroll-mt-28">
               <StepIndicator currentStep={stepIndex} totalSteps={5} stepLabels={stepLabels} />
 
               <Card className="p-6 md:p-8 animate-in fade-in duration-300 space-y-6">
@@ -414,7 +422,7 @@ export default function RedeemGiftCardPage() {
                         type="date"
                         value={selectedDate}
                         onChange={(e) => setSelectedDate(e.target.value)}
-                        className="mt-2"
+                        className="mt-2 w-full min-w-0 max-w-full"
                       />
                     </div>
                     <div className="flex justify-between">

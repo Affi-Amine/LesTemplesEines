@@ -66,7 +66,7 @@ function GiftPageContent() {
 
   useEffect(() => {
     if (checkoutState === "cancel") {
-      toast.error("Le paiement a ete annule.")
+      toast.error("Le paiement a été annulé.")
     }
   }, [checkoutState])
 
@@ -152,17 +152,17 @@ function GiftPageContent() {
                         className={`p-6 cursor-pointer transition-all ${isSelected ? "border-primary ring-2 ring-primary/20" : "hover:border-primary/40"}`}
                         onClick={() => setSelectedServiceId(service.id)}
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <h3 className="text-lg font-semibold">{service.name}</h3>
-                            {service.description && (
-                              <p className="text-sm text-muted-foreground mt-2">{service.description}</p>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-primary">{(service.price_cents / 100).toFixed(2)}€</p>
-                            <p className="text-xs text-muted-foreground">{service.duration_minutes} min</p>
-                          </div>
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-semibold">{service.name}</h3>
+                          {service.description && (
+                            <p className="text-sm text-muted-foreground mt-2">{service.description}</p>
+                          )}
+                        </div>
+                        <div className="text-left sm:text-right">
+                          <p className="font-semibold text-primary">{(service.price_cents / 100).toFixed(2)}€</p>
+                          <p className="text-xs text-muted-foreground">{service.duration_minutes} min</p>
+                        </div>
                         </div>
                       </Card>
                     )
@@ -171,13 +171,13 @@ function GiftPageContent() {
               )}
             </div>
 
-            <Card className="p-6 space-y-5 sticky top-24">
+            <Card className="space-y-5 p-6 lg:sticky lg:top-24">
               <h2 className="text-2xl font-semibold">2. Informations d&apos;envoi</h2>
 
               {selectedService ? (
                 <div className="rounded-lg bg-muted/50 p-4">
                   <p className="text-sm text-muted-foreground">Prestation sélectionnée</p>
-                  <p className="font-semibold">{selectedService.name}</p>
+                  <p className="break-words font-semibold">{selectedService.name}</p>
                   <p className="text-sm text-muted-foreground mt-1">{selectedService.duration_minutes} min</p>
                   <p className="text-lg font-bold text-primary mt-2">{(selectedService.price_cents / 100).toFixed(2)}€</p>
                 </div>
@@ -235,13 +235,13 @@ function GiftPageContent() {
               </Button>
 
               <p className="text-xs text-muted-foreground">
-                Le paiement en ligne est obligatoire. La carte cadeau sera creee uniquement apres confirmation Stripe.
+                Le paiement en ligne est obligatoire. La carte cadeau sera créée uniquement après confirmation Stripe.
               </p>
 
               {checkoutStatus?.status === "open" && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-                  <p className="font-medium text-amber-800">Paiement confirme, finalisation en cours</p>
-                  <p className="text-sm text-amber-700">Nous attendons la confirmation finale de Stripe avant de generer la carte cadeau.</p>
+                  <p className="font-medium text-amber-800">Paiement confirmé, finalisation en cours</p>
+                  <p className="text-sm text-amber-700">Nous attendons la confirmation finale de Stripe avant de générer la carte cadeau.</p>
                 </div>
               )}
 
@@ -249,20 +249,20 @@ function GiftPageContent() {
                 <div className="rounded-xl border border-green-200 bg-green-50 p-4 space-y-3">
                   <div className="flex items-center gap-2 text-green-700 font-medium">
                     <Mail className="w-4 h-4" />
-                    Carte cadeau generee
+                    Carte cadeau générée
                   </div>
                   <p className="text-sm">Code cadeau</p>
                   <p className="font-mono text-lg">{formatGiftCardCode(checkoutStatus.gift_card.code)}</p>
                   <p className="text-sm text-muted-foreground">
-                    L&apos;email acheteur a ete traite{checkoutStatus.gift_card.recipient_email ? " ainsi qu'un email destinataire." : "."}
+                    L&apos;email acheteur a été traité{checkoutStatus.gift_card.recipient_email ? " ainsi qu'un email destinataire." : "."}
                   </p>
                 </div>
               )}
 
               {checkoutStatus?.status === "failed" && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2">
-                  <p className="font-medium text-red-700">Le paiement a echoue ou la creation de la carte n'a pas pu etre finalisee.</p>
-                  <p className="text-sm text-red-600">Aucune carte cadeau n'a ete creee. Reessaie ou contacte le support.</p>
+                  <p className="font-medium text-red-700">Le paiement a échoué ou la création de la carte n&apos;a pas pu être finalisée.</p>
+                  <p className="text-sm text-red-600">Aucune carte cadeau n&apos;a été créée. Réessaie ou contacte le support.</p>
                 </div>
               )}
             </Card>

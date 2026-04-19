@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
+import { FlowOutcomeHero } from "@/components/flow-outcome-hero"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { fetchAPI } from "@/lib/api/client"
@@ -57,51 +58,48 @@ function GiftSuccessContent() {
 
   const service = data?.service
   const summaryPrice = data ? formatPrice(data.amount_cents, data.currency) : null
+  const heroStatus = data?.status === "failed" || isError ? "error" : data?.status === "open" ? "pending" : "success"
+  const heroTitle = data?.status === "completed"
+    ? "Carte cadeau prête"
+    : data?.status === "failed" || isError
+      ? "Impossible de finaliser la carte cadeau"
+      : "Création en cours"
+  const heroDescription = data?.status === "completed"
+    ? "Votre paiement est confirmé et la carte cadeau a bien été générée."
+    : data?.status === "failed" || isError
+      ? "Le paiement ou la génération de la carte cadeau a échoué. Vous pouvez relancer l’achat ou contacter le salon."
+      : "Votre paiement est bien reçu. Nous finalisons encore l’édition et l’envoi de la carte cadeau."
+  const heroHelper = data?.status === "completed"
+    ? "Gardez ce récapitulatif jusqu’à la bonne réception de l’email."
+    : data?.status === "open"
+      ? "La page se met à jour automatiquement sans action de votre part."
+      : undefined
 
   return (
     <main className="min-h-screen bg-background">
       <Navbar />
       <section className="px-4 pb-16 pt-28">
         <div className="mx-auto max-w-5xl space-y-8">
-          <div className="text-center">
-            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-primary/20 bg-primary/10">
-              {data?.status === "completed" ? (
-                <CheckCircle2 className="h-9 w-9 text-primary" />
-              ) : data?.status === "failed" || isError ? (
-                <TriangleAlert className="h-9 w-9 text-destructive" />
-              ) : (
-                <Clock3 className="h-9 w-9 text-primary" />
-              )}
-            </div>
-            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-primary">Achat confirme</p>
-            <h1 className="mt-3 text-4xl font-serif font-bold md:text-5xl">
-              {data?.status === "completed"
-                ? "Merci pour votre achat"
-                : data?.status === "failed" || isError
-                  ? "Le paiement n'a pas pu etre finalise"
-                  : "Votre carte cadeau est en cours de creation"}
-            </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-              {data?.status === "completed"
-                ? "Votre paiement a bien ete recu. Voici le recapitulatif de votre commande et les informations de la carte cadeau."
-                : data?.status === "failed" || isError
-                  ? "Nous n'avons pas reussi a recuperer correctement votre achat. Vous pouvez revenir a la page cadeau ou contacter le salon."
-                  : "Le paiement est valide. Nous attendons la confirmation finale de Stripe avant de generer et envoyer la carte cadeau."}
-            </p>
-          </div>
+          <FlowOutcomeHero
+            status={heroStatus}
+            eyebrow="Carte cadeau"
+            title={heroTitle}
+            description={heroDescription}
+            helper={heroHelper}
+          />
 
           <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
             <Card className="gap-0 overflow-hidden rounded-[1.75rem] py-0 temple-frame">
               <div className="border-b border-primary/10 px-6 py-5">
                 <div className="flex items-center gap-3">
                   <ReceiptText className="h-5 w-5 text-primary" />
-                  <h2 className="text-xl font-semibold">Recapitulatif</h2>
+                  <h2 className="text-xl font-semibold">Récapitulatif</h2>
                 </div>
               </div>
 
               <div className="space-y-5 px-6 py-6">
-                <div className="flex items-start justify-between gap-4 border-b border-primary/10 pb-4">
-                  <div>
+                <div className="flex flex-col gap-3 border-b border-primary/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
                     <p className="text-sm text-muted-foreground">Achat</p>
                     <p className="font-semibold">Carte cadeau Les Temples</p>
                   </div>
@@ -111,9 +109,9 @@ function GiftSuccessContent() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
                     <p className="text-sm text-muted-foreground">Prestation</p>
-                    <p className="mt-1 font-semibold">{service?.name || "En cours de recuperation"}</p>
+                    <p className="mt-1 break-words font-semibold">{service?.name || "En cours de récupération"}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {service?.duration_minutes ? `${service.duration_minutes} min` : "Duree a confirmer"}
+                      {service?.duration_minutes ? `${service.duration_minutes} min` : "Durée à confirmer"}
                     </p>
                   </div>
                 </div>
@@ -121,19 +119,19 @@ function GiftSuccessContent() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
                     <p className="text-sm text-muted-foreground">Acheteur</p>
-                    <p className="mt-1 font-medium">{data?.payload?.buyer_email || "Non renseigne"}</p>
+                    <p className="mt-1 break-all font-medium">{data?.payload?.buyer_email || "Non renseigné"}</p>
                   </div>
 
                   <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
                     <p className="text-sm text-muted-foreground">Destinataire</p>
-                    <p className="mt-1 font-medium">{data?.payload?.recipient_name || "Non renseigne"}</p>
+                    <p className="mt-1 font-medium">{data?.payload?.recipient_name || "Non renseigné"}</p>
                     <p className="mt-1 text-sm text-muted-foreground">{data?.payload?.recipient_email || "Pas d'email destinataire"}</p>
                   </div>
                 </div>
 
                 {data?.payload?.personal_message && (
                   <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
-                    <p className="text-sm text-muted-foreground">Message personnalise</p>
+                    <p className="text-sm text-muted-foreground">Message personnalisé</p>
                     <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{data.payload.personal_message}</p>
                   </div>
                 )}
@@ -152,7 +150,7 @@ function GiftSuccessContent() {
                 <div className="space-y-4 px-6 py-6">
                   {isLoading && (
                     <div className="rounded-2xl border border-primary/10 bg-background/35 p-4 text-sm text-muted-foreground">
-                      Chargement du recapitulatif...
+                      Chargement du récapitulatif...
                     </div>
                   )}
 
@@ -163,7 +161,7 @@ function GiftSuccessContent() {
                         Finalisation en cours
                       </div>
                       <p className="mt-2 text-sm text-amber-100/80">
-                        La page se met a jour automatiquement jusqu'a la creation definitive de la carte cadeau.
+                        La page se met à jour automatiquement jusqu&apos;à la création définitive de la carte cadeau.
                       </p>
                     </div>
                   )}
@@ -173,17 +171,17 @@ function GiftSuccessContent() {
                       <div className="rounded-2xl border border-green-300/30 bg-green-500/10 p-4">
                         <div className="flex items-center gap-2 font-medium text-green-200">
                           <CheckCircle2 className="h-4 w-4" />
-                          Carte cadeau generee
+                          Carte cadeau générée
                         </div>
                         <p className="mt-2 text-sm text-green-100/80">
-                          Votre carte cadeau est prete et l'email a ete traite.
+                          Votre carte cadeau est prête et l&apos;email a été traité.
                         </p>
                       </div>
 
                       {data.gift_card?.code && (
                         <div className="rounded-2xl border border-primary/15 bg-background/35 p-4">
                           <p className="text-sm text-muted-foreground">Code cadeau</p>
-                          <p className="mt-2 font-mono text-2xl font-semibold tracking-[0.16em] text-primary">
+                          <p className="mt-2 break-all font-mono text-xl font-semibold tracking-[0.12em] text-primary sm:text-2xl sm:tracking-[0.16em]">
                             {formatGiftCardCode(data.gift_card.code)}
                           </p>
                         </div>
@@ -194,8 +192,8 @@ function GiftSuccessContent() {
                           <Mail className="h-4 w-4 text-primary" />
                           Envoi email
                         </div>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          Un email a ete traite pour {data.payload?.buyer_email || "l'acheteur"}
+                        <p className="mt-2 break-words text-sm text-muted-foreground">
+                          Un email a été traité pour {data.payload?.buyer_email || "l'acheteur"}
                           {data.gift_card?.recipient_email ? ` et pour ${data.gift_card.recipient_email}` : "."}
                         </p>
                       </div>
@@ -206,10 +204,10 @@ function GiftSuccessContent() {
                     <div className="rounded-2xl border border-destructive/25 bg-destructive/10 p-4">
                       <div className="flex items-center gap-2 font-medium text-destructive">
                         <TriangleAlert className="h-4 w-4" />
-                        Creation echouee
+                        Création échouée
                       </div>
                       <p className="mt-2 text-sm text-muted-foreground">
-                        Le paiement ou la generation de la carte cadeau n'a pas pu etre finalise.
+                        Le paiement ou la génération de la carte cadeau n&apos;a pas pu être finalisé.
                       </p>
                     </div>
                   )}
@@ -223,7 +221,7 @@ function GiftSuccessContent() {
                     <div>
                       <h3 className="font-semibold">Et maintenant ?</h3>
                       <p className="mt-2 text-sm text-muted-foreground">
-                        Gardez cette page ou l'email de confirmation jusqu'a la bonne reception de la carte cadeau.
+                        Gardez cette page ou l&apos;email de confirmation jusqu&apos;à la bonne réception de la carte cadeau.
                       </p>
                     </div>
                   </div>
@@ -240,7 +238,7 @@ function GiftSuccessContent() {
               </Link>
             </Button>
             <Button asChild size="lg">
-              <Link href="/">Retour a l'accueil</Link>
+              <Link href="/">Retour à l&apos;accueil</Link>
             </Button>
           </div>
         </div>

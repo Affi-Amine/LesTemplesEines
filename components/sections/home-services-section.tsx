@@ -17,7 +17,7 @@ function getServiceBadge(name: string, category: string | null) {
   if (haystack.includes("huile") || haystack.includes("oil")) return "Huile"
   if (haystack.includes("pied") || haystack.includes("planta")) return "Foot massage"
   if (haystack.includes("duo")) return "Massage duo"
-  if (haystack.includes("sport")) return "Recuperation"
+  if (haystack.includes("sport")) return "Récupération"
   if (haystack.includes("pierre")) return "Chaleur profonde"
 
   return "Massage"
@@ -40,30 +40,30 @@ function getServiceDescription(name: string, category: string | null, descriptio
   if (!genericDescription) return current
 
   if (haystack.includes("thai") || haystack.includes("thaï")) {
-    return "Pressions, etirements et mobilisations inspires du Nuad Thai pour liberer le corps en profondeur."
+    return "Pressions, étirements et mobilisations inspirés du Nuad Thaï pour libérer le corps en profondeur."
   }
 
   if (haystack.includes("huile") || haystack.includes("oil")) {
-    return "Un rituel a l'huile aux gestes lents et enveloppants, ideal pour apaiser les tensions diffuses."
+    return "Un rituel à l'huile aux gestes lents et enveloppants, idéal pour apaiser les tensions diffuses."
   }
 
   if (haystack.includes("pied") || haystack.includes("planta")) {
-    return "Un travail precis des pieds et des mollets, ideal lorsque les jambes sont lourdes ou tres sollicitees."
+    return "Un travail précis des pieds et des mollets, idéal lorsque les jambes sont lourdes ou très sollicitées."
   }
 
   if (haystack.includes("duo")) {
-    return "Deux tables, le meme tempo de soin, pour partager un veritable moment de relachement."
+    return "Deux tables, le même tempo de soin, pour partager un véritable moment de relâchement."
   }
 
   if (haystack.includes("sport")) {
-    return "Un travail cible, plus soutenu, pour accompagner la recuperation et delier les tensions musculaires."
+    return "Un travail ciblé, plus soutenu, pour accompagner la récupération et délier les tensions musculaires."
   }
 
   if (haystack.includes("pierre")) {
-    return "La chaleur prolonge le geste, detend les tissus et donne au soin une profondeur plus fondue."
+    return "La chaleur prolonge le geste, détend les tissus et donne au soin une profondeur plus fondue."
   }
 
-  return "Un rituel mesure, entre pressions et relachement, pour rendre au corps sa souplesse."
+  return "Un rituel mesuré, entre pressions et relâchement, pour rendre au corps sa souplesse."
 }
 
 export function HomeServicesSection() {
@@ -76,7 +76,7 @@ export function HomeServicesSection() {
         <div className="max-w-7xl mx-auto px-4">
         <div className="mb-16 text-center">
           <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos massages</span>
-          <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">Une carte courte, des mains sures</h2>
+          <h2 className="text-4xl md:text-5xl font-serif font-bold mt-2 mb-4">Une carte courte, des mains sûres</h2>
         </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -117,9 +117,9 @@ export function HomeServicesSection() {
       <div className="relative max-w-7xl mx-auto px-4">
         <div className="mb-16 text-center">
           <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos massages</span>
-          <h2 className="mt-2 mb-4 text-4xl font-serif font-bold md:text-5xl">Des rituels penses pour chaque besoin</h2>
+          <h2 className="mt-2 mb-4 text-4xl font-serif font-bold md:text-5xl">Des rituels pensés pour chaque besoin</h2>
           <p className="mx-auto max-w-2xl text-muted-foreground">
-            Une carte sobre, portee par le geste thai, pour apaiser, relacher ou travailler plus en profondeur.
+            Une carte sobre, portée par le geste thaï, pour apaiser, relâcher ou travailler plus en profondeur.
           </p>
         </div>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
@@ -147,11 +147,11 @@ export function HomeServicesSection() {
                   {getServiceBadge(service.name, service.category)}
                 </div>
               </div>
-              <div className="mb-4 flex items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-primary/80">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-primary/80">
                 <span>{service.duration_minutes} min</span>
                 <span>{(service.price_cents / 100).toFixed(2)}€</span>
               </div>
-              <h3 className="mb-3 min-h-12 text-lg font-semibold text-foreground">{service.name}</h3>
+              <h3 className="mb-3 min-h-12 break-words pr-6 text-lg font-semibold text-foreground">{service.name}</h3>
               <p className="mb-5 line-clamp-3 text-sm leading-6 text-muted-foreground">
                 {getServiceDescription(service.name, service.category, service.description)}
               </p>

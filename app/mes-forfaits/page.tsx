@@ -55,9 +55,9 @@ export default function MesForfaitsPage() {
             <div className="grid gap-4">
               {clientPacks.map((clientPack) => (
                 <Card key={clientPack.id} className="p-6">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                      <h2 className="text-xl font-semibold">{clientPack.pack?.name || "Forfait"}</h2>
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0">
+                      <h2 className="text-xl font-semibold break-words">{clientPack.pack?.name || "Forfait"}</h2>
                       <p className="text-sm text-muted-foreground mt-1">
                         Acheté le {new Date(clientPack.purchase_date).toLocaleDateString("fr-FR")}
                       </p>

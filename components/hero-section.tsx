@@ -24,7 +24,7 @@ export function HeroSection() {
       <div className="absolute inset-0 z-0">
         <Image
           src="/luxury-spa-massage-relaxation.jpg"
-          alt="Cabine de massage thailandais Les Temples"
+          alt="Cabine de massage thaïlandais Les Temples"
           fill
           className="object-cover"
           priority
@@ -37,22 +37,22 @@ export function HeroSection() {
         <div className="max-w-3xl space-y-7 md:space-y-8">
           <div className="home-reveal inline-flex items-center gap-2 rounded-full border border-primary/20 bg-background/35 px-4 py-2 backdrop-blur-sm">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span className="text-sm font-semibold tracking-widest text-primary uppercase">Bien-etre thailandais</span>
+            <span className="text-sm font-semibold tracking-widest text-primary uppercase">Bien-être thaïlandais</span>
           </div>
 
           <div className="home-reveal home-reveal-delay-1">
             <h1 className="mb-5 text-4xl font-serif font-bold leading-[0.95] text-foreground drop-shadow-[0_10px_30px_rgba(0,0,0,0.38)] sm:text-5xl md:text-6xl lg:text-7xl">
-              Massage thai traditionnel,
+              Massage thaï traditionnel,
               <br />
               <span className="text-primary">huile ou duo.</span>
             </h1>
             <p className="max-w-2xl text-base leading-relaxed text-[#d8cebf] sm:text-lg">
-              Des soins precis et profonds, dans un cadre calme et elegant.
+              Des soins précis et profonds, dans un cadre calme et élégant.
             </p>
           </div>
 
           <div className="home-reveal home-reveal-delay-2 flex flex-wrap gap-3 text-sm text-foreground/80">
-            <span className="rounded-full border border-primary/20 bg-background/30 px-4 py-2 backdrop-blur-sm">Thai traditionnel</span>
+            <span className="rounded-full border border-primary/20 bg-background/30 px-4 py-2 backdrop-blur-sm">Thaï traditionnel</span>
             <span className="rounded-full border border-primary/20 bg-background/30 px-4 py-2 backdrop-blur-sm">Huile</span>
             <span className="rounded-full border border-primary/20 bg-background/30 px-4 py-2 backdrop-blur-sm">Duo</span>
           </div>
@@ -60,7 +60,7 @@ export function HeroSection() {
           <div className="home-reveal home-reveal-delay-2 flex flex-col gap-3 pt-2 sm:flex-row sm:gap-4 sm:pt-4">
             <Button asChild size="lg" className="group w-full bg-primary text-primary-foreground shadow-[0_14px_34px_rgba(214,171,89,0.18)] hover:bg-primary/90 sm:w-auto">
               <Link href="/book" className="w-full sm:w-auto">
-                Reserver maintenant
+                Réserver maintenant
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
             </Button>
@@ -78,11 +78,11 @@ export function HeroSection() {
             </div>
             <div className="min-w-0">
               <p className="text-2xl font-bold text-foreground">500+</p>
-              <p className="text-xs text-muted-foreground sm:text-sm">Clients fideles</p>
+              <p className="text-xs text-muted-foreground sm:text-sm">Clients fidèles</p>
             </div>
             <div className="min-w-0">
               <p className="text-2xl font-bold text-foreground">{therapistCount}+</p>
-              <p className="text-xs text-muted-foreground sm:text-sm">Therapeutes expertes</p>
+              <p className="text-xs text-muted-foreground sm:text-sm">Thérapeutes expertes</p>
             </div>
           </div>
         </div>
@@ -90,7 +90,7 @@ export function HeroSection() {
 
       <div className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 transform sm:bottom-8">
         <div className="flex flex-col items-center gap-2 animate-bounce">
-          <span className="text-xs text-muted-foreground uppercase tracking-widest">Decouvrir</span>
+          <span className="text-xs text-muted-foreground uppercase tracking-widest">Découvrir</span>
           <div className="flex h-9 w-5 items-start justify-center rounded-full border-2 border-primary/30 p-1.5 sm:h-10 sm:w-6 sm:p-2">
             <div className="w-1 h-2 bg-primary rounded-full animate-pulse" />
           </div>

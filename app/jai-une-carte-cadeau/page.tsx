@@ -271,14 +271,14 @@ export default function RedeemGiftCardPage() {
 
           <Card className="p-6 space-y-4">
             <Label htmlFor="gift-code">Code cadeau</Label>
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <Input
                 id="gift-code"
                 value={codeInput}
                 onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
                 placeholder="ABCD-EFGH-IJKL"
               />
-              <Button onClick={handleValidateCode} disabled={isCheckingCode}>
+              <Button onClick={handleValidateCode} disabled={isCheckingCode} className="w-full sm:w-auto">
                 {isCheckingCode ? "Vérification..." : "Vérifier"}
               </Button>
             </div>

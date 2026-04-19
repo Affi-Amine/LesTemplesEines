@@ -58,7 +58,7 @@ export function HomeSalonsSection() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="mb-12 text-center md:mb-16">
             <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos adresses</span>
-            <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">Le meme calme, la meme main</h2>
+            <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">Le même calme, la même main</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {[1, 2, 3].map((i) => (
@@ -94,10 +94,10 @@ export function HomeSalonsSection() {
         <div className="relative mb-12 text-center md:mb-16">
             <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos adresses</span>
           <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">
-            {salonCount > 0 ? `${salonCount} adresse${salonCount > 1 ? "s" : ""}, un meme niveau d'exigence` : "Nos adresses Les Temples"}
+            {salonCount > 0 ? `${salonCount} adresse${salonCount > 1 ? "s" : ""}, un même niveau d'exigence` : "Nos adresses Les Temples"}
           </h2>
           <p className="mx-auto max-w-2xl text-sm text-muted-foreground sm:text-base">
-            Dans chaque maison, le meme accueil discret, le meme soin juste, la meme serenite.
+            Dans chaque maison, le même accueil discret, le même soin juste, la même sérénité.
           </p>
         </div>
         <div className="relative">
@@ -173,7 +173,7 @@ export function HomeSalonsSection() {
                       <Link href={`/salons/${salon.slug}`}>Voir l'adresse</Link>
                     </Button>
                     <Button asChild className="flex-1 w-full bg-primary shadow-[0_10px_24px_rgba(214,171,89,0.16)] cursor-pointer hover:bg-primary/90">
-                      <Link href={`/book/${salon.slug}`}>Reserver</Link>
+                      <Link href={`/book/${salon.slug}`}>Réserver</Link>
                     </Button>
                   </div>
                 </div>

@@ -21,7 +21,7 @@ export function Navbar() {
           </div>
           <div className="flex flex-col">
             <span className="text-lg font-semibold text-foreground tracking-tight group-hover:text-primary">Les Temples</span>
-            <span className="text-xs text-primary/80">Bien etre thailandais</span>
+            <span className="text-xs text-primary/80">Bien-être thaïlandais</span>
           </div>
         </Link>
 
@@ -58,6 +58,7 @@ export function Navbar() {
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="md:hidden p-2 hover:bg-primary/10 rounded-lg transition-colors"
+          aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
         >
           {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
@@ -84,7 +85,7 @@ export function Navbar() {
             <Link href="#contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Contact
             </Link>
-            <div className="flex gap-2 pt-2">
+            <div className="flex flex-col gap-2 pt-2 sm:flex-row">
               <Button asChild variant="outline" size="sm" className="flex-1 w-full bg-transparent">
                 <Link href="/admin/login">{t("admin.login")}</Link>
               </Button>

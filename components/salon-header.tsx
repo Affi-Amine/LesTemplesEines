@@ -80,7 +80,7 @@ export function SalonHeader({ name, city, address, phone, image, images = [], sl
                 {name}
               </h1>
               <p className="text-base font-light opacity-95 drop-shadow-lg sm:text-lg md:text-2xl">
-                Une adresse confidentielle a {city}, dediee au calme, a la precision du geste et au temps long.
+                Une adresse confidentielle à {city}, dédiée au calme, à la précision du geste et au temps long.
               </p>
               <div className="temple-divider max-w-sm" />
             </div>
@@ -146,7 +146,7 @@ export function SalonHeader({ name, city, address, phone, image, images = [], sl
               className="w-full lg:w-auto bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer group lg:flex-shrink-0"
             >
               <Link href={`/book/${slug}`}>
-                Réserver Maintenant
+                Réserver maintenant
                 <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </Link>
             </Button>

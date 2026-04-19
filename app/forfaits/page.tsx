@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
+import { FlowOutcomeHero } from "@/components/flow-outcome-hero"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,6 +20,8 @@ type CheckoutStatus = {
   pack?: Pack | null
   client_pack?: ClientPack | null
 }
+
+type OutcomeStatus = "success" | "pending" | "error"
 
 function ForfaitsContent() {
   const searchParams = useSearchParams()
@@ -48,6 +51,38 @@ function ForfaitsContent() {
     () => packs?.find((pack) => pack.id === selectedPackId),
     [packs, selectedPackId]
   )
+  const checkoutHero: {
+    status: OutcomeStatus | null
+    title: string
+    description: string
+    helper?: string
+  } | null = sessionId
+    ? {
+        status: checkoutStatus?.status === "failed" ? "error" : checkoutStatus?.status === "open" ? "pending" : checkoutStatus?.status === "completed" ? "success" : null,
+        title:
+          checkoutStatus?.status === "completed"
+            ? "Forfait activé"
+            : checkoutStatus?.status === "failed"
+              ? "Paiement non finalisé"
+              : checkoutStatus?.status === "open"
+                ? "Activation en cours"
+                : "",
+        description:
+          checkoutStatus?.status === "completed"
+            ? "Votre paiement est confirmé et votre forfait client est maintenant disponible."
+            : checkoutStatus?.status === "failed"
+              ? "Le paiement ou l’activation du forfait n’a pas abouti. Vous pouvez relancer l’achat."
+              : checkoutStatus?.status === "open"
+                ? "Votre paiement est bien reçu. Nous finalisons encore l’activation du forfait."
+                : "",
+        helper:
+          checkoutStatus?.status === "completed" && checkoutStatus.client_pack
+            ? `${checkoutStatus.client_pack.remaining_sessions} séance(s) disponible(s) sur ${checkoutStatus.client_pack.total_sessions}.`
+            : checkoutStatus?.status === "open"
+              ? "La page se met à jour automatiquement."
+              : undefined,
+      }
+    : null
 
   useEffect(() => {
     if (checkoutState === "cancel") {
@@ -92,6 +127,16 @@ function ForfaitsContent() {
       <Navbar />
       <section className="pt-28 pb-16 px-4">
         <div className="max-w-6xl mx-auto space-y-8">
+          {checkoutHero?.status ? (
+            <FlowOutcomeHero
+              status={checkoutHero.status}
+              eyebrow="Forfait"
+              title={checkoutHero.title}
+              description={checkoutHero.description}
+              helper={checkoutHero.helper}
+            />
+          ) : null}
+
           <div className="text-center space-y-4">
             <span className="inline-flex items-center rounded-full border px-4 py-2 text-sm text-muted-foreground">
               Forfaits
@@ -121,9 +166,9 @@ function ForfaitsContent() {
                       className={`p-6 cursor-pointer transition-all ${selected ? "border-primary ring-2 ring-primary/20" : "hover:border-primary/40"}`}
                       onClick={() => setSelectedPackId(pack.id)}
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h2 className="text-xl font-semibold">{pack.name}</h2>
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <h2 className="break-words text-xl font-semibold">{pack.name}</h2>
                           {pack.description && (
                             <p className="text-sm text-muted-foreground mt-2">{pack.description}</p>
                           )}
@@ -131,7 +176,7 @@ function ForfaitsContent() {
                             {pack.number_of_sessions} séance(s)
                           </p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-left sm:text-right">
                           <p className="text-2xl font-bold text-primary">{Number(pack.price).toFixed(2)}€</p>
                           <p className="text-xs text-muted-foreground">
                             {pack.allowed_installments.join("x, ")}x possible
@@ -144,12 +189,12 @@ function ForfaitsContent() {
               )}
             </div>
 
-            <Card className="p-6 space-y-5 sticky top-24">
-              <h2 className="text-2xl font-semibold">Finaliser l'achat</h2>
+            <Card className="space-y-5 p-6 lg:sticky lg:top-24">
+              <h2 className="text-2xl font-semibold">Finaliser l&apos;achat</h2>
 
               {selectedPack ? (
                 <div className="rounded-lg bg-muted/50 p-4">
-                  <p className="font-semibold">{selectedPack.name}</p>
+                  <p className="break-words font-semibold">{selectedPack.name}</p>
                   <p className="text-sm text-muted-foreground mt-1">{selectedPack.number_of_sessions} séance(s)</p>
                   <p className="text-lg font-bold text-primary mt-2">{Number(selectedPack.price).toFixed(2)}€</p>
                 </div>

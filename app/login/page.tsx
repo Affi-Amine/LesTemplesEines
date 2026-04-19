@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
+import { FlowOutcomeHero } from "@/components/flow-outcome-hero"
 import { createClient } from "@/lib/supabase/client"
 import { fetchAPI } from "@/lib/api/client"
 import { toast } from "sonner"
@@ -20,6 +21,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isSendingReset, setIsSendingReset] = useState(false)
+  const [resetEmailSent, setResetEmailSent] = useState(false)
 
   const handleLogin = async () => {
     setIsLoading(true)
@@ -48,6 +50,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email }),
       })
       toast.success("Email de réinitialisation envoyé.")
+      setResetEmailSent(true)
     } catch (error: any) {
       toast.error(error.message || "Impossible d'envoyer l'email.")
     } finally {
@@ -60,34 +63,54 @@ export default function LoginPage() {
       <Navbar />
       <section className="pt-28 pb-16 px-4">
         <div className="max-w-md mx-auto">
-          <Card className="p-8 space-y-6">
-            <div>
-              <h1 className="text-3xl font-serif font-bold">Connexion client</h1>
-              <p className="text-muted-foreground mt-2">Accédez à vos forfaits et réservations.</p>
+          {resetEmailSent ? (
+            <div className="space-y-6">
+              <FlowOutcomeHero
+                status="success"
+                eyebrow="Réinitialisation"
+                title="Lien envoyé"
+                description={`Un lien de réinitialisation a été envoyé à ${email}.`}
+                helper="Vérifiez votre boîte mail ainsi que vos courriers indésirables, puis revenez ici une fois le mot de passe mis à jour."
+              />
+              <Card className="p-6 space-y-3">
+                <Button className="w-full" onClick={() => setResetEmailSent(false)}>
+                  Revenir à la connexion
+                </Button>
+                <Button variant="outline" className="w-full" onClick={handleReset} disabled={isSendingReset}>
+                  {isSendingReset ? "Envoi..." : "Renvoyer le lien"}
+                </Button>
+              </Card>
             </div>
+          ) : (
+            <Card className="p-8 space-y-6">
+              <div>
+                <h1 className="text-3xl font-serif font-bold">Connexion client</h1>
+                <p className="text-muted-foreground mt-2">Accédez à vos forfaits et réservations.</p>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Mot de passe</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Mot de passe</Label>
+                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </div>
 
-            <Button className="w-full" onClick={handleLogin} disabled={isLoading}>
-              {isLoading ? "Connexion..." : "Se connecter"}
-            </Button>
+              <Button className="w-full" onClick={handleLogin} disabled={isLoading}>
+                {isLoading ? "Connexion..." : "Se connecter"}
+              </Button>
 
-            <Button variant="outline" className="w-full" onClick={handleReset} disabled={isSendingReset}>
-              {isSendingReset ? "Envoi..." : "Recevoir un lien de réinitialisation"}
-            </Button>
+              <Button variant="outline" className="w-full" onClick={handleReset} disabled={isSendingReset}>
+                {isSendingReset ? "Envoi..." : "Recevoir un lien de réinitialisation"}
+              </Button>
 
-            <p className="text-sm text-muted-foreground">
-              Pas encore de compte ? <Link href="/creer-compte" className="text-primary">Créer un compte</Link> ou achetez un forfait sur <Link href="/forfaits" className="text-primary">/forfaits</Link>.
-            </p>
-          </Card>
+              <p className="text-sm text-muted-foreground">
+                Pas encore de compte ? <Link href="/creer-compte" className="text-primary">Créer un compte</Link> ou achetez un forfait sur <Link href="/forfaits" className="text-primary">/forfaits</Link>.
+              </p>
+            </Card>
+          )}
         </div>
       </section>
       <Footer />

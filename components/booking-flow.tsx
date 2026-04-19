@@ -498,7 +498,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   >
                     <RadioGroupItem value={service.id} id={service.id} className="mt-1 pointer-events-none" />
                     <Label htmlFor={service.id} className="flex-1 cursor-pointer pointer-events-none">
-                      <div className="pr-2 text-base font-semibold leading-snug sm:text-lg">{service.name}</div>
+                      <div className="pr-2 text-base font-semibold leading-snug break-words sm:text-lg">{service.name}</div>
                       <div className="mt-1 line-clamp-3 text-sm leading-6 text-muted-foreground">{service.description}</div>
                       <div className="mt-3 flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
                         <span className="text-muted-foreground">
@@ -576,7 +576,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                    {data.employees.length > 0 && ` (${data.employees.length}/${currentService.required_staff_count})`}
                  </Label>
                  <p className="text-xs text-muted-foreground mb-3">
-                   Veuillez choisir les praticiens pour ce soin duo/trio. Laissez vide pour une attribution automatique.
+                   Veuillez choisir les praticiens pour ce soin duo ou trio. Laissez vide pour une attribution automatique.
                  </p>
                  
                  {staffLoading ? (
@@ -754,7 +754,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   <RadioGroupItem value="stripe" id="payment-stripe" className="mt-1 pointer-events-none" />
                   <Label htmlFor="payment-stripe" className="cursor-pointer flex-1 pointer-events-none">
                     <div className="font-medium">Payer maintenant</div>
-                    <div className="text-sm text-muted-foreground">Paiement en ligne securise avec Stripe.</div>
+                    <div className="text-sm text-muted-foreground">Paiement en ligne sécurisé avec Stripe.</div>
                   </Label>
                 </div>
                 <div
@@ -781,7 +781,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                         onClick={() => updateData({ clientPackId: clientPack.id })}
                         className={`rounded-lg border p-3 cursor-pointer ${data.clientPackId === clientPack.id ? "border-primary bg-primary/10" : "bg-card/65"}`}
                       >
-                        <p className="font-medium">{clientPack.pack?.name}</p>
+                        <p className="font-medium break-words">{clientPack.pack?.name}</p>
                         <p className="text-sm text-muted-foreground">
                           {clientPack.remaining_sessions} / {clientPack.total_sessions} séance(s) restante(s)
                         </p>
@@ -800,7 +800,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   <RadioGroupItem value="on_site" id="payment-on-site" className="mt-1 pointer-events-none" />
                   <Label htmlFor="payment-on-site" className="cursor-pointer flex-1 pointer-events-none">
                     <div className="font-medium">Payer sur place</div>
-                    <div className="text-sm text-muted-foreground">Le rendez-vous est cree comme non paye.</div>
+                    <div className="text-sm text-muted-foreground">Le rendez-vous est créé comme non payé.</div>
                   </Label>
                 </div>
               </RadioGroup>
@@ -847,7 +847,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">{t(locale, "booking.select_therapist")}</p>
-                <p className="font-semibold text-lg">{currentEmployee?.first_name} {currentEmployee?.last_name}</p>
+                <p className="font-semibold text-lg break-words">{currentEmployee?.first_name} {currentEmployee?.last_name}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">{t(locale, "booking.step3_title")}</p>

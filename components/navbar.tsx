@@ -42,6 +42,9 @@ export function Navbar() {
           <Link href="/mes-forfaits" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             Mes forfaits
           </Link>
+          <Link href="/creer-compte" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            Créer un compte
+          </Link>
           <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             J&apos;ai une carte cadeau
           </Link>
@@ -88,6 +91,9 @@ export function Navbar() {
             </Link>
             <Link href="/mes-forfaits" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Mes forfaits
+            </Link>
+            <Link href="/creer-compte" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Créer un compte
             </Link>
             <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               J&apos;ai une carte cadeau

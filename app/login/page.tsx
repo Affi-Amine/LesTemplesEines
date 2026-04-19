@@ -85,7 +85,7 @@ export default function LoginPage() {
             </Button>
 
             <p className="text-sm text-muted-foreground">
-              Pas encore de compte ? Achetez d'abord un forfait sur <Link href="/forfaits" className="text-primary">/forfaits</Link>.
+              Pas encore de compte ? <Link href="/creer-compte" className="text-primary">Créer un compte</Link> ou achetez un forfait sur <Link href="/forfaits" className="text-primary">/forfaits</Link>.
             </p>
           </Card>
         </div>

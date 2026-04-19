@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowRight, Sparkles } from "lucide-react"
+import { Sparkles } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import { fetchAPI } from "@/lib/api/client"
 import { useSalons } from "@/lib/hooks/use-salons"
@@ -47,7 +47,7 @@ export function HeroSection() {
               <span className="text-primary">huile ou duo.</span>
             </h1>
             <p className="max-w-2xl text-base leading-relaxed text-[#d8cebf] sm:text-lg">
-              Des soins précis et profonds, dans un cadre calme et élégant.
+              Réservez un soin, offrez une carte cadeau ou choisissez un forfait en quelques instants.
             </p>
           </div>
 
@@ -57,18 +57,24 @@ export function HeroSection() {
             <span className="rounded-full border border-primary/20 bg-background/30 px-4 py-2 backdrop-blur-sm">Duo</span>
           </div>
 
-          <div className="home-reveal home-reveal-delay-2 flex flex-col gap-3 pt-2 sm:flex-row sm:gap-4 sm:pt-4">
-            <Button asChild size="lg" className="group w-full bg-primary text-primary-foreground shadow-[0_14px_34px_rgba(214,171,89,0.18)] hover:bg-primary/90 sm:w-auto">
-              <Link href="/book" className="w-full sm:w-auto">
-                Réserver maintenant
-                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="w-full border-primary/30 bg-background/20 backdrop-blur-sm hover:bg-primary/8 sm:w-auto">
-              <Link href="/gift" className="w-full sm:w-auto">
-                Offrir une carte cadeau
-              </Link>
-            </Button>
+          <div className="home-reveal home-reveal-delay-2 pt-2 sm:pt-4">
+            <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
+              <Button asChild size="lg" className="w-full bg-primary text-primary-foreground shadow-[0_14px_34px_rgba(214,171,89,0.18)] hover:bg-primary/90">
+                <Link href="/book" className="w-full">
+                  Réserver
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="w-full border-primary/30 bg-background/20 backdrop-blur-sm hover:bg-primary/8">
+                <Link href="/gift" className="w-full">
+                  Carte cadeau
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="w-full border-primary/30 bg-background/20 backdrop-blur-sm hover:bg-primary/8">
+                <Link href="/forfaits" className="w-full">
+                  Forfaits
+                </Link>
+              </Button>
+            </div>
           </div>
 
           <div className="home-reveal home-reveal-delay-3 grid grid-cols-3 gap-4 border-t border-primary/10 pt-6 sm:pt-8 md:flex md:gap-8">

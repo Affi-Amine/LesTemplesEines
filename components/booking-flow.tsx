@@ -144,6 +144,25 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   const currentEmployee = staff?.find((e) => e.id === data.employee)
   const salonEmployees = staff || []
   const selectedClientPack = (clientPacks || []).find((clientPack) => clientPack.id === data.clientPackId)
+  const selectedPackAllowedServiceIds = useMemo(
+    () => new Set(selectedClientPack?.pack?.allowed_services || []),
+    [selectedClientPack?.pack?.allowed_services]
+  )
+  const servicesWithPackInfo = useMemo(() => {
+    const serviceList = services || []
+
+    if (!selectedClientPack) {
+      return serviceList
+    }
+
+    return [...serviceList].sort((a, b) => {
+      const aIncluded = selectedPackAllowedServiceIds.has(a.id)
+      const bIncluded = selectedPackAllowedServiceIds.has(b.id)
+
+      if (aIncluded === bIncluded) return 0
+      return aIncluded ? -1 : 1
+    })
+  }, [selectedClientPack, selectedPackAllowedServiceIds, services])
   const eligiblePacks = (clientPacks || []).filter((clientPack) =>
     clientPack.remaining_sessions > 0 && clientPack.pack?.allowed_services?.includes(data.service)
   )
@@ -503,6 +522,19 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           <h2 className="text-2xl font-semibold mb-2">{t(locale, "booking.step2_title")}</h2>
           <p className="text-muted-foreground mb-6">{t(locale, "booking.step2_subtitle")}</p>
 
+          {selectedClientPack ? (
+            <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/8 p-4">
+              <p className="text-sm font-semibold text-primary">Forfait sélectionné</p>
+              <p className="mt-1 font-medium">{selectedClientPack.pack?.name}</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Les prestations incluses apparaissent en premier avec le badge <span className="font-medium text-foreground">Inclus dans votre forfait</span>.
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Si vous choisissez une prestation marquée <span className="font-medium text-foreground">Hors forfait</span>, vous devrez payer autrement.
+              </p>
+            </div>
+          ) : null}
+
           {servicesLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
@@ -516,29 +548,46 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           ) : (
             <RadioGroup value={data.service} onValueChange={handleServiceChange}>
               <div className="space-y-3">
-                {services?.map((service) => (
-                  <div
-                    key={service.id}
-                    onClick={() => handleServiceChange(service.id)}
-                    className={`flex items-start space-x-3 rounded-lg border p-4 transition-all cursor-pointer ${
-                      data.service === service.id
-                        ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
-                        : "bg-card/65 hover:bg-muted hover:border-primary"
-                    }`}
-                  >
-                    <RadioGroupItem value={service.id} id={service.id} className="mt-1 pointer-events-none" />
-                    <Label htmlFor={service.id} className="flex-1 cursor-pointer pointer-events-none">
-                      <div className="pr-2 text-base font-semibold leading-snug break-words sm:text-lg">{service.name}</div>
-                      <div className="mt-1 line-clamp-3 text-sm leading-6 text-muted-foreground">{service.description}</div>
-                      <div className="mt-3 flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
-                        <span className="text-muted-foreground">
-                          {service.duration_minutes} {t(locale, "booking.duration")}
-                        </span>
-                        <span className="font-semibold text-primary">{(service.price_cents / 100).toFixed(2)}€</span>
-                      </div>
-                    </Label>
-                  </div>
-                ))}
+                {servicesWithPackInfo.map((service) => {
+                  const isIncludedInSelectedPack = selectedClientPack ? selectedPackAllowedServiceIds.has(service.id) : false
+
+                  return (
+                    <div
+                      key={service.id}
+                      onClick={() => handleServiceChange(service.id)}
+                      className={`flex items-start space-x-3 rounded-lg border p-4 transition-all cursor-pointer ${
+                        data.service === service.id
+                          ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
+                          : "bg-card/65 hover:bg-muted hover:border-primary"
+                      } ${selectedClientPack && !isIncludedInSelectedPack ? "border-dashed border-border/80" : ""}`}
+                    >
+                      <RadioGroupItem value={service.id} id={service.id} className="mt-1 pointer-events-none" />
+                      <Label htmlFor={service.id} className="flex-1 cursor-pointer pointer-events-none">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="pr-2 text-base font-semibold leading-snug break-words sm:text-lg">{service.name}</div>
+                          {selectedClientPack ? (
+                            <span
+                              className={`inline-flex w-fit rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                                isIncludedInSelectedPack
+                                  ? "border border-emerald-400/25 bg-emerald-500/10 text-emerald-300"
+                                  : "border border-amber-300/20 bg-amber-500/10 text-amber-200"
+                              }`}
+                            >
+                              {isIncludedInSelectedPack ? "Inclus dans votre forfait" : "Hors forfait"}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-1 line-clamp-3 text-sm leading-6 text-muted-foreground">{service.description}</div>
+                        <div className="mt-3 flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
+                          <span className="text-muted-foreground">
+                            {service.duration_minutes} {t(locale, "booking.duration")}
+                          </span>
+                          <span className="font-semibold text-primary">{(service.price_cents / 100).toFixed(2)}€</span>
+                        </div>
+                      </Label>
+                    </div>
+                  )
+                })}
               </div>
             </RadioGroup>
           )}

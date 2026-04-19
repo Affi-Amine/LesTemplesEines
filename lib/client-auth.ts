@@ -2,19 +2,56 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { getBaseUrl } from "@/lib/gift-cards"
 import { sendEmail } from "@/lib/email/resend"
 import { extractFirstAndLastName } from "@/lib/packs"
+import { generateClientPasswordToken } from "@/lib/auth/client-password-token"
 
 function randomPassword() {
   return `${Math.random().toString(36).slice(2)}A!9${Date.now().toString(36)}`
 }
 
-export async function ensureClientAccount(params: {
+async function sendClientPasswordEmail(params: {
   email: string
-  fullName: string
+  firstName: string
   origin?: string
+  type: "setup_password" | "reset_password"
+}) {
+  const token = generateClientPasswordToken({
+    email: params.email,
+    type: params.type,
+  })
+
+  const actionLink = `${getBaseUrl(params.origin)}/reset-password?token=${encodeURIComponent(token)}`
+  const subject = params.type === "setup_password" ? "Créez votre mot de passe" : "Réinitialisez votre mot de passe"
+  const intro = params.type === "setup_password"
+    ? "Votre compte client a été préparé. Définissez maintenant votre mot de passe pour accéder à vos forfaits et réservations."
+    : "Nous avons reçu une demande de réinitialisation. Définissez un nouveau mot de passe pour accéder à votre espace client."
+
+  await sendEmail({
+    to: params.email,
+    subject,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+        <h1 style="font-size: 22px; margin-bottom: 16px;">${subject}</h1>
+        <p>Bonjour ${params.firstName},</p>
+        <p>${intro}</p>
+        <p style="margin: 24px 0;">
+          <a href="${actionLink}" style="background: #b88932; color: white; padding: 12px 18px; border-radius: 8px; text-decoration: none;">
+            ${params.type === "setup_password" ? "Créer mon mot de passe" : "Choisir un nouveau mot de passe"}
+          </a>
+        </p>
+        <p>Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :</p>
+        <p><a href="${actionLink}">${actionLink}</a></p>
+      </div>
+    `,
+  })
+}
+
+export async function ensureClientAuthUser(params: {
+  email: string
+  fullName?: string
 }) {
   const supabase = createAdminClient()
   const normalizedEmail = params.email.trim().toLowerCase()
-  const { first_name, last_name } = extractFirstAndLastName(params.fullName)
+  const { first_name, last_name } = extractFirstAndLastName(params.fullName || normalizedEmail)
 
   let { data: client } = await supabase
     .from("clients")
@@ -45,99 +82,85 @@ export async function ensureClientAccount(params: {
       total_earned: 0,
       total_redeemed: 0,
     }])
-  } else {
-    const updates: Record<string, unknown> = {}
-    if (!client.first_name) updates.first_name = first_name
-    if (!client.last_name) updates.last_name = last_name
-
-    if (Object.keys(updates).length > 0) {
-      const { data: updatedClient, error: updateError } = await supabase
-        .from("clients")
-        .update(updates)
-        .eq("id", client.id)
-        .select("*")
-        .single()
-
-      if (updateError || !updatedClient) {
-        throw new Error(updateError?.message || "Failed to update client")
-      }
-
-      client = updatedClient
-    }
   }
 
-  if (!client.auth_user_id) {
-    const createUserResult = await supabase.auth.admin.createUser({
-      email: normalizedEmail,
-      email_confirm: true,
-      password: randomPassword(),
-      user_metadata: {
-        first_name,
-        last_name,
-        role: "client",
-      },
-    })
-
-    const authUser = createUserResult.data.user
-
-    if (createUserResult.error && !String(createUserResult.error.message).toLowerCase().includes("already")) {
-      throw createUserResult.error
-    }
-
-    if (authUser?.id) {
-      const { data: updatedClient, error: updateError } = await supabase
-        .from("clients")
-        .update({ auth_user_id: authUser.id })
-        .eq("id", client.id)
-        .select("*")
-        .single()
-
-      if (updateError || !updatedClient) {
-        throw new Error(updateError?.message || "Failed to link auth user")
-      }
-
-      client = updatedClient
-    }
+  if (client.auth_user_id) {
+    return { client, authUserId: client.auth_user_id, firstName: client.first_name || first_name }
   }
 
-  const redirectTo = `${getBaseUrl(params.origin)}/auth/callback?next=/reset-password`
-  const recoveryLinkResult = await supabase.auth.admin.generateLink({
-    type: "recovery",
+  const createUserResult = await supabase.auth.admin.createUser({
     email: normalizedEmail,
-    options: {
-      redirectTo,
+    email_confirm: true,
+    password: randomPassword(),
+    user_metadata: {
+      first_name: client.first_name || first_name,
+      last_name: client.last_name || last_name,
+      role: "client",
     },
   })
 
-  if (recoveryLinkResult.error) {
-    throw recoveryLinkResult.error
+  const authUser = createUserResult.data.user
+
+  if (createUserResult.error && !String(createUserResult.error.message).toLowerCase().includes("already")) {
+    throw createUserResult.error
   }
 
-  const actionLink = recoveryLinkResult.data.properties?.action_link
-
-  if (actionLink) {
-    await sendEmail({
-      to: normalizedEmail,
-      subject: "Créez votre mot de passe",
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-          <h1 style="font-size: 22px; margin-bottom: 16px;">Votre accès client Les Temples</h1>
-          <p>Bonjour ${first_name},</p>
-          <p>Votre compte client a été préparé. Définissez maintenant votre mot de passe pour accéder à vos forfaits et réservations.</p>
-          <p style="margin: 24px 0;">
-            <a href="${actionLink}" style="background: #b88932; color: white; padding: 12px 18px; border-radius: 8px; text-decoration: none;">
-              Créer mon mot de passe
-            </a>
-          </p>
-          <p>Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :</p>
-          <p><a href="${actionLink}">${actionLink}</a></p>
-        </div>
-      `,
-    })
+  if (!authUser?.id) {
+    throw new Error("Unable to create auth user")
   }
+
+  const { data: updatedClient, error: updateError } = await supabase
+    .from("clients")
+    .update({ auth_user_id: authUser.id })
+    .eq("id", client.id)
+    .select("*")
+    .single()
+
+  if (updateError || !updatedClient) {
+    throw new Error(updateError?.message || "Failed to link auth user")
+  }
+
+  return { client: updatedClient, authUserId: authUser.id, firstName: updatedClient.first_name || first_name }
+}
+
+export async function ensureClientAccount(params: {
+  email: string
+  fullName: string
+  origin?: string
+}) {
+  const normalizedEmail = params.email.trim().toLowerCase()
+  const { client, firstName } = await ensureClientAuthUser({
+    email: normalizedEmail,
+    fullName: params.fullName,
+  })
+
+  await sendClientPasswordEmail({
+    email: normalizedEmail,
+    firstName,
+    origin: params.origin,
+    type: "setup_password",
+  })
 
   return {
     client,
-    recovery_link: actionLink || null,
+    recovery_link: null,
   }
+}
+
+export async function sendClientResetPasswordEmail(params: {
+  email: string
+  origin?: string
+}) {
+  const { client, firstName } = await ensureClientAuthUser({
+    email: params.email,
+  })
+
+  await sendClientPasswordEmail({
+    email: params.email.trim().toLowerCase(),
+    firstName,
+    origin: params.origin,
+    type: "reset_password",
+  })
+
+  return { client }
 }

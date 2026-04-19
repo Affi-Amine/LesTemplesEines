@@ -16,6 +16,7 @@ export default function ResetPasswordClientPage() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
   const token = searchParams.get("token")
   const sessionError = useMemo(() => {
     if (!token) {
@@ -24,6 +25,16 @@ export default function ResetPasswordClientPage() {
     return null
   }, [token])
   const hasValidSession = Boolean(token && !sessionError)
+  const passwordError = useMemo(() => {
+    if (!password) return null
+    if (password.length < 8) return "Le mot de passe doit contenir au moins 8 caractères."
+    return null
+  }, [password])
+  const confirmPasswordError = useMemo(() => {
+    if (!confirmPassword) return null
+    if (password !== confirmPassword) return "Les mots de passe ne correspondent pas."
+    return null
+  }, [confirmPassword, password])
 
   const handleSubmit = async () => {
     if (!hasValidSession) {
@@ -31,8 +42,8 @@ export default function ResetPasswordClientPage() {
       return
     }
 
-    if (!password || password !== confirmPassword) {
-      toast.error("Les mots de passe ne correspondent pas.")
+    if (passwordError || confirmPasswordError) {
+      toast.error(passwordError || confirmPasswordError || "Le formulaire contient des erreurs.")
       return
     }
 
@@ -57,7 +68,7 @@ export default function ResetPasswordClientPage() {
       }
 
       toast.success("Mot de passe mis à jour.")
-      router.push("/login")
+      setIsSuccess(true)
     } catch {
       toast.error("Impossible de mettre à jour le mot de passe.")
     } finally {
@@ -71,30 +82,52 @@ export default function ResetPasswordClientPage() {
       <section className="pt-28 pb-16 px-4">
         <div className="max-w-md mx-auto">
           <Card className="p-8 space-y-6">
-            <div>
-              <h1 className="text-3xl font-serif font-bold">Créer mon mot de passe</h1>
-              <p className="text-muted-foreground mt-2">Définissez un mot de passe pour accéder à votre espace client.</p>
-            </div>
+            {isSuccess ? (
+              <>
+                <div>
+                  <h1 className="text-3xl font-serif font-bold">Mot de passe enregistré</h1>
+                  <p className="text-muted-foreground mt-2">
+                    Votre compte est prêt. Vous pouvez maintenant vous connecter.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
+                  Le mot de passe a bien été mis à jour.
+                </div>
+                <Button className="w-full" onClick={() => router.push("/login")}>
+                  Aller à la connexion
+                </Button>
+              </>
+            ) : (
+              <>
+                <div>
+                  <h1 className="text-3xl font-serif font-bold">Créer mon mot de passe</h1>
+                  <p className="text-muted-foreground mt-2">Définissez un mot de passe pour accéder à votre espace client.</p>
+                </div>
 
-            {sessionError ? (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-                {sessionError}
-              </div>
-            ) : null}
+                {sessionError ? (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                    {sessionError}
+                  </div>
+                ) : null}
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Nouveau mot de passe</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={!hasValidSession || isLoading} />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Nouveau mot de passe</Label>
+                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={!hasValidSession || isLoading} />
+                  <p className="text-sm text-muted-foreground">Mot de passe minimum 8 caractères.</p>
+                  {passwordError && <p className="text-sm text-destructive">{passwordError}</p>}
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
-              <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={!hasValidSession || isLoading} />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
+                  <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={!hasValidSession || isLoading} />
+                  {confirmPasswordError && <p className="text-sm text-destructive">{confirmPasswordError}</p>}
+                </div>
 
-            <Button className="w-full" onClick={handleSubmit} disabled={isLoading || !hasValidSession}>
-              {isLoading ? "Enregistrement..." : "Enregistrer"}
-            </Button>
+                <Button className="w-full" onClick={handleSubmit} disabled={isLoading || !hasValidSession || Boolean(passwordError) || Boolean(confirmPasswordError)}>
+                  {isLoading ? "Enregistrement..." : "Enregistrer"}
+                </Button>
+              </>
+            )}
           </Card>
         </div>
       </section>

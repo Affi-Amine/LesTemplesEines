@@ -5,7 +5,6 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
 import { useTranslations } from "@/lib/i18n/use-translations"
-import { LanguageSwitcher } from "@/components/language-switcher"
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
@@ -27,12 +26,6 @@ export function Navbar() {
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
-          <Link href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-            {t("nav.home")}
-          </Link>
-          <Link href="/book" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-            {t("nav.book")}
-          </Link>
           <Link href="/gift" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             Cartes cadeaux
           </Link>
@@ -41,9 +34,6 @@ export function Navbar() {
           </Link>
           <Link href="/mes-forfaits" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             Mes forfaits
-          </Link>
-          <Link href="/creer-compte" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-            Créer un compte
           </Link>
           <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             J&apos;ai une carte cadeau
@@ -57,7 +47,6 @@ export function Navbar() {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <LanguageSwitcher />
           <Button asChild variant="ghost" size="sm" className="text-sm hover:bg-primary/10 hover:text-primary">
             <Link href="/admin/login">{t("admin.login")}</Link>
           </Button>
@@ -77,12 +66,6 @@ export function Navbar() {
       {isOpen && (
         <div className="md:hidden border-t border-primary/15 bg-background/95 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-4">
-            <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              {t("nav.home")}
-            </Link>
-            <Link href="/book" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              {t("nav.book")}
-            </Link>
             <Link href="/gift" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Cartes cadeaux
             </Link>
@@ -91,9 +74,6 @@ export function Navbar() {
             </Link>
             <Link href="/mes-forfaits" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Mes forfaits
-            </Link>
-            <Link href="/creer-compte" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Créer un compte
             </Link>
             <Link href="/jai-une-carte-cadeau" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               J&apos;ai une carte cadeau
@@ -104,9 +84,6 @@ export function Navbar() {
             <Link href="#contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Contact
             </Link>
-            <div className="flex gap-2 pt-2">
-              <LanguageSwitcher />
-            </div>
             <div className="flex gap-2 pt-2">
               <Button asChild variant="outline" size="sm" className="flex-1 w-full bg-transparent">
                 <Link href="/admin/login">{t("admin.login")}</Link>

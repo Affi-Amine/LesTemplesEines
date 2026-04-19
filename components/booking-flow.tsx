@@ -523,7 +523,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           <p className="text-muted-foreground mb-6">{t(locale, "booking.step2_subtitle")}</p>
 
           {selectedClientPack ? (
-            <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/8 p-4">
+            <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/8 p-4 sm:p-5">
               <p className="text-sm font-semibold text-primary">Forfait sélectionné</p>
               <p className="mt-1 font-medium">{selectedClientPack.pack?.name}</p>
               <p className="mt-2 text-sm text-muted-foreground">
@@ -555,34 +555,50 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                     <div
                       key={service.id}
                       onClick={() => handleServiceChange(service.id)}
-                      className={`flex items-start space-x-3 rounded-lg border p-4 transition-all cursor-pointer ${
+                      className={`rounded-[1.4rem] border p-4 transition-all cursor-pointer sm:p-5 ${
                         data.service === service.id
                           ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
                           : "bg-card/65 hover:bg-muted hover:border-primary"
                       } ${selectedClientPack && !isIncludedInSelectedPack ? "border-dashed border-border/80" : ""}`}
                     >
-                      <RadioGroupItem value={service.id} id={service.id} className="mt-1 pointer-events-none" />
-                      <Label htmlFor={service.id} className="flex-1 cursor-pointer pointer-events-none">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="pr-2 text-base font-semibold leading-snug break-words sm:text-lg">{service.name}</div>
-                          {selectedClientPack ? (
-                            <span
-                              className={`inline-flex w-fit rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${
-                                isIncludedInSelectedPack
-                                  ? "border border-emerald-400/25 bg-emerald-500/10 text-emerald-300"
-                                  : "border border-amber-300/20 bg-amber-500/10 text-amber-200"
-                              }`}
-                            >
-                              {isIncludedInSelectedPack ? "Inclus dans votre forfait" : "Hors forfait"}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="mt-1 line-clamp-3 text-sm leading-6 text-muted-foreground">{service.description}</div>
-                        <div className="mt-3 flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
-                          <span className="text-muted-foreground">
-                            {service.duration_minutes} {t(locale, "booking.duration")}
-                          </span>
-                          <span className="font-semibold text-primary">{(service.price_cents / 100).toFixed(2)}€</span>
+                      <Label htmlFor={service.id} className="cursor-pointer pointer-events-none">
+                        <div className="grid gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-start">
+                          <div className="flex items-start gap-3">
+                            <RadioGroupItem value={service.id} id={service.id} className="mt-1 shrink-0 pointer-events-none" />
+                            <div className="min-w-0">
+                              <div className="text-xl font-semibold leading-tight break-words text-foreground sm:text-[1.35rem]">
+                                {service.name}
+                              </div>
+                              {selectedClientPack ? (
+                                <div className="mt-3">
+                                  <span
+                                    className={`inline-flex w-fit rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] ${
+                                      isIncludedInSelectedPack
+                                        ? "border border-emerald-400/25 bg-emerald-500/10 text-emerald-300"
+                                        : "border border-amber-300/20 bg-amber-500/10 text-amber-200"
+                                    }`}
+                                  >
+                                    {isIncludedInSelectedPack ? "Inclus dans votre forfait" : "Hors forfait"}
+                                  </span>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="pl-9 sm:pl-0">
+                            <div className="line-clamp-3 text-sm leading-6 text-muted-foreground">
+                              {service.description}
+                            </div>
+                          </div>
+
+                          <div className="pl-9 sm:pl-0 sm:text-right">
+                            <div className="text-sm text-muted-foreground">
+                              {service.duration_minutes} min
+                            </div>
+                            <div className="mt-1 text-xl font-semibold text-primary">
+                              {(service.price_cents / 100).toFixed(2)}€
+                            </div>
+                          </div>
                         </div>
                       </Label>
                     </div>

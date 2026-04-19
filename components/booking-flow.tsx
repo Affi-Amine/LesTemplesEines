@@ -283,8 +283,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   }, [availableTimesSet, data.time])
 
   useEffect(() => {
-    containerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-    window.scrollTo({ top: Math.max(window.scrollY - 24, 0), behavior: "smooth" })
+    if (!containerRef.current) return
+
+    const top = window.scrollY + containerRef.current.getBoundingClientRect().top - 96
+    window.scrollTo({ top: Math.max(top, 0), behavior: "smooth" })
   }, [step])
 
   // Handle toggle for multi-staff selection

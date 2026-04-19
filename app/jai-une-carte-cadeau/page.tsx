@@ -229,8 +229,10 @@ export default function RedeemGiftCardPage() {
   useEffect(() => {
     if (!giftCard) return
 
-    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-    window.scrollTo({ top: Math.max(window.scrollY - 24, 0), behavior: "smooth" })
+    if (!formRef.current) return
+
+    const top = window.scrollY + formRef.current.getBoundingClientRect().top - 96
+    window.scrollTo({ top: Math.max(top, 0), behavior: "smooth" })
   }, [giftCard, step])
 
   const toggleEmployeeSelection = (employeeId: string) => {

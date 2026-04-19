@@ -45,6 +45,7 @@ export async function GET() {
       .from("client_packs")
       .select(`
         *,
+        client:clients(*),
         pack:packs(*),
         usages:client_pack_usages(
           *,

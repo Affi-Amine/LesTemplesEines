@@ -30,7 +30,9 @@ function ForfaitsContent() {
   const [selectedPackId, setSelectedPackId] = useState("")
   const [installmentCount, setInstallmentCount] = useState("1")
   const [form, setForm] = useState({
-    customer_name: "",
+    customer_first_name: "",
+    customer_last_name: "",
+    customer_phone: "",
     customer_email: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -69,7 +71,7 @@ function ForfaitsContent() {
                 : "",
         description:
           checkoutStatus?.status === "completed"
-            ? "Votre paiement est confirmé et votre forfait client est maintenant disponible."
+            ? "Votre paiement est confirmé et votre forfait client est maintenant disponible. Un email vient d’être envoyé pour créer votre mot de passe et accéder à votre espace client."
             : checkoutStatus?.status === "failed"
               ? "Le paiement ou l’activation du forfait n’a pas abouti. Vous pouvez relancer l’achat."
               : checkoutStatus?.status === "open"
@@ -77,7 +79,7 @@ function ForfaitsContent() {
                 : "",
         helper:
           checkoutStatus?.status === "completed" && checkoutStatus.client_pack
-            ? `${checkoutStatus.client_pack.remaining_sessions} séance(s) disponible(s) sur ${checkoutStatus.client_pack.total_sessions}.`
+            ? `${checkoutStatus.client_pack.remaining_sessions} séance(s) disponible(s) sur ${checkoutStatus.client_pack.total_sessions}. Vérifiez votre boîte mail, créez votre mot de passe puis connectez-vous pour retrouver votre forfait et réserver vos séances.`
             : checkoutStatus?.status === "open"
               ? "La page se met à jour automatiquement."
               : undefined,
@@ -97,8 +99,28 @@ function ForfaitsContent() {
   }, [installmentCount, selectedPack])
 
   const handlePurchase = async () => {
-    if (!selectedPack || !form.customer_email || !form.customer_name) {
-      toast.error("Renseignez votre nom, votre email et choisissez un forfait.")
+    if (!selectedPack) {
+      toast.error("Choisissez un forfait avant de continuer.")
+      return
+    }
+
+    if (!form.customer_first_name.trim() || form.customer_first_name.trim().length < 2) {
+      toast.error("Le prénom doit contenir au moins 2 caractères.")
+      return
+    }
+
+    if (!form.customer_last_name.trim() || form.customer_last_name.trim().length < 2) {
+      toast.error("Le nom doit contenir au moins 2 caractères.")
+      return
+    }
+
+    if (!form.customer_phone.trim() || form.customer_phone.trim().length < 9) {
+      toast.error("Renseignez un numéro de téléphone valide.")
+      return
+    }
+
+    if (!form.customer_email.trim()) {
+      toast.error("Renseignez votre email pour recevoir l’accès au compte.")
       return
     }
 
@@ -109,8 +131,10 @@ function ForfaitsContent() {
         body: JSON.stringify({
           pack_id: selectedPack.id,
           installment_count: Number(installmentCount),
+          customer_first_name: form.customer_first_name,
+          customer_last_name: form.customer_last_name,
+          customer_phone: form.customer_phone,
           customer_email: form.customer_email,
-          customer_name: form.customer_name,
         }),
       })
 
@@ -204,13 +228,35 @@ function ForfaitsContent() {
                 </div>
               )}
 
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="customer_first_name">Prénom</Label>
+                  <Input
+                    id="customer_first_name"
+                    value={form.customer_first_name}
+                    onChange={(e) => setForm((current) => ({ ...current, customer_first_name: e.target.value }))}
+                    placeholder="Jean"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="customer_last_name">Nom</Label>
+                  <Input
+                    id="customer_last_name"
+                    value={form.customer_last_name}
+                    onChange={(e) => setForm((current) => ({ ...current, customer_last_name: e.target.value }))}
+                    placeholder="Dupont"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="customer_name">Nom</Label>
+                <Label htmlFor="customer_phone">Téléphone</Label>
                 <Input
-                  id="customer_name"
-                  value={form.customer_name}
-                  onChange={(e) => setForm((current) => ({ ...current, customer_name: e.target.value }))}
-                  placeholder="Prénom Nom"
+                  id="customer_phone"
+                  type="tel"
+                  value={form.customer_phone}
+                  onChange={(e) => setForm((current) => ({ ...current, customer_phone: e.target.value }))}
+                  placeholder="+33 6 12 34 56 78"
                 />
               </div>
 
@@ -224,6 +270,10 @@ function ForfaitsContent() {
                   placeholder="client@email.com"
                 />
               </div>
+
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Ces informations servent à créer votre compte client automatiquement et à préremplir vos futures réservations avec votre forfait.
+              </p>
 
               <div className="space-y-3">
                 <Label>Paiement</Label>

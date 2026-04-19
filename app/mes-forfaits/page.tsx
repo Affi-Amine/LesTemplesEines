@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { fetchAPI } from "@/lib/api/client"
 import { createClient } from "@/lib/supabase/client"
 import type { ClientPack } from "@/lib/types/database"
+import { canUseClientPackStatus } from "@/lib/packs"
 
 function getClientPackPaymentStatusLabel(status: ClientPack["payment_status"]) {
   switch (status) {
@@ -86,10 +87,19 @@ export default function MesForfaitsPage() {
                       <p className="text-sm text-muted-foreground mt-1">
                         Statut paiement : {getClientPackPaymentStatusLabel(clientPack.payment_status)}
                       </p>
+                      {!canUseClientPackStatus(clientPack.payment_status) && (
+                        <p className="mt-2 text-sm text-red-600">
+                          Ce forfait est temporairement bloqué. Merci de contacter le salon pour régulariser la mensualité.
+                        </p>
+                      )}
                     </div>
-                    <Button asChild>
-                      <Link href={`/book?client_pack_id=${clientPack.id}`}>Réserver une séance</Link>
-                    </Button>
+                    {canUseClientPackStatus(clientPack.payment_status) ? (
+                      <Button asChild>
+                        <Link href={`/book?client_pack_id=${clientPack.id}`}>Réserver une séance</Link>
+                      </Button>
+                    ) : (
+                      <Button disabled>Forfait bloqué</Button>
+                    )}
                   </div>
                 </Card>
               ))}

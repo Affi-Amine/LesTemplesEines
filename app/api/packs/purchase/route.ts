@@ -45,7 +45,10 @@ export async function POST(request: NextRequest) {
               pack_id: pack.id,
               installment_count: String(payload.installment_count),
               customer_email: payload.customer_email,
-              customer_name: payload.customer_name,
+              customer_name: `${payload.customer_first_name} ${payload.customer_last_name}`.trim(),
+              customer_first_name: payload.customer_first_name,
+              customer_last_name: payload.customer_last_name,
+              customer_phone: payload.customer_phone,
             },
             line_items: [{
               quantity: 1,
@@ -69,7 +72,10 @@ export async function POST(request: NextRequest) {
               pack_id: pack.id,
               installment_count: String(payload.installment_count),
               customer_email: payload.customer_email,
-              customer_name: payload.customer_name,
+              customer_name: `${payload.customer_first_name} ${payload.customer_last_name}`.trim(),
+              customer_first_name: payload.customer_first_name,
+              customer_last_name: payload.customer_last_name,
+              customer_phone: payload.customer_phone,
             },
             line_items: [{
               quantity: 1,
@@ -101,7 +107,9 @@ export async function POST(request: NextRequest) {
           installment_count: payload.installment_count,
           installment_amounts: installmentAmounts,
           customer_email: payload.customer_email,
-          customer_name: payload.customer_name,
+          customer_first_name: payload.customer_first_name,
+          customer_last_name: payload.customer_last_name,
+          customer_phone: payload.customer_phone,
         },
       }])
 

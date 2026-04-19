@@ -48,10 +48,16 @@ async function sendClientPasswordEmail(params: {
 export async function ensureClientAuthUser(params: {
   email: string
   fullName?: string
+  firstName?: string
+  lastName?: string
+  phone?: string
 }) {
   const supabase = createAdminClient()
   const normalizedEmail = params.email.trim().toLowerCase()
-  const { first_name, last_name } = extractFirstAndLastName(params.fullName || normalizedEmail)
+  const fallbackName = extractFirstAndLastName(params.fullName || normalizedEmail)
+  const first_name = params.firstName?.trim() || fallbackName.first_name
+  const last_name = params.lastName?.trim() || fallbackName.last_name
+  const phone = params.phone?.trim() || null
 
   let { data: client } = await supabase
     .from("clients")
@@ -66,6 +72,7 @@ export async function ensureClientAuthUser(params: {
         email: normalizedEmail,
         first_name,
         last_name,
+        phone,
       }])
       .select("*")
       .single()
@@ -82,6 +89,35 @@ export async function ensureClientAuthUser(params: {
       total_earned: 0,
       total_redeemed: 0,
     }])
+  } else {
+    const updates: Record<string, unknown> = {}
+
+    if (first_name && client.first_name !== first_name) {
+      updates.first_name = first_name
+    }
+
+    if (last_name && client.last_name !== last_name) {
+      updates.last_name = last_name
+    }
+
+    if (phone && client.phone !== phone) {
+      updates.phone = phone
+    }
+
+    if (Object.keys(updates).length > 0) {
+      const { data: updatedClient, error: updateError } = await supabase
+        .from("clients")
+        .update(updates)
+        .eq("id", client.id)
+        .select("*")
+        .single()
+
+      if (updateError || !updatedClient) {
+        throw new Error(updateError?.message || "Failed to update client profile")
+      }
+
+      client = updatedClient
+    }
   }
 
   if (client.auth_user_id) {
@@ -126,12 +162,18 @@ export async function ensureClientAuthUser(params: {
 export async function ensureClientAccount(params: {
   email: string
   fullName: string
+  firstName?: string
+  lastName?: string
+  phone?: string
   origin?: string
 }) {
   const normalizedEmail = params.email.trim().toLowerCase()
   const { client, firstName } = await ensureClientAuthUser({
     email: normalizedEmail,
     fullName: params.fullName,
+    firstName: params.firstName,
+    lastName: params.lastName,
+    phone: params.phone,
   })
 
   await sendClientPasswordEmail({

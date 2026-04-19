@@ -1,5 +1,6 @@
 import type { createAdminClient } from "@/lib/supabase/admin"
 import { z } from "zod"
+import { canUseClientPackStatus } from "@/lib/packs"
 
 const PhoneSchema = z
   .string()
@@ -225,6 +226,10 @@ async function validateAndConsumePack(
 
   if (clientPack.remaining_sessions <= 0) {
     throw new Error("Aucune séance restante sur ce forfait")
+  }
+
+  if (!canUseClientPackStatus(clientPack.payment_status)) {
+    throw new Error("Ce forfait est actuellement bloqué car une échéance de paiement a échoué")
   }
 
   if (!clientPack.pack?.allowed_services?.includes(params.serviceId)) {

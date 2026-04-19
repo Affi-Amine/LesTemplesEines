@@ -25,6 +25,7 @@ import { quarterOptionsBetween } from "@/lib/calendar/scheduling"
 import { fetchAPI } from "@/lib/api/client"
 import { createClient } from "@/lib/supabase/client"
 import type { ClientPack } from "@/lib/types/database"
+import { canUseClientPackStatus } from "@/lib/packs"
 
 type BookingStep = "salon" | "service" | "time" | "info" | "confirm"
 
@@ -143,6 +144,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   const currentService = services?.find((s) => s.id === data.service)
   const currentEmployee = staff?.find((e) => e.id === data.employee)
   const salonEmployees = staff || []
+  const defaultClientProfile = useMemo(
+    () => clientPacks?.find((clientPack) => clientPack.client)?.client || null,
+    [clientPacks]
+  )
   const selectedClientPack = (clientPacks || []).find((clientPack) => clientPack.id === data.clientPackId)
   const selectedPackAllowedServiceIds = useMemo(
     () => new Set(selectedClientPack?.pack?.allowed_services || []),
@@ -164,8 +169,24 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     })
   }, [selectedClientPack, selectedPackAllowedServiceIds, services])
   const eligiblePacks = (clientPacks || []).filter((clientPack) =>
-    clientPack.remaining_sessions > 0 && clientPack.pack?.allowed_services?.includes(data.service)
+    clientPack.remaining_sessions > 0 &&
+    canUseClientPackStatus(clientPack.payment_status) &&
+    clientPack.pack?.allowed_services?.includes(data.service)
   )
+
+  useEffect(() => {
+    if (!defaultClientProfile) {
+      return
+    }
+
+    setData((current) => ({
+      ...current,
+      firstName: current.firstName || defaultClientProfile.first_name || "",
+      lastName: current.lastName || defaultClientProfile.last_name || "",
+      phone: current.phone || defaultClientProfile.phone || "",
+      email: current.email || defaultClientProfile.email || "",
+    }))
+  }, [defaultClientProfile])
 
   useEffect(() => {
     if (!data.clientPackId || !selectedClientPack) {
@@ -178,6 +199,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
     const isEligibleForSelectedService =
       selectedClientPack.remaining_sessions > 0 &&
+      canUseClientPackStatus(selectedClientPack.payment_status) &&
       selectedClientPack.pack?.allowed_services?.includes(data.service)
 
     if (!isEligibleForSelectedService) {
@@ -196,6 +218,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
     const isEligibleForSelectedService =
       selectedClientPack.remaining_sessions > 0 &&
+      canUseClientPackStatus(selectedClientPack.payment_status) &&
       selectedClientPack.pack?.allowed_services?.includes(data.service)
 
     if (isEligibleForSelectedService && data.paymentOption !== "pack") {
@@ -864,7 +887,9 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   <Label htmlFor="payment-pack" className="cursor-pointer flex-1 pointer-events-none">
                     <div className="font-medium">Utiliser un forfait</div>
                     <div className="text-sm text-muted-foreground">
-                      {eligiblePacks.length > 0 ? `${eligiblePacks.length} forfait(s) compatible(s) disponible(s).` : "Connectez-vous avec un compte client ayant un forfait compatible."}
+                      {eligiblePacks.length > 0
+                        ? `${eligiblePacks.length} forfait(s) compatible(s) disponible(s).`
+                        : "Aucun forfait utilisable pour cette prestation. Les forfaits impayés ou bloqués ne sont pas proposés."}
                     </div>
                   </Label>
                 </div>

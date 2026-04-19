@@ -13,8 +13,10 @@ export const PackSchema = z.object({
 export const PackPurchaseSchema = z.object({
   pack_id: z.string().uuid(),
   installment_count: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  customer_first_name: z.string().trim().min(2),
+  customer_last_name: z.string().trim().min(2),
+  customer_phone: z.string().trim().min(9),
   customer_email: z.string().email(),
-  customer_name: z.string().trim().min(1),
 })
 
 export function eurosToCents(amount: number) {
@@ -52,4 +54,8 @@ export function getPackPaymentStatus(installmentCount: number, paidInstallments:
   if (paidInstallments <= 0) return "pending"
   if (paidInstallments >= installmentCount) return "paid"
   return "partially_paid"
+}
+
+export function canUseClientPackStatus(status: string) {
+  return status === "active" || status === "paid" || status === "partially_paid"
 }

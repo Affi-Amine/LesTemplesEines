@@ -11,6 +11,7 @@ import { createBookableAppointment } from "@/lib/appointments/create"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
 import { ensureClientAccount } from "@/lib/client-auth"
 import { sendPackReadyEmail } from "@/lib/email/packs"
+import { sendPackPaymentFailedAdminEmail } from "@/lib/email/pack-alerts"
 import { getPackPaymentStatus } from "@/lib/packs"
 
 const GiftCardPayloadSchema = z.object({
@@ -26,7 +27,9 @@ const PackPayloadSchema = z.object({
   installment_count: z.number().int().min(1).max(3),
   installment_amounts: z.array(z.number().int().positive()).min(1),
   customer_email: z.string().email(),
-  customer_name: z.string().min(1),
+  customer_first_name: z.string().min(1),
+  customer_last_name: z.string().min(1),
+  customer_phone: z.string().min(1),
 })
 
 async function generateUniqueGiftCardCode(supabase: ReturnType<typeof createAdminClient>) {
@@ -224,7 +227,10 @@ async function handlePackCheckout(
 
   const { client } = await ensureClientAccount({
     email: payload.customer_email,
-    fullName: payload.customer_name,
+    fullName: `${payload.customer_first_name} ${payload.customer_last_name}`.trim(),
+    firstName: payload.customer_first_name,
+    lastName: payload.customer_last_name,
+    phone: payload.customer_phone,
   })
 
   const stripe = getStripeClient()
@@ -412,12 +418,37 @@ export async function POST(request: NextRequest) {
       const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : null
 
       if (subscriptionId) {
+        const { data: failedPack } = await supabase
+          .from("client_packs")
+          .select(`
+            *,
+            client:clients(*),
+            pack:packs(*)
+          `)
+          .eq("stripe_subscription_id", subscriptionId)
+          .maybeSingle()
+
         await supabase
           .from("client_packs")
           .update({
             payment_status: "failed",
           })
           .eq("stripe_subscription_id", subscriptionId)
+
+        if (failedPack) {
+          try {
+            await sendPackPaymentFailedAdminEmail({
+              clientEmail: failedPack.client?.email || null,
+              clientName: `${failedPack.client?.first_name || ""} ${failedPack.client?.last_name || ""}`.trim() || "Client inconnu",
+              clientPhone: failedPack.client?.phone || null,
+              packName: failedPack.pack?.name || "Forfait",
+              installmentCount: failedPack.installment_count || null,
+              paidInstallments: failedPack.paid_installments || null,
+            })
+          } catch (emailError) {
+            console.error("[stripe] Failed to send failed pack admin email:", emailError)
+          }
+        }
       }
     }
 

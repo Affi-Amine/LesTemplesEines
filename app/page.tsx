@@ -18,50 +18,50 @@ export default function Home() {
 
       <HomeServicesSection />
 
-      <section className="bg-muted/20 py-16 md:py-20">
+      <section className="bg-muted/20 py-14 md:py-20">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="mb-12 text-center md:mb-16">
+          <div className="mb-10 text-center md:mb-16">
             <span className="text-sm font-semibold text-primary tracking-widest uppercase">Pourquoi nous choisir</span>
-            <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">Une signature de soin sobre et raffinée</h2>
-            <p className="mx-auto max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+            <h2 className="mt-2 mb-3 text-3xl font-serif font-bold md:mb-4 md:text-5xl">Une signature de soin sobre et raffinée</h2>
+            <p className="mx-auto max-w-xl text-sm leading-7 text-muted-foreground sm:max-w-2xl sm:text-base">
               L&apos;inspiration est thaï, l&apos;expérience est tenue : un vrai calme, des gestes précis et des adresses cohérentes.
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="temple-panel temple-frame text-center group home-reveal home-reveal-delay-1 rounded-[1.5rem] p-8">
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 group-hover:-translate-y-1 transition-all">
-                <Users className="w-8 h-8 text-primary" />
+          <div className="grid gap-4 md:grid-cols-3 md:gap-8">
+            <div className="temple-panel temple-frame text-center group home-reveal home-reveal-delay-1 rounded-[1.25rem] p-6 md:rounded-[1.5rem] md:p-8">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 transition-all group-hover:-translate-y-1 group-hover:bg-primary/20 md:mb-6 md:h-16 md:w-16">
+                <Users className="h-7 w-7 text-primary md:h-8 md:w-8" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">Un geste thaï maîtrisé</h3>
-              <p className="text-muted-foreground leading-7">
+              <h3 className="mb-2 text-lg font-semibold md:mb-3 md:text-xl">Un geste thaï maîtrisé</h3>
+              <p className="text-sm leading-6 text-muted-foreground md:text-base md:leading-7">
                 Pressions, étirements et travail des lignes pour délier les tensions avec précision.
               </p>
             </div>
-            <div className="temple-panel temple-frame text-center group home-reveal home-reveal-delay-2 rounded-[1.5rem] p-8">
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 group-hover:-translate-y-1 transition-all">
-                <Sparkles className="w-8 h-8 text-primary" />
+            <div className="temple-panel temple-frame text-center group home-reveal home-reveal-delay-2 rounded-[1.25rem] p-6 md:rounded-[1.5rem] md:p-8">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 transition-all group-hover:-translate-y-1 group-hover:bg-primary/20 md:mb-6 md:h-16 md:w-16">
+                <Sparkles className="h-7 w-7 text-primary md:h-8 md:w-8" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">Un cadre calme et feutré</h3>
-              <p className="text-muted-foreground leading-7">Cabines silencieuses, linge soigné et temps de soin respecté du début à la fin.</p>
+              <h3 className="mb-2 text-lg font-semibold md:mb-3 md:text-xl">Un cadre calme et feutré</h3>
+              <p className="text-sm leading-6 text-muted-foreground md:text-base md:leading-7">Cabines silencieuses, linge soigné et temps de soin respecté du début à la fin.</p>
             </div>
-            <div className="temple-panel temple-frame text-center group home-reveal home-reveal-delay-3 rounded-[1.5rem] p-8">
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 group-hover:-translate-y-1 transition-all">
-                <MapPin className="w-8 h-8 text-primary" />
+            <div className="temple-panel temple-frame text-center group home-reveal home-reveal-delay-3 rounded-[1.25rem] p-6 md:rounded-[1.5rem] md:p-8">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 transition-all group-hover:-translate-y-1 group-hover:bg-primary/20 md:mb-6 md:h-16 md:w-16">
+                <MapPin className="h-7 w-7 text-primary md:h-8 md:w-8" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">Une exigence constante</h3>
-              <p className="text-muted-foreground leading-7">Le même niveau d&apos;attention dans chaque maison, de l&apos;accueil au soin.</p>
+              <h3 className="mb-2 text-lg font-semibold md:mb-3 md:text-xl">Une exigence constante</h3>
+              <p className="text-sm leading-6 text-muted-foreground md:text-base md:leading-7">Le même niveau d&apos;attention dans chaque maison, de l&apos;accueil au soin.</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="py-16 md:py-20">
+      <section className="py-14 md:py-20">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="temple-frame overflow-hidden rounded-[1.75rem] bg-[linear-gradient(135deg,rgba(214,171,89,0.96),rgba(171,122,47,0.92))] px-6 py-12 text-primary-foreground md:px-10">
-            <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="temple-frame overflow-hidden rounded-[1.5rem] bg-[linear-gradient(135deg,rgba(214,171,89,0.96),rgba(171,122,47,0.92))] px-5 py-10 text-primary-foreground md:rounded-[1.75rem] md:px-10 md:py-12">
+            <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
               <div className="text-center lg:text-left">
-                <h2 className="mb-4 text-3xl font-serif font-bold md:text-5xl">Choisissez votre moment</h2>
-                <p className="mx-auto max-w-2xl text-base opacity-90 md:text-lg lg:mx-0">
+                <h2 className="mb-3 text-3xl font-serif font-bold md:mb-4 md:text-5xl">Choisissez votre moment</h2>
+                <p className="mx-auto max-w-xl text-sm leading-7 opacity-90 md:max-w-2xl md:text-lg lg:mx-0">
                   Réservez en quelques instants le rituel qui convient à votre corps et à votre tempo.
                 </p>
               </div>

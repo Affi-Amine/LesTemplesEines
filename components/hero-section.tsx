@@ -30,31 +30,25 @@ export function HeroSection() {
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-4">
-        <div className="max-w-3xl space-y-6 sm:space-y-7 md:space-y-8">
+        <div className="max-w-3xl space-y-5 sm:space-y-7 md:space-y-8">
           <div className="home-reveal inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-background/35 px-3 py-2 backdrop-blur-sm sm:px-4">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
             <span className="truncate text-xs font-semibold uppercase tracking-[0.22em] text-primary sm:text-sm">Massage thaï à Paris</span>
           </div>
 
           <div className="home-reveal home-reveal-delay-1">
-            <h1 className="mb-4 max-w-4xl text-4xl font-serif font-bold leading-[0.95] text-foreground drop-shadow-[0_10px_30px_rgba(0,0,0,0.38)] sm:mb-5 sm:text-5xl md:text-6xl lg:text-7xl">
+            <h1 className="mb-4 max-w-4xl text-[2.55rem] font-serif font-bold leading-[0.94] text-foreground drop-shadow-[0_10px_30px_rgba(0,0,0,0.38)] sm:mb-5 sm:text-5xl md:text-6xl lg:text-7xl">
               Le massage thaï,
               <br />
               <span className="text-primary">détendre le corps et apaiser l’esprit.</span>
             </h1>
-            <p className="max-w-xl text-sm leading-relaxed text-[#d8cebf] sm:text-base md:text-lg">
-              Réservez votre soin, offrez une carte cadeau ou choisissez un forfait en quelques minutes, simplement et sans complication.
+            <p className="max-w-md text-sm leading-relaxed text-[#d8cebf] sm:max-w-lg sm:text-base md:text-lg">
+              Réservez votre soin, offrez une carte cadeau ou découvrez nos forfaits, simplement et sans complication.
             </p>
           </div>
 
-          <div className="home-reveal home-reveal-delay-2 flex flex-wrap gap-2.5 text-sm text-foreground/85">
-            <span className="rounded-full border border-primary/20 bg-background/30 px-3 py-2 backdrop-blur-sm">Rituels thaï traditionnels</span>
-            <span className="rounded-full border border-primary/20 bg-background/30 px-3 py-2 backdrop-blur-sm">Massages relaxants</span>
-            <span className="rounded-full border border-primary/20 bg-background/30 px-3 py-2 backdrop-blur-sm">Forfaits et cartes cadeaux</span>
-          </div>
-
           <div className="home-reveal home-reveal-delay-2 pt-2 sm:pt-4">
-            <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
+            <div className="grid gap-2.5 sm:grid-cols-3 sm:gap-4">
               <Button asChild size="lg" className="w-full bg-primary text-primary-foreground shadow-[0_14px_34px_rgba(214,171,89,0.18)] hover:bg-primary/90">
                 <Link href="/book" className="w-full">
                   Réserver
@@ -73,18 +67,18 @@ export function HeroSection() {
             </div>
           </div>
 
-          <div className="home-reveal home-reveal-delay-3 grid grid-cols-1 gap-3 border-t border-primary/10 pt-6 sm:grid-cols-3 sm:gap-4 sm:pt-8 md:max-w-2xl">
+          <div className="home-reveal home-reveal-delay-3 grid grid-cols-3 gap-3 border-t border-primary/10 pt-5 sm:gap-4 sm:pt-8 md:max-w-2xl">
             <div className="min-w-0">
-              <p className="text-2xl font-bold text-foreground">5</p>
-              <p className="text-sm text-muted-foreground">Adresses à Paris</p>
+              <p className="text-xl font-bold text-foreground sm:text-2xl">5</p>
+              <p className="text-xs leading-5 text-muted-foreground sm:text-sm">Adresses</p>
             </div>
             <div className="min-w-0">
-              <p className="text-2xl font-bold text-foreground">20 000+</p>
-              <p className="text-sm text-muted-foreground">Clients accueillis</p>
+              <p className="text-xl font-bold text-foreground sm:text-2xl">20 000+</p>
+              <p className="text-xs leading-5 text-muted-foreground sm:text-sm">Clients</p>
             </div>
             <div className="min-w-0">
-              <p className="text-2xl font-bold text-foreground">50+</p>
-              <p className="text-sm text-muted-foreground">Thérapeutes</p>
+              <p className="text-xl font-bold text-foreground sm:text-2xl">50+</p>
+              <p className="text-xs leading-5 text-muted-foreground sm:text-sm">Thérapeutes</p>
             </div>
           </div>
         </div>

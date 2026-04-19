@@ -111,25 +111,25 @@ export function HomeServicesSection() {
   }, [] as typeof services)
 
   return (
-    <section id="services" className="relative overflow-hidden py-20">
+      <section id="services" className="relative overflow-hidden py-16 sm:py-20">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(214,171,89,0.12),transparent_34%),linear-gradient(180deg,rgba(33,26,20,0.34)_0%,rgba(10,9,8,0)_100%)]" />
       <div className="absolute left-1/2 top-16 h-32 w-[38rem] -translate-x-1/2 rounded-full bg-primary/8 blur-3xl" />
       <div className="relative max-w-7xl mx-auto px-4">
-        <div className="mb-16 text-center">
+        <div className="mb-10 text-center sm:mb-16">
           <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos massages</span>
-          <h2 className="mt-2 mb-4 text-4xl font-serif font-bold md:text-5xl">Des rituels pensés pour chaque besoin</h2>
-          <p className="mx-auto max-w-2xl text-muted-foreground">
+          <h2 className="mt-2 mb-3 text-3xl font-serif font-bold sm:mb-4 sm:text-4xl md:text-5xl">Des rituels pensés pour chaque besoin</h2>
+          <p className="mx-auto max-w-xl text-sm leading-7 text-muted-foreground sm:max-w-2xl sm:text-base">
             Une carte sobre, portée par le geste thaï, pour apaiser, relâcher ou travailler plus en profondeur.
           </p>
         </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-5">
           {uniqueServices?.slice(0, 5).map((service, index) => (
             <Card
               key={service.id}
-              className={`group relative flex h-full flex-col gap-0 overflow-hidden rounded-[1.6rem] border border-primary/20 bg-[linear-gradient(180deg,rgba(35,28,22,0.96),rgba(23,19,16,0.98))] p-6 py-0 text-left shadow-[0_24px_50px_rgba(0,0,0,0.18)] transition-all duration-500 hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_28px_60px_rgba(214,171,89,0.12)] temple-frame home-reveal ${index === 0 ? "home-reveal-delay-1" : index === 1 ? "home-reveal-delay-2" : index === 2 ? "home-reveal-delay-3" : ""}`}
+              className={`group relative flex h-full flex-col gap-0 overflow-hidden rounded-[1.35rem] border border-primary/20 bg-[linear-gradient(180deg,rgba(35,28,22,0.96),rgba(23,19,16,0.98))] px-4 pb-4 pt-0 text-left shadow-[0_20px_40px_rgba(0,0,0,0.16)] transition-all duration-500 hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_28px_60px_rgba(214,171,89,0.12)] sm:rounded-[1.6rem] sm:p-6 sm:py-0 temple-frame home-reveal ${index === 0 ? "home-reveal-delay-1" : index === 1 ? "home-reveal-delay-2" : index === 2 ? "home-reveal-delay-3" : ""}`}
             >
               <div className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-              <div className="relative mb-5 mt-6 h-44 overflow-hidden rounded-[1.25rem] bg-muted">
+              <div className="relative mb-4 mt-4 h-36 overflow-hidden rounded-[1.1rem] bg-muted sm:mb-5 sm:mt-6 sm:h-44 sm:rounded-[1.25rem]">
                 {service.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -143,18 +143,18 @@ export function HomeServicesSection() {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(8,7,6,0.15)_50%,rgba(8,7,6,0.72)_100%)]" />
-                <div className="absolute left-4 top-4 rounded-full border border-primary/25 bg-background/55 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-primary backdrop-blur-sm">
+                <div className="absolute left-3 top-3 rounded-full border border-primary/25 bg-background/55 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-primary backdrop-blur-sm sm:left-4 sm:top-4 sm:px-3 sm:text-[11px] sm:tracking-[0.24em]">
                   {getServiceBadge(service.name, service.category)}
                 </div>
               </div>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-primary/80">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[11px] uppercase tracking-[0.16em] text-primary/80 sm:mb-4 sm:gap-3 sm:text-xs sm:tracking-[0.18em]">
                 <span>{service.duration_minutes} min</span>
                 <span>{(service.price_cents / 100).toFixed(2)}€</span>
               </div>
-              <h3 className="mb-3 min-h-[3.5rem] break-words text-lg font-semibold leading-snug text-foreground">
+              <h3 className="mb-2 min-h-[3rem] break-words text-base font-semibold leading-snug text-foreground sm:mb-3 sm:min-h-[3.5rem] sm:text-lg">
                 {service.name}
               </h3>
-              <p className="mb-5 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-muted-foreground">
+              <p className="mb-4 line-clamp-2 min-h-[3.5rem] text-sm leading-6 text-muted-foreground sm:mb-5 sm:line-clamp-3 sm:min-h-[4.5rem]">
                 {getServiceDescription(service.name, service.category, service.description)}
               </p>
               <Button asChild variant="outline" className="mt-auto w-full border-primary/20 bg-background/35 hover:bg-primary/8">

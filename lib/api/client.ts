@@ -16,6 +16,7 @@ export class APIError extends Error {
 
 export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = endpoint.startsWith("http") ? endpoint : `/api${endpoint}`
+  const startedAt = performance.now()
 
   const response = await fetch(url, {
     headers: {
@@ -23,6 +24,12 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Prom
       ...options?.headers,
     },
     ...options,
+  })
+  console.log("[api] fetchAPI", {
+    method: options?.method || "GET",
+    url,
+    status: response.status,
+    durationMs: Math.round(performance.now() - startedAt),
   })
 
   if (!response.ok) {
@@ -35,6 +42,7 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Prom
 
 export async function fetchAPIWithoutJSON(endpoint: string, options?: RequestInit): Promise<Response> {
   const url = endpoint.startsWith("http") ? endpoint : `/api${endpoint}`
+  const startedAt = performance.now()
 
   const response = await fetch(url, {
     headers: {
@@ -42,6 +50,12 @@ export async function fetchAPIWithoutJSON(endpoint: string, options?: RequestIni
       ...options?.headers,
     },
     ...options,
+  })
+  console.log("[api] fetchAPIWithoutJSON", {
+    method: options?.method || "GET",
+    url,
+    status: response.status,
+    durationMs: Math.round(performance.now() - startedAt),
   })
 
   if (!response.ok) {

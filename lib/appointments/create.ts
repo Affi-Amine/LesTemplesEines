@@ -40,6 +40,16 @@ export const BookableAppointmentSchema = z.object({
 type SupabaseClient = ReturnType<typeof createAdminClient>
 export type BookableAppointmentInput = z.infer<typeof BookableAppointmentSchema>
 
+function logAppointmentTiming(requestId: string | undefined, step: string, startedAt: number, details?: Record<string, unknown>) {
+  const durationMs = Date.now() - startedAt
+  console.log("[appointments:create]", {
+    requestId,
+    step,
+    durationMs,
+    ...details,
+  })
+}
+
 export async function resolveAppointmentTiming(
   supabase: SupabaseClient,
   input: Pick<BookableAppointmentInput, "service_id" | "start_time" | "end_time">
@@ -267,6 +277,7 @@ export async function createBookableAppointment(
   supabase: SupabaseClient,
   input: BookableAppointmentInput,
   options?: {
+    requestId?: string
     paymentRecord?: {
       method: string
       amount_cents: number
@@ -275,12 +286,24 @@ export async function createBookableAppointment(
     }
   }
 ) {
+  const requestId = options?.requestId
+  const totalStartedAt = Date.now()
+  const validateStartedAt = Date.now()
   const { endTime, allStaffIds, service } = await validateBookableAppointment(supabase, input)
+  logAppointmentTiming(requestId, "validateBookableAppointment", validateStartedAt, {
+    serviceId: input.service_id,
+    staffCount: allStaffIds.length,
+  })
+
+  const clientStartedAt = Date.now()
   const clientId = await resolveClientId(supabase, input)
+  logAppointmentTiming(requestId, "resolveClientId", clientStartedAt, { clientId })
+
   const primaryStaffId = input.staff_id || allStaffIds[0]
   const paymentStatus = input.payment_status || "unpaid"
   const paidAt = input.paid_at || (paymentStatus === "paid" ? new Date().toISOString() : null)
 
+  const insertAppointmentStartedAt = Date.now()
   const { data: appointment, error } = await supabase
     .from("appointments")
     .insert([{
@@ -312,7 +335,9 @@ export async function createBookableAppointment(
   if (error || !appointment) {
     throw new Error(error?.message || "Failed to create appointment")
   }
+  logAppointmentTiming(requestId, "insertAppointment", insertAppointmentStartedAt, { appointmentId: appointment.id })
 
+  const assignmentStartedAt = Date.now()
   const { error: assignmentError } = await supabase
     .from("appointment_assignments")
     .insert(allStaffIds.map((staffId) => ({
@@ -323,8 +348,13 @@ export async function createBookableAppointment(
   if (assignmentError) {
     throw new Error(assignmentError.message)
   }
+  logAppointmentTiming(requestId, "insertAssignments", assignmentStartedAt, {
+    appointmentId: appointment.id,
+    staffCount: allStaffIds.length,
+  })
 
   if (options?.paymentRecord && options.paymentRecord.amount_cents > 0) {
+    const paymentStartedAt = Date.now()
     const { error: paymentError } = await supabase
       .from("payments")
       .insert([{
@@ -338,16 +368,26 @@ export async function createBookableAppointment(
     if (paymentError) {
       throw new Error(paymentError.message)
     }
+    logAppointmentTiming(requestId, "insertPaymentRecord", paymentStartedAt, {
+      appointmentId: appointment.id,
+      amountCents: options.paymentRecord.amount_cents,
+    })
   }
 
   if (input.payment_method === "pack" && input.client_pack_id) {
+    const packValidationStartedAt = Date.now()
     await validateAndConsumePack(supabase, {
       clientPackId: input.client_pack_id,
       clientId,
       serviceId: input.service_id,
       appointmentId: appointment.id,
     })
+    logAppointmentTiming(requestId, "validateAndConsumePack", packValidationStartedAt, {
+      appointmentId: appointment.id,
+      clientPackId: input.client_pack_id,
+    })
 
+    const packPaymentStartedAt = Date.now()
     const { error: packPaymentError } = await supabase
       .from("payments")
       .insert([{
@@ -360,7 +400,16 @@ export async function createBookableAppointment(
     if (packPaymentError) {
       throw new Error(packPaymentError.message)
     }
+    logAppointmentTiming(requestId, "insertPackPayment", packPaymentStartedAt, {
+      appointmentId: appointment.id,
+      amountCents: service.price_cents,
+    })
   }
+
+  logAppointmentTiming(requestId, "total", totalStartedAt, {
+    appointmentId: appointment.id,
+    paymentMethod: input.payment_method || "on_site",
+  })
 
   return appointment
 }

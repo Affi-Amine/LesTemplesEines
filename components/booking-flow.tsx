@@ -471,10 +471,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             duration: 5000,
           })
 
-          // Redirect to success page after 2 seconds
-          setTimeout(() => {
-            router.push("/booking-success")
-          }, 2000)
+          router.push("/booking-success")
         },
         onError: (error: any) => {
           toast.error("Erreur lors de la réservation", {

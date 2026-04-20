@@ -2,7 +2,7 @@ export const runtime = "nodejs"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
 import { ClientDataSchema, createBookableAppointment } from "@/lib/appointments/create"
-import { type NextRequest, NextResponse } from "next/server"
+import { after, type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { fromZonedTime } from "date-fns-tz"
 
@@ -30,6 +30,22 @@ const AppointmentSchema = z.object({
 }).refine((data) => data.staff_id || (data.staff_ids && data.staff_ids.length > 0), {
   message: "At least one staff member must be assigned",
 })
+
+function scheduleAppointmentNotifications(appointment: any, context: string) {
+  after(async () => {
+    const startedAt = Date.now()
+    try {
+      await sendAppointmentBookedEmails(appointment)
+      console.log("[appointments] Notifications completed", {
+        context,
+        appointmentId: appointment?.id,
+        durationMs: Date.now() - startedAt,
+      })
+    } catch (error) {
+      console.error(`[appointments] Failed to send confirmation emails (${context}):`, error)
+    }
+  })
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -98,13 +114,23 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const requestStartedAt = Date.now()
+  const requestId = crypto.randomUUID()
   try {
     const body = await request.json()
+    console.log("[appointments] POST start", { requestId })
     const appointmentData = AppointmentSchema.parse(body)
+    console.log("[appointments] Parsed payload", {
+      requestId,
+      salonId: appointmentData.salon_id,
+      serviceId: appointmentData.service_id,
+      paymentMethod: appointmentData.payment_method || "on_site",
+    })
 
     const supabase = await createAdminClient()
 
     if (appointmentData.status !== "blocked") {
+      const createStartedAt = Date.now()
       const appointment = await createBookableAppointment(supabase, {
         salon_id: appointmentData.salon_id,
         client_id: appointmentData.client_id,
@@ -122,13 +148,21 @@ export async function POST(request: NextRequest) {
         amount_paid_cents: appointmentData.amount_paid_cents || 0,
         paid_at: appointmentData.paid_at,
         client_pack_id: appointmentData.client_pack_id,
+      }, {
+        requestId,
+      })
+      console.log("[appointments] createBookableAppointment completed", {
+        requestId,
+        appointmentId: appointment.id,
+        durationMs: Date.now() - createStartedAt,
       })
 
-      try {
-        await sendAppointmentBookedEmails(appointment)
-      } catch (emailError) {
-        console.error("[appointments] Failed to send confirmation emails:", emailError)
-      }
+      scheduleAppointmentNotifications(appointment, "bookable")
+      console.log("[appointments] POST success", {
+        requestId,
+        appointmentId: appointment.id,
+        durationMs: Date.now() - requestStartedAt,
+      })
 
       return NextResponse.json(appointment, { status: 201 })
     }
@@ -137,6 +171,7 @@ export async function POST(request: NextRequest) {
 
     // If client_data is provided instead of client_id, create or find client
     if (appointmentData.client_data && !clientId) {
+      const clientLookupStartedAt = Date.now()
       // Check if client already exists by phone
       const { data: existingClient } = await supabase
         .from("clients")
@@ -148,6 +183,7 @@ export async function POST(request: NextRequest) {
         clientId = existingClient.id
       } else {
         // Create new client
+        const clientInsertStartedAt = Date.now()
         const { data: newClient, error: clientError } = await supabase
           .from("clients")
           .insert([appointmentData.client_data])
@@ -167,7 +203,17 @@ export async function POST(request: NextRequest) {
             total_redeemed: 0,
           },
         ])
+        console.log("[appointments] Created client for blocked appointment", {
+          requestId,
+          clientId,
+          durationMs: Date.now() - clientInsertStartedAt,
+        })
       }
+      console.log("[appointments] Resolved blocked client", {
+        requestId,
+        clientId,
+        durationMs: Date.now() - clientLookupStartedAt,
+      })
     }
 
     if (!clientId && appointmentData.status !== "blocked") {
@@ -181,6 +227,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "End time is required when no service is specified" }, { status: 400 })
       }
 
+      const serviceTimingStartedAt = Date.now()
       // Get service duration
       const { data: service } = await supabase
         .from("services")
@@ -192,12 +239,18 @@ export async function POST(request: NextRequest) {
         const startDate = new Date(appointmentData.start_time)
         const endDate = new Date(startDate.getTime() + service.duration_minutes * 60000)
         endTime = endDate.toISOString()
+        console.log("[appointments] Resolved end_time", {
+          requestId,
+          durationMs: Date.now() - serviceTimingStartedAt,
+          durationMinutes: service.duration_minutes,
+        })
       } else {
         return NextResponse.json({ error: "Service not found" }, { status: 404 })
       }
     }
 
     if (appointmentData.service_id) {
+      const serviceSalonStartedAt = Date.now()
       const { data: serviceSalon, error: serviceSalonError } = await supabase
         .from("service_salons")
         .select("service_id")
@@ -212,6 +265,10 @@ export async function POST(request: NextRequest) {
       if (!serviceSalon) {
         return NextResponse.json({ error: "Ce service n'est pas disponible dans le salon sélectionné" }, { status: 400 })
       }
+      console.log("[appointments] Verified service salon mapping", {
+        requestId,
+        durationMs: Date.now() - serviceSalonStartedAt,
+      })
     }
 
     // Check for conflicts
@@ -219,6 +276,7 @@ export async function POST(request: NextRequest) {
     const allStaffIds = appointmentData.staff_ids || (primaryStaffId ? [primaryStaffId] : [])
 
     for (const staffId of allStaffIds) {
+      const legacyConflictStartedAt = Date.now()
       const { data: conflicts } = await supabase
         .from("appointments")
         .select("id")
@@ -230,8 +288,14 @@ export async function POST(request: NextRequest) {
       if (conflicts && conflicts.length > 0) {
         return NextResponse.json({ error: "Un ou plusieurs créneaux ne sont plus disponibles" }, { status: 409 })
       }
+      console.log("[appointments] Checked legacy conflicts", {
+        requestId,
+        staffId,
+        durationMs: Date.now() - legacyConflictStartedAt,
+      })
       
       // Also check multi-provider assignments table
+      const assignmentConflictStartedAt = Date.now()
       const { data: assignmentConflicts } = await supabase
         .from("appointment_assignments")
         .select("appointment_id")
@@ -254,6 +318,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Un ou plusieurs créneaux ne sont plus disponibles" }, { status: 409 })
          }
       }
+      console.log("[appointments] Checked assignment conflicts", {
+        requestId,
+        staffId,
+        durationMs: Date.now() - assignmentConflictStartedAt,
+      })
     }
 
     // Create appointment
@@ -272,6 +341,7 @@ export async function POST(request: NextRequest) {
       paid_at: appointmentData.paid_at || null,
     }
 
+    const appointmentInsertStartedAt = Date.now()
     const { data: appointment, error } = await supabase
       .from("appointments")
       .insert([appointmentPayload])
@@ -285,6 +355,11 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) throw error
+    console.log("[appointments] Inserted blocked appointment", {
+      requestId,
+      appointmentId: appointment.id,
+      durationMs: Date.now() - appointmentInsertStartedAt,
+    })
 
     // Insert multi-provider assignments
     if (allStaffIds.length > 0) {
@@ -293,6 +368,7 @@ export async function POST(request: NextRequest) {
         staff_id: sid
       }))
       
+      const assignmentInsertStartedAt = Date.now()
       const { error: assignError } = await supabase
         .from("appointment_assignments")
         .insert(assignments)
@@ -300,22 +376,29 @@ export async function POST(request: NextRequest) {
       if (assignError) {
         console.error("Failed to assign extra staff", assignError)
         // Non-fatal, but logged
+      } else {
+        console.log("[appointments] Inserted blocked assignments", {
+          requestId,
+          appointmentId: appointment.id,
+          staffCount: allStaffIds.length,
+          durationMs: Date.now() - assignmentInsertStartedAt,
+        })
       }
     }
-
-
-    // Fire booking emails (client + admin). Errors are logged but do not fail the request.
-    try {
-      console.log("[email] Triggering booking emails for appointment:", appointment.id)
-      await sendAppointmentBookedEmails(appointment)
-      console.log("[email] Booking emails dispatched for:", appointment.id)
-    } catch (emailError) {
-      console.error("[email] Error sending booking emails:", emailError)
-    }
+    scheduleAppointmentNotifications(appointment, "legacy")
+    console.log("[appointments] POST success", {
+      requestId,
+      appointmentId: appointment.id,
+      durationMs: Date.now() - requestStartedAt,
+    })
 
     return NextResponse.json(appointment, { status: 201 })
   } catch (error: any) {
-    console.error("[v0] Create appointment error:", error)
+    console.error("[v0] Create appointment error:", {
+      requestId,
+      durationMs: Date.now() - requestStartedAt,
+      error,
+    })
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }

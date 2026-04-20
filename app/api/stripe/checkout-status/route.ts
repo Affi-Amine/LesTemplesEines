@@ -4,18 +4,27 @@ import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 export async function GET(request: NextRequest) {
+  const startedAt = Date.now()
+  const requestId = crypto.randomUUID()
   try {
     const sessionId = request.nextUrl.searchParams.get("session_id")
     if (!sessionId) {
       return NextResponse.json({ error: "session_id is required" }, { status: 400 })
     }
+    console.log("[stripe] checkout-status start", { requestId, sessionId })
 
     const supabase = createAdminClient()
+    const sessionLookupStartedAt = Date.now()
     const { data: checkoutSession, error } = await supabase
       .from("stripe_checkout_sessions")
       .select("*")
       .eq("stripe_checkout_session_id", sessionId)
       .maybeSingle()
+    console.log("[stripe] checkout-status session lookup", {
+      requestId,
+      sessionId,
+      durationMs: Date.now() - sessionLookupStartedAt,
+    })
 
     if (error) throw error
     if (!checkoutSession) {
@@ -29,6 +38,7 @@ export async function GET(request: NextRequest) {
     let pack = null
 
     if (checkoutSession.appointment_id) {
+      const appointmentLookupStartedAt = Date.now()
       const { data } = await supabase
         .from("appointments")
         .select(`
@@ -44,9 +54,15 @@ export async function GET(request: NextRequest) {
         .eq("id", checkoutSession.appointment_id)
         .maybeSingle()
       appointment = data || null
+      console.log("[stripe] checkout-status appointment lookup", {
+        requestId,
+        appointmentId: checkoutSession.appointment_id,
+        durationMs: Date.now() - appointmentLookupStartedAt,
+      })
     }
 
     if (checkoutSession.gift_card_id) {
+      const giftCardLookupStartedAt = Date.now()
       const { data } = await supabase
         .from("gift_cards")
         .select(`
@@ -61,9 +77,15 @@ export async function GET(request: NextRequest) {
         .eq("id", checkoutSession.gift_card_id)
         .maybeSingle()
       giftCard = data || null
+      console.log("[stripe] checkout-status gift-card lookup", {
+        requestId,
+        giftCardId: checkoutSession.gift_card_id,
+        durationMs: Date.now() - giftCardLookupStartedAt,
+      })
     }
 
     if (checkoutSession.client_pack_id) {
+      const clientPackLookupStartedAt = Date.now()
       const { data } = await supabase
         .from("client_packs")
         .select(`
@@ -75,9 +97,15 @@ export async function GET(request: NextRequest) {
 
       clientPack = data || null
       pack = data?.pack || null
+      console.log("[stripe] checkout-status client-pack lookup", {
+        requestId,
+        clientPackId: checkoutSession.client_pack_id,
+        durationMs: Date.now() - clientPackLookupStartedAt,
+      })
     }
 
     if (!clientPack && checkoutSession.checkout_type === "pack") {
+      const fallbackPackLookupStartedAt = Date.now()
       const { data } = await supabase
         .from("client_packs")
         .select(`
@@ -91,6 +119,10 @@ export async function GET(request: NextRequest) {
 
       clientPack = data || null
       pack = data?.pack || pack
+      console.log("[stripe] checkout-status fallback client-pack lookup", {
+        requestId,
+        durationMs: Date.now() - fallbackPackLookupStartedAt,
+      })
     }
 
     const payload = checkoutSession.payload && typeof checkoutSession.payload === "object"
@@ -101,6 +133,7 @@ export async function GET(request: NextRequest) {
     const payloadPackId = typeof payload?.pack_id === "string" ? payload.pack_id : null
 
     if (payloadServiceId) {
+      const serviceLookupStartedAt = Date.now()
       const { data } = await supabase
         .from("services")
         .select("id, name, duration_minutes, price_cents")
@@ -108,9 +141,15 @@ export async function GET(request: NextRequest) {
         .maybeSingle()
 
       service = data || null
+      console.log("[stripe] checkout-status payload service lookup", {
+        requestId,
+        serviceId: payloadServiceId,
+        durationMs: Date.now() - serviceLookupStartedAt,
+      })
     }
 
     if (!pack && payloadPackId) {
+      const packLookupStartedAt = Date.now()
       const { data } = await supabase
         .from("packs")
         .select("*")
@@ -118,12 +157,24 @@ export async function GET(request: NextRequest) {
         .maybeSingle()
 
       pack = data || null
+      console.log("[stripe] checkout-status payload pack lookup", {
+        requestId,
+        packId: payloadPackId,
+        durationMs: Date.now() - packLookupStartedAt,
+      })
     }
 
     const resolvedStatus =
       checkoutSession.checkout_type === "pack" && clientPack
         ? "completed"
         : checkoutSession.status
+
+    console.log("[stripe] checkout-status success", {
+      requestId,
+      sessionId,
+      status: resolvedStatus,
+      durationMs: Date.now() - startedAt,
+    })
 
     return NextResponse.json({
       session_id: checkoutSession.stripe_checkout_session_id,
@@ -148,7 +199,11 @@ export async function GET(request: NextRequest) {
       client_pack: clientPack,
     })
   } catch (error) {
-    console.error("[stripe] Checkout status error:", error)
+    console.error("[stripe] Checkout status error:", {
+      requestId,
+      durationMs: Date.now() - startedAt,
+      error,
+    })
     return NextResponse.json({ error: "Failed to fetch checkout status" }, { status: 500 })
   }
 }

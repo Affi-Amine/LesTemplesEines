@@ -1,6 +1,6 @@
 export const runtime = "nodejs"
 
-import { NextRequest, NextResponse } from "next/server"
+import { after, NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { z } from "zod"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -198,11 +198,13 @@ async function handleAppointmentCheckout(
     stripe_payment_intent_id: typeof checkoutSession.payment_intent === "string" ? checkoutSession.payment_intent : null,
   })
 
-  try {
-    await sendAppointmentBookedEmails(appointment)
-  } catch (emailError) {
-    console.error("[stripe] Failed to send appointment emails:", emailError)
-  }
+  after(async () => {
+    try {
+      await sendAppointmentBookedEmails(appointment)
+    } catch (emailError) {
+      console.error("[stripe] Failed to send appointment emails:", emailError)
+    }
+  })
 }
 
 async function handlePackCheckout(
@@ -292,6 +294,8 @@ async function handlePackCheckout(
 }
 
 export async function POST(request: NextRequest) {
+  const requestStartedAt = Date.now()
+  const requestId = crypto.randomUUID()
   if (!stripeWebhookSecret) {
     return NextResponse.json({ error: "STRIPE_WEBHOOK_SECRET is not configured" }, { status: 500 })
   }
@@ -306,14 +310,26 @@ export async function POST(request: NextRequest) {
     const stripe = getStripeClient()
     const event = stripe.webhooks.constructEvent(body, signature, stripeWebhookSecret)
     const supabase = createAdminClient()
+    console.log("[stripe] webhook received", {
+      requestId,
+      eventType: event.type,
+      durationMs: Date.now() - requestStartedAt,
+    })
 
     if (event.type === "checkout.session.completed") {
+      const eventStartedAt = Date.now()
       const checkoutSession = event.data.object as Stripe.Checkout.Session
+      const sessionLookupStartedAt = Date.now()
       const { data: storedSession, error } = await supabase
         .from("stripe_checkout_sessions")
         .select("*")
         .eq("stripe_checkout_session_id", checkoutSession.id)
         .maybeSingle()
+      console.log("[stripe] webhook session lookup", {
+        requestId,
+        sessionId: checkoutSession.id,
+        durationMs: Date.now() - sessionLookupStartedAt,
+      })
 
       if (error) throw error
       if (!storedSession) {
@@ -330,6 +346,7 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        const processingStartedAt = Date.now()
         if (storedSession.checkout_type === "gift_card") {
           await handleGiftCardCheckout(supabase, checkoutSession, storedSession)
         } else if (storedSession.checkout_type === "appointment") {
@@ -337,13 +354,25 @@ export async function POST(request: NextRequest) {
         } else if (storedSession.checkout_type === "pack") {
           await handlePackCheckout(supabase, checkoutSession, storedSession)
         }
+        console.log("[stripe] webhook processing completed", {
+          requestId,
+          sessionId: checkoutSession.id,
+          checkoutType: storedSession.checkout_type,
+          durationMs: Date.now() - processingStartedAt,
+        })
       } catch (processingError) {
         console.error("[stripe] Webhook processing error:", processingError)
         await markCheckoutSession(supabase, checkoutSession.id, { status: "failed" })
       }
+      console.log("[stripe] checkout.session.completed handled", {
+        requestId,
+        sessionId: checkoutSession.id,
+        durationMs: Date.now() - eventStartedAt,
+      })
     }
 
     if (event.type === "payment_intent.succeeded") {
+      const eventStartedAt = Date.now()
       const paymentIntent = event.data.object as Stripe.PaymentIntent
 
       if (typeof paymentIntent.metadata?.appointment_id === "string" && paymentIntent.metadata.appointment_id) {
@@ -373,9 +402,15 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq("stripe_payment_intent_id", paymentIntent.id)
+      console.log("[stripe] payment_intent.succeeded handled", {
+        requestId,
+        paymentIntentId: paymentIntent.id,
+        durationMs: Date.now() - eventStartedAt,
+      })
     }
 
     if (event.type === "invoice.paid") {
+      const eventStartedAt = Date.now()
       const invoice = event.data.object as any
       const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : null
 
@@ -411,9 +446,14 @@ export async function POST(request: NextRequest) {
             .eq("id", clientPack.id)
         }
       }
+      console.log("[stripe] invoice.paid handled", {
+        requestId,
+        durationMs: Date.now() - eventStartedAt,
+      })
     }
 
     if (event.type === "invoice.payment_failed") {
+      const eventStartedAt = Date.now()
       const invoice = event.data.object as any
       const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : null
 
@@ -450,16 +490,36 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+      console.log("[stripe] invoice.payment_failed handled", {
+        requestId,
+        durationMs: Date.now() - eventStartedAt,
+      })
     }
 
     if (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed") {
+      const eventStartedAt = Date.now()
       const checkoutSession = event.data.object as Stripe.Checkout.Session
       await markCheckoutSession(createAdminClient(), checkoutSession.id, { status: "failed" })
+      console.log("[stripe] checkout session failure handled", {
+        requestId,
+        sessionId: checkoutSession.id,
+        eventType: event.type,
+        durationMs: Date.now() - eventStartedAt,
+      })
     }
 
+    console.log("[stripe] webhook success", {
+      requestId,
+      eventType: event.type,
+      durationMs: Date.now() - requestStartedAt,
+    })
     return NextResponse.json({ received: true })
   } catch (error) {
-    console.error("[stripe] Webhook error:", error)
+    console.error("[stripe] Webhook error:", {
+      requestId,
+      durationMs: Date.now() - requestStartedAt,
+      error,
+    })
     return NextResponse.json({ error: "Webhook error" }, { status: 400 })
   }
 }

@@ -12,6 +12,37 @@ function randomPassword() {
   return `${Math.random().toString(36).slice(2)}A!9${Date.now().toString(36)}`
 }
 
+async function findAuthUserByEmail(email: string) {
+  const supabase = createAdminClient()
+  let page = 1
+  const perPage = 200
+
+  while (true) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage,
+    })
+
+    if (error) {
+      throw error
+    }
+
+    const users = data?.users || []
+    const matchingUser = users.find((user) => user.email?.trim().toLowerCase() === email)
+
+    if (matchingUser) {
+      return matchingUser
+    }
+
+    const nextPage = data?.nextPage
+    if (!nextPage || users.length === 0) {
+      return null
+    }
+
+    page = nextPage
+  }
+}
+
 async function sendClientPasswordEmail(params: {
   email: string
   firstName: string
@@ -154,9 +185,12 @@ export async function ensureClientAuthUser(params: {
     },
   })
 
-  const authUser = createUserResult.data.user
+  const alreadyExists = Boolean(
+    createUserResult.error && String(createUserResult.error.message).toLowerCase().includes("already")
+  )
+  const authUser = createUserResult.data.user || (alreadyExists ? await findAuthUserByEmail(normalizedEmail) : null)
 
-  if (createUserResult.error && !String(createUserResult.error.message).toLowerCase().includes("already")) {
+  if (createUserResult.error && !alreadyExists) {
     throw createUserResult.error
   }
 

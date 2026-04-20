@@ -1,12 +1,26 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes } from "date-fns"
-import { fromZonedTime } from "date-fns-tz"
+import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
 
 const TIMEZONE = "Europe/Paris"
 
 interface RouteContext {
   params: Promise<{ staff_id: string }>
+}
+
+function ceilToNextQuarter(date: Date) {
+  const rounded = new Date(date)
+  rounded.setSeconds(0, 0)
+
+  const minutes = rounded.getMinutes()
+  const remainder = minutes % 15
+
+  if (remainder !== 0) {
+    rounded.setMinutes(minutes + (15 - remainder))
+  }
+
+  return rounded
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
@@ -129,7 +143,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
       ...(assignments?.map((a: any) => a.appointment) || [])
     ]
 
-    // Generate time slots (every 30 minutes)
+    const todayInParis = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd")
+    const isTodayInParis = dateParam === todayInParis
+    const nowInParis = toZonedTime(new Date(), TIMEZONE)
+
+    // Generate time slots (every 15 minutes)
     const slotInterval = 15 // minutes
     const availableSlots: Array<{ start: string; end: string; available_staff: string[] }> = []
 
@@ -143,6 +161,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
         const periodEnd = fromZonedTime(`${dateParam} ${cleanEnd}:00`, TIMEZONE)
 
       let currentSlot = periodStart
+
+      if (isTodayInParis && currentSlot < nowInParis) {
+        currentSlot = ceilToNextQuarter(nowInParis)
+      }
 
       while (currentSlot < periodEnd) {
         const slotEnd = addMinutes(currentSlot, serviceDuration)

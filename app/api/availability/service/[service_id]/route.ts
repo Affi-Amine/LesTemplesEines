@@ -1,12 +1,26 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes, format, areIntervalsOverlapping } from "date-fns"
-import { fromZonedTime } from "date-fns-tz"
+import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
 
 const TIMEZONE = "Europe/Paris"
 
 interface RouteContext {
   params: Promise<{ service_id: string }>
+}
+
+function ceilToNextQuarter(date: Date) {
+  const rounded = new Date(date)
+  rounded.setSeconds(0, 0)
+
+  const minutes = rounded.getMinutes()
+  const remainder = minutes % 15
+
+  if (remainder !== 0) {
+    rounded.setMinutes(minutes + (15 - remainder))
+  }
+
+  return rounded
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
@@ -187,7 +201,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // 5. Find intersection slots
     const availableSlots: Array<{start: string, end: string, available_staff: string[]}> = []
     
+    const todayInParis = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd")
+    const isTodayInParis = dateParam === todayInParis
+    const nowInParis = toZonedTime(new Date(), TIMEZONE)
+
     let currentTime = dayStart
+    if (isTodayInParis && currentTime < nowInParis) {
+      currentTime = ceilToNextQuarter(nowInParis)
+    }
     // Step by 15 minutes (or 30?)
     const stepMinutes = 15
 

@@ -13,6 +13,8 @@ const ClientSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const search = request.nextUrl.searchParams.get("search")
+    const limitParam = request.nextUrl.searchParams.get("limit")
+    const limit = Math.min(Math.max(Number.parseInt(limitParam || "20", 10) || 20, 1), 50)
 
     const supabase = await createAdminClient()
 
@@ -31,7 +33,31 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    return NextResponse.json(clients)
+    if (!search) {
+      return NextResponse.json((clients || []).slice(0, limit))
+    }
+
+    const normalizedSearch = search.trim().toLowerCase()
+    const scoreClient = (client: any) => {
+      const fields = [
+        client.first_name,
+        client.last_name,
+        client.phone,
+        client.email,
+      ]
+        .filter(Boolean)
+        .map((value: string) => value.toLowerCase())
+
+      if (fields.some((value) => value.startsWith(normalizedSearch))) return 0
+      if (fields.some((value) => value.includes(normalizedSearch))) return 1
+      return 2
+    }
+
+    const rankedClients = [...(clients || [])]
+      .sort((a, b) => scoreClient(a) - scoreClient(b))
+      .slice(0, limit)
+
+    return NextResponse.json(rankedClients)
   } catch (error) {
     console.error("[v0] Get clients error:", error)
     return NextResponse.json({ error: "Failed to fetch clients" }, { status: 500 })

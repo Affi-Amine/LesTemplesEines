@@ -2,7 +2,11 @@ function formatDateTime(iso?: string) {
   if (!iso) return ""
   try {
     const dt = new Date(iso)
-    return new Intl.DateTimeFormat("fr-FR", { dateStyle: "full", timeStyle: "short" }).format(dt)
+    return new Intl.DateTimeFormat("fr-FR", {
+      dateStyle: "full",
+      timeStyle: "short",
+      timeZone: "Europe/Paris",
+    }).format(dt)
   } catch {
     return iso
   }

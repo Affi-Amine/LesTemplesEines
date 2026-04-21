@@ -32,20 +32,20 @@ interface Appointment {
   status: string
   salon_id: string
   staff_id?: string
-  client: {
+  client?: {
     first_name: string
     last_name: string
   }
-  staff: {
+  staff?: {
     id: string
     first_name: string
     last_name: string
   }
-  service: {
+  service?: {
     name: string
     duration_minutes: number
   }
-  salon: {
+  salon?: {
     name: string
   }
 }
@@ -81,6 +81,11 @@ function WeekView({
 
       return aptHour === targetHour
     })
+  }
+
+  const getAppointmentTitle = (appointment: Appointment) => {
+    if (appointment.status === "blocked") return "Créneau bloqué"
+    return `${appointment.client?.first_name || "Client"} ${appointment.client?.last_name?.[0] || "I"}.`
   }
 
   const calculateDurationMinutes = (startTime: string, endTime: string) => {
@@ -202,10 +207,10 @@ function WeekView({
                               <GripVertical className="absolute right-0.5 top-0.5 w-3 h-3 text-muted-foreground/50" />
                             )}
                             <div className="font-medium truncate text-[10px]">
-                              {appointment.client?.first_name || 'Client'} {appointment.client?.last_name?.[0] || 'I'}.
+                              {getAppointmentTitle(appointment)}
                             </div>
                             <div className="truncate text-[9px]">
-                              {appointment.service?.name || 'Service'}
+                              {appointment.service?.name || (appointment.status === "blocked" ? "Indisponible" : "Service")}
                             </div>
                             {position.height >= 30 && (
                               <div className="truncate text-[9px] font-medium">
@@ -255,6 +260,11 @@ function DayView({
 
       return aptHour === targetHour
     })
+  }
+
+  const getAppointmentTitle = (appointment: Appointment) => {
+    if (appointment.status === "blocked") return "Créneau bloqué"
+    return `${appointment.client?.first_name || "Client"} ${appointment.client?.last_name || "Inconnu"}`
   }
 
   const calculateDurationMinutes = (startTime: string, endTime: string) => {
@@ -359,7 +369,7 @@ function DayView({
                         )}
                         <div className="flex justify-between items-start gap-2">
                           <div className="font-medium text-sm truncate">
-                            {appointment.client?.first_name || 'Client'} {appointment.client?.last_name || 'Inconnu'}
+                            {getAppointmentTitle(appointment)}
                           </div>
                           <div className="text-xs text-muted-foreground font-medium whitespace-nowrap">
                             {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")}
@@ -368,11 +378,11 @@ function DayView({
                         {position.height >= 40 && (
                           <>
                             <div className="text-xs text-muted-foreground truncate mt-1">
-                              {appointment.service.name}
+                              {appointment.service?.name || (appointment.status === "blocked" ? "Indisponible" : "Service")}
                             </div>
                             {position.height >= 55 && (
                               <div className="text-xs text-muted-foreground truncate">
-                                {appointment.staff.first_name} {appointment.staff.last_name}
+                                {appointment.staff?.first_name || "Prestataire"} {appointment.staff?.last_name || ""}
                               </div>
                             )}
                           </>
@@ -788,7 +798,7 @@ export default function CalendrierPage() {
                                 className={`text-xs p-1.5 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getStatusColor(appointment.status)}`}
                                 onClick={() => handleAppointmentClick(appointment)}
                                 title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}
-Service: ${appointment.service?.name || 'Service Inconnu'}
+Service: ${appointment.service?.name || (appointment.status === "blocked" ? 'Créneau bloqué' : 'Service Inconnu')}
 Thérapeute : ${appointment.staff?.first_name || 'Inconnu'} ${appointment.staff?.last_name || ''}
 Salon: ${appointment.salon?.name || 'Salon Inconnu'}
 Statut: ${getStatusLabel(appointment.status)}`}
@@ -797,10 +807,12 @@ Statut: ${getStatusLabel(appointment.status)}`}
                                   {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}
                                 </div>
                                 <div className="truncate">
-                                  {appointment.client?.first_name || 'Client'} {appointment.client?.last_name || 'Inconnu'}
+                                  {appointment.status === "blocked"
+                                    ? "Créneau bloqué"
+                                    : `${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}`}
                                 </div>
                                 <div className="truncate text-xs opacity-75">
-                                  {appointment.service?.name || 'Service Inconnu'}
+                                  {appointment.service?.name || (appointment.status === "blocked" ? "Indisponible" : 'Service Inconnu')}
                                 </div>
                               </div>
                             ))}
@@ -910,13 +922,15 @@ Statut: ${getStatusLabel(appointment.status)}`}
       {/* Drag Overlay for visual feedback */}
       <DragOverlay>
         {activeAppointment ? (
-          <div className={`text-xs p-2 rounded border shadow-lg bg-white/90 backdrop-blur ${getStatusColor(activeAppointment.status)}`}>
-            <div className="font-medium">
-              {activeAppointment.client?.first_name} {activeAppointment.client?.last_name?.[0]}.
-            </div>
-            <div className="truncate text-muted-foreground">
-              {activeAppointment.service?.name}
-            </div>
+            <div className={`text-xs p-2 rounded border shadow-lg bg-white/90 backdrop-blur ${getStatusColor(activeAppointment.status)}`}>
+              <div className="font-medium">
+              {activeAppointment.status === "blocked"
+                ? "Créneau bloqué"
+                : `${activeAppointment.client?.first_name || "Client"} ${activeAppointment.client?.last_name?.[0] || "I"}.`}
+              </div>
+              <div className="truncate text-muted-foreground">
+              {activeAppointment.service?.name || (activeAppointment.status === "blocked" ? "Indisponible" : "Service")}
+              </div>
             <div className="text-[10px] font-medium">
               {formatInTimeZone(activeAppointment.start_time, "Europe/Paris", "HH:mm")}
             </div>

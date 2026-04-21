@@ -3,6 +3,8 @@ import { clientAppointmentBookedSubject, clientAppointmentBookedHtml } from "./t
 import { adminAppointmentBookedSubject, adminAppointmentBookedHtml } from "./templates/appointment-new-booking-admin"
 import { sendSms, isSmsEnabled } from "./templates/sms"
 
+const APPOINTMENT_TIMEZONE = "Europe/Paris"
+
 export async function sendAppointmentBookedEmails(appointment: any) {
 
   const salonName = appointment?.salon?.name
@@ -55,7 +57,11 @@ export async function sendAppointmentBookedEmails(appointment: any) {
     try {
       if (appointment?.start_time) {
         const dt = new Date(appointment.start_time)
-        when = dt.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })
+        when = dt.toLocaleString("fr-FR", {
+          dateStyle: "short",
+          timeStyle: "short",
+          timeZone: APPOINTMENT_TIMEZONE,
+        })
       }
     } catch {
       when = appointment?.start_time ?? ""

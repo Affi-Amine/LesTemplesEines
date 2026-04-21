@@ -31,26 +31,26 @@ interface BookingDetailsModalProps {
     service_id?: string
     staff_id?: string
     assignments?: any[]
-    client: {
+    client?: {
       first_name: string
       last_name: string
       phone?: string
       email?: string
     }
-    staff: {
+    staff?: {
       id?: string
       first_name: string
       last_name: string
       role?: string
       phone?: string
     }
-    service: {
+    service?: {
       id?: string
       name: string
       duration?: number
       price?: number
     }
-    salon: {
+    salon?: {
       id?: string
       name: string
       address?: string
@@ -215,6 +215,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
       case "completed": return "bg-blue-100 text-blue-800 border-blue-200"
       case "cancelled": return "bg-red-100 text-red-800 border-red-200"
       case "no_show": return "bg-gray-100 text-gray-800 border-gray-200"
+      case "blocked": return "bg-gray-100 text-gray-800 border-gray-200"
       default: return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
@@ -226,6 +227,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
       case "completed": return "Terminé"
       case "cancelled": return "Annulé"
       case "no_show": return "Absent"
+      case "blocked": return "Bloqué"
       default: return status
     }
   }
@@ -400,7 +402,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
                 Date
               </div>
               <p className="text-lg font-semibold">
-                {format(new Date(appointment.start_time), "EEEE d MMMM yyyy", { locale: fr })}
+                {formatInTimeZone(appointment.start_time, "Europe/Paris", "EEEE d MMMM yyyy", { locale: fr })}
               </p>
             </div>
             <div className="space-y-2">
@@ -409,37 +411,41 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
                 Heure
               </div>
               <p className="text-lg font-semibold">
-                {format(new Date(appointment.start_time), "HH:mm")} - {format(new Date(appointment.end_time), "HH:mm")}
+                {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")}
               </p>
             </div>
           </div>
 
-          <Separator />
+          {appointment.client && (
+            <>
+              <Separator />
 
-          {/* Client Information */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <User className="w-4 h-4" />
-              Client
-            </div>
-            <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-              <p className="font-semibold text-lg">
-                {appointment.client.first_name} {appointment.client.last_name}
-              </p>
-              {appointment.client.phone && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Phone className="w-4 h-4" />
-                  <span>{appointment.client.phone}</span>
+              {/* Client Information */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <User className="w-4 h-4" />
+                  Client
                 </div>
-              )}
-              {appointment.client.email && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Mail className="w-4 h-4" />
-                  <span>{appointment.client.email}</span>
+                <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                  <p className="font-semibold text-lg">
+                    {appointment.client.first_name} {appointment.client.last_name}
+                  </p>
+                  {appointment.client.phone && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="w-4 h-4" />
+                      <span>{appointment.client.phone}</span>
+                    </div>
+                  )}
+                  {appointment.client.email && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Mail className="w-4 h-4" />
+                      <span>{appointment.client.email}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            </>
+          )}
 
           <Separator />
 
@@ -451,12 +457,12 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
             </div>
             <div className="bg-muted/50 p-4 rounded-lg space-y-2">
               <p className="font-semibold text-lg">
-                {appointment.staff.first_name} {appointment.staff.last_name}
+                {appointment.staff?.first_name || "Prestataire"} {appointment.staff?.last_name || ""}
               </p>
-              {appointment.staff.role && (
+              {appointment.staff?.role && (
                 <p className="text-sm text-muted-foreground">{appointment.staff.role}</p>
               )}
-              {appointment.staff.phone && (
+              {appointment.staff?.phone && (
                 <div className="flex items-center gap-2 text-sm">
                   <Phone className="w-4 h-4" />
                   <span>{appointment.staff.phone}</span>
@@ -474,12 +480,12 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
               Service
             </div>
             <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-              <p className="font-semibold text-lg">{appointment.service.name}</p>
+              <p className="font-semibold text-lg">{appointment.service?.name || "Créneau bloqué"}</p>
               <div className="flex gap-4 text-sm">
-                {appointment.service.duration && (
+                {appointment.service?.duration && (
                   <span>Durée: {formatDuration(appointment.service.duration)}</span>
                 )}
-                {appointment.service.price && (
+                {appointment.service?.price && (
                   <span>Prix: {formatPrice(appointment.service.price)}</span>
                 )}
               </div>
@@ -495,14 +501,14 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
               Salon
             </div>
             <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-              <p className="font-semibold text-lg">{appointment.salon.name}</p>
-              {appointment.salon.address && (
+              <p className="font-semibold text-lg">{appointment.salon?.name || "Salon"}</p>
+              {appointment.salon?.address && (
                 <p className="text-sm">
                   {appointment.salon.address}
                   {appointment.salon.city && `, ${appointment.salon.city}`}
                 </p>
               )}
-              {appointment.salon.phone && (
+              {appointment.salon?.phone && (
                 <div className="flex items-center gap-2 text-sm">
                   <Phone className="w-4 h-4" />
                   <span>{appointment.salon.phone}</span>

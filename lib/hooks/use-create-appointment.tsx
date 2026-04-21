@@ -17,14 +17,14 @@ interface CreateAppointmentData {
   salon_id: string
   staff_id?: string
   staff_ids?: string[]
-  service_id: string
+  service_id?: string
   start_time: string
   end_time?: string
   client_id?: string
   client_data?: ClientData
   client_notes?: string
   notes?: string
-  status?: "confirmed" | "pending"
+  status?: "confirmed" | "pending" | "blocked"
   payment_status?: "pending" | "paid" | "unpaid" | "failed" | "partial"
   payment_method?: string
   amount_paid_cents?: number
@@ -41,14 +41,18 @@ export function useCreateAppointment() {
         method: "POST",
         body: JSON.stringify(data),
       }),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["appointments"] })
       queryClient.invalidateQueries({ queryKey: ["availability"] })
       queryClient.invalidateQueries({ queryKey: ["clients"] })
 
-      toast.success("Rendez-vous créé avec succès !", {
-        description: "Le client recevra un SMS de confirmation.",
+      const isBlockedSlot = variables.status === "blocked"
+
+      toast.success(isBlockedSlot ? "Créneau bloqué avec succès !" : "Rendez-vous créé avec succès !", {
+        description: isBlockedSlot
+          ? "Le créneau a été réservé pour empêcher de nouvelles prises de rendez-vous."
+          : "Le client recevra un SMS de confirmation.",
         icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
         duration: 5000,
       })

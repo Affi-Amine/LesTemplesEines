@@ -16,6 +16,8 @@ import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
 import { findOverlappingAppointment, snapMinuteToQuarter, toQuarterTimeOptions, type CalendarAppointmentLike } from "@/lib/calendar/scheduling"
 import { toast } from "sonner"
 
+type QuickCreateMode = "appointment" | "blocked"
+
 interface QuickCreateModalProps {
   isOpen: boolean
   onClose: () => void
@@ -42,6 +44,7 @@ export function QuickCreateModal({
   const { data: staff } = useStaff(salonId)
   const createAppointment = useCreateAppointment()
   const timeOptions = useMemo(() => toQuarterTimeOptions(8, 20), [])
+  const blockedDurationOptions = [15, 30, 45, 60, 90, 120, 180]
 
   const [form, setForm] = useState({
     service_id: "",
@@ -52,6 +55,8 @@ export function QuickCreateModal({
     email: "",
     notes: "",
   })
+  const [mode, setMode] = useState<QuickCreateMode>("appointment")
+  const [blockedDurationMinutes, setBlockedDurationMinutes] = useState("60")
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [startTime, setStartTime] = useState("09:00")
 
@@ -63,6 +68,8 @@ export function QuickCreateModal({
 
       setSelectedDate(date)
       setStartTime(`${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`)
+      setMode("appointment")
+      setBlockedDurationMinutes("60")
       setForm((prev) => ({
         ...prev,
         staff_ids: prefillData?.staffId ? [prefillData.staffId] : prev.staff_ids,
@@ -77,6 +84,8 @@ export function QuickCreateModal({
         email: "",
         notes: "",
       })
+      setMode("appointment")
+      setBlockedDurationMinutes("60")
       setStartTime("09:00")
       setSelectedDate(new Date())
     }
@@ -98,16 +107,25 @@ export function QuickCreateModal({
   }, [selectedDate, startTime])
 
   const selectedEnd = useMemo(() => {
-    if (!selectedStart || !selectedService?.duration_minutes) {
+    if (!selectedStart) {
       return null
     }
+
+    const durationMinutes = mode === "blocked"
+      ? Number.parseInt(blockedDurationMinutes, 10)
+      : selectedService?.duration_minutes
+
+    if (!durationMinutes) {
+      return null
+    }
+
     const endDateTime = new Date(selectedStart)
-    endDateTime.setMinutes(endDateTime.getMinutes() + selectedService.duration_minutes)
+    endDateTime.setMinutes(endDateTime.getMinutes() + durationMinutes)
     return endDateTime
-  }, [selectedStart, selectedService?.duration_minutes])
+  }, [blockedDurationMinutes, mode, selectedService?.duration_minutes, selectedStart])
 
   const conflict = useMemo(() => {
-    if (!selectedStart || !selectedEnd || form.staff_ids.length === 0 || !form.service_id) {
+    if (!selectedStart || !selectedEnd || form.staff_ids.length === 0 || (mode === "appointment" && !form.service_id)) {
       return null
     }
 
@@ -124,7 +142,7 @@ export function QuickCreateModal({
     }
 
     return null
-  }, [existingAppointments, form.service_id, form.staff_ids, selectedEnd, selectedStart])
+  }, [existingAppointments, form.service_id, form.staff_ids, mode, selectedEnd, selectedStart])
 
   const toggleStaffSelection = (staffId: string) => {
     const current = form.staff_ids
@@ -138,10 +156,14 @@ export function QuickCreateModal({
   const hasRequiredFields = Boolean(
     selectedStart &&
       form.staff_ids.length > 0 &&
-      form.service_id &&
-      form.first_name &&
-      form.last_name &&
-      form.phone
+      (
+        mode === "blocked"
+          ? selectedEnd
+          : form.service_id &&
+            form.first_name &&
+            form.last_name &&
+            form.phone
+      )
   )
   const canSubmit = hasRequiredFields && !conflict && !createAppointment.isPending
 
@@ -156,21 +178,33 @@ export function QuickCreateModal({
     }
 
     createAppointment.mutate(
-      {
-        salon_id: salonId,
-        service_id: form.service_id,
-        staff_ids: form.staff_ids,
-        staff_id: form.staff_ids[0],
-        start_time: selectedStart.toISOString(),
-        client_data: {
-          first_name: form.first_name,
-          last_name: form.last_name,
-          phone: form.phone,
-          email: form.email || undefined,
-        },
-        client_notes: form.notes,
-        status: "confirmed",
-      },
+      mode === "blocked"
+        ? {
+            salon_id: salonId,
+            staff_ids: form.staff_ids,
+            staff_id: form.staff_ids[0],
+            start_time: selectedStart.toISOString(),
+            end_time: selectedEnd?.toISOString(),
+            notes: form.notes || "Créneau bloqué depuis le calendrier",
+            status: "blocked",
+            payment_status: "unpaid",
+            payment_method: "on_site",
+          }
+        : {
+            salon_id: salonId,
+            service_id: form.service_id,
+            staff_ids: form.staff_ids,
+            staff_id: form.staff_ids[0],
+            start_time: selectedStart.toISOString(),
+            client_data: {
+              first_name: form.first_name,
+              last_name: form.last_name,
+              phone: form.phone,
+              email: form.email || undefined,
+            },
+            client_notes: form.notes,
+            status: "confirmed",
+          },
       {
         onSuccess: () => {
           onClose()
@@ -186,12 +220,31 @@ export function QuickCreateModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5" />
-            Nouveau rendez-vous rapide
+            {mode === "blocked" ? "Bloquer un créneau" : "Nouveau rendez-vous rapide"}
           </DialogTitle>
           <DialogDescription>
-            Créer un rendez-vous pour le créneau sélectionné
+            {mode === "blocked"
+              ? "Empêcher toute réservation sur ce créneau."
+              : "Créer un rendez-vous pour le créneau sélectionné"}
           </DialogDescription>
         </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            type="button"
+            variant={mode === "appointment" ? "default" : "outline"}
+            onClick={() => setMode("appointment")}
+          >
+            Rendez-vous
+          </Button>
+          <Button
+            type="button"
+            variant={mode === "blocked" ? "default" : "outline"}
+            onClick={() => setMode("blocked")}
+          >
+            Bloquer un créneau
+          </Button>
+        </div>
 
         <div className="grid grid-cols-2 gap-4 p-3 bg-primary/5 rounded-lg text-sm">
           <div className="space-y-2">
@@ -234,22 +287,42 @@ export function QuickCreateModal({
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label>Service *</Label>
-            <Select
-              value={form.service_id}
-              onValueChange={(val) => setForm({ ...form, service_id: val })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Choisir un service" />
-              </SelectTrigger>
-              <SelectContent>
-                {services?.map((service) => (
-                  <SelectItem key={service.id} value={service.id}>
-                    {service.name} ({service.duration_minutes} min) - {service.price_cents / 100}€
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {mode === "blocked" ? (
+              <>
+                <Label>Durée du blocage *</Label>
+                <Select value={blockedDurationMinutes} onValueChange={setBlockedDurationMinutes}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir une durée" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {blockedDurationOptions.map((duration) => (
+                      <SelectItem key={duration} value={String(duration)}>
+                        {duration} min
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            ) : (
+              <>
+                <Label>Service *</Label>
+                <Select
+                  value={form.service_id}
+                  onValueChange={(val) => setForm({ ...form, service_id: val })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir un service" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {services?.map((service) => (
+                      <SelectItem key={service.id} value={service.id}>
+                        {service.name} ({service.duration_minutes} min) - {service.price_cents / 100}€
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -292,56 +365,64 @@ export function QuickCreateModal({
             </div>
           )}
 
+          {mode === "appointment" ? (
+            <>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Informations client
+                </Label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Prénom *</Label>
+                  <Input
+                    value={form.first_name}
+                    onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                    placeholder="Prénom"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nom *</Label>
+                  <Input
+                    value={form.last_name}
+                    onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+                    placeholder="Nom"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Téléphone *</Label>
+                  <Input
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    placeholder="06..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    placeholder="client@email.com"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+              Aucun client n’est créé pour un créneau bloqué. Le blocage servira uniquement à rendre ce créneau indisponible.
+            </div>
+          )}
+
           <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <User className="w-4 h-4" />
-              Informations client
-            </Label>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Prénom *</Label>
-              <Input
-                value={form.first_name}
-                onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-                placeholder="Prénom"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Nom *</Label>
-              <Input
-                value={form.last_name}
-                onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-                placeholder="Nom"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Téléphone *</Label>
-              <Input
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="06..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="client@email.com"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Notes</Label>
+            <Label>{mode === "blocked" ? "Raison du blocage" : "Notes"}</Label>
             <Textarea
-              placeholder="Notes sur le rendez-vous..."
+              placeholder={mode === "blocked" ? "Ex: pause, absence, salle indisponible..." : "Notes sur le rendez-vous..."}
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
@@ -357,7 +438,11 @@ export function QuickCreateModal({
             disabled={!canSubmit}
             className="cursor-pointer"
           >
-            {createAppointment.isPending ? "Création..." : "Créer le rendez-vous"}
+            {createAppointment.isPending
+              ? "Création..."
+              : mode === "blocked"
+                ? "Bloquer le créneau"
+                : "Créer le rendez-vous"}
           </Button>
         </DialogFooter>
       </DialogContent>

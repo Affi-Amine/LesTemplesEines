@@ -23,14 +23,20 @@ import { useSalons } from "@/lib/hooks/use-salons"
 import { useServices } from "@/lib/hooks/use-services"
 import { useStaff } from "@/lib/hooks/use-staff"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
+import { useClientSearch } from "@/lib/hooks/use-client-search"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { fromZonedTime, formatInTimeZone } from "date-fns-tz"
 import { getPaymentMethodLabel, getPaymentStatusClass, getPaymentStatusLabel } from "@/lib/payments"
+import type { Client } from "@/lib/types/database"
 
 import { SalonFilter } from "@/components/salon-filter"
+
+function normalizeSearchValue(value: string) {
+  return value.trim()
+}
 
 export default function AppointmentsPage() {
   const { t } = useTranslations()
@@ -42,6 +48,8 @@ export default function AppointmentsPage() {
 
   // Create dialog state
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [clientSearchTerm, setClientSearchTerm] = useState("")
+  const [debouncedClientSearchTerm, setDebouncedClientSearchTerm] = useState("")
   
   // View, Edit, Delete dialog states
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
@@ -75,12 +83,24 @@ export default function AppointmentsPage() {
   const { data: salons } = useSalons()
   const { data: services } = useServices(form.salon_id || undefined)
   const { data: staff } = useStaff(form.salon_id || undefined)
+  const { data: clientSuggestions, isFetching: isFetchingClientSuggestions } = useClientSearch(
+    debouncedClientSearchTerm,
+    8
+  )
   
   // Hooks for Edit Form
   const { data: editServices } = useServices(editForm.salon_id || undefined)
   const { data: editStaff } = useStaff(editForm.salon_id || undefined)
 
   const createAppointment = useCreateAppointment()
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedClientSearchTerm(normalizeSearchValue(clientSearchTerm))
+    }, 250)
+
+    return () => window.clearTimeout(timeout)
+  }, [clientSearchTerm])
 
   const resetForm = () => {
     setForm({
@@ -96,6 +116,8 @@ export default function AppointmentsPage() {
       email: "",
       notes: "",
     })
+    setClientSearchTerm("")
+    setDebouncedClientSearchTerm("")
   }
 
   const handleAddStaff = (staffId: string) => {
@@ -127,6 +149,26 @@ export default function AppointmentsPage() {
   }, [createAppointment.isSuccess])
 
   const handleCreate = () => setIsDialogOpen(true)
+
+  const handleClientFieldChange = (field: "phone" | "first_name" | "last_name", value: string) => {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+    setClientSearchTerm(value)
+  }
+
+  const handleSelectClientSuggestion = (client: Client) => {
+    setForm((current) => ({
+      ...current,
+      first_name: client.first_name || "",
+      last_name: client.last_name || "",
+      phone: client.phone || "",
+      email: client.email || "",
+    }))
+    setClientSearchTerm("")
+    setDebouncedClientSearchTerm("")
+  }
 
   const handleSave = async () => {
     if (!form.salon_id || !form.service_id || (form.staff_ids.length === 0 && !form.staff_id) || !form.date || !form.time || !form.first_name || !form.last_name || !form.phone) {
@@ -306,7 +348,15 @@ export default function AppointmentsPage() {
         )}
 
         {/* Create Appointment Dialog */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={(open) => {
+            setIsDialogOpen(open)
+            if (!open) {
+              resetForm()
+            }
+          }}
+        >
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>Nouveau rendez-vous</DialogTitle>
@@ -400,7 +450,7 @@ export default function AppointmentsPage() {
                     id="phone"
                     placeholder="Numéro de téléphone"
                     value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    onChange={(e) => handleClientFieldChange("phone", e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -409,10 +459,50 @@ export default function AppointmentsPage() {
                     id="first_name"
                     placeholder="Prénom du client"
                     value={form.first_name}
-                    onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                    onChange={(e) => handleClientFieldChange("first_name", e.target.value)}
                   />
                 </div>
               </div>
+              {(debouncedClientSearchTerm.length >= 2 || clientSearchTerm.trim().length >= 2) && (
+                <div className="space-y-2">
+                  <Label>Clients correspondants</Label>
+                  <div className="rounded-md border bg-card">
+                    {isFetchingClientSuggestions ? (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        Recherche en cours...
+                      </div>
+                    ) : clientSuggestions && clientSuggestions.length > 0 ? (
+                      <div className="max-h-56 overflow-y-auto">
+                        {clientSuggestions.map((client) => (
+                          <button
+                            key={client.id}
+                            type="button"
+                            className="flex w-full items-start justify-between gap-3 border-b px-3 py-3 text-left last:border-b-0 hover:bg-muted/60"
+                            onClick={() => handleSelectClientSuggestion(client)}
+                          >
+                            <div>
+                              <p className="font-medium">
+                                {client.first_name} {client.last_name}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {client.phone || "Téléphone manquant"}
+                                {client.email ? ` • ${client.email}` : ""}
+                              </p>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {client.visit_count} visite{client.visit_count > 1 ? "s" : ""}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        Aucun client trouvé. Continuez la saisie pour créer un nouveau client.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="last_name">Nom *</Label>
@@ -420,7 +510,7 @@ export default function AppointmentsPage() {
                     id="last_name"
                     placeholder="Nom du client"
                     value={form.last_name}
-                    onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+                    onChange={(e) => handleClientFieldChange("last_name", e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">

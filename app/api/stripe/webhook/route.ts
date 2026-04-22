@@ -9,7 +9,7 @@ import { generateGiftCardCode } from "@/lib/gift-cards"
 import { sendGiftCardEmails } from "@/lib/email/gift-cards"
 import { createBookableAppointment } from "@/lib/appointments/create"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
-import { ensureClientAccount } from "@/lib/client-auth"
+import { ensureClientAuthUser } from "@/lib/client-auth"
 import { sendPackReadyEmail } from "@/lib/email/packs"
 import { sendPackPaymentFailedAdminEmail } from "@/lib/email/pack-alerts"
 import { getPackPaymentStatus } from "@/lib/packs"
@@ -227,7 +227,7 @@ async function handlePackCheckout(
     throw new Error("Pack not found for payment")
   }
 
-  const { client } = await ensureClientAccount({
+  const { client } = await ensureClientAuthUser({
     email: payload.customer_email,
     fullName: `${payload.customer_first_name} ${payload.customer_last_name}`.trim(),
     firstName: payload.customer_first_name,

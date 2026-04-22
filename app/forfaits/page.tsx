@@ -13,20 +13,32 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { fetchAPI } from "@/lib/api/client"
 import type { Pack, ClientPack } from "@/lib/types/database"
+import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 
 type CheckoutStatus = {
   status: "open" | "completed" | "failed"
   pack?: Pack | null
   client_pack?: ClientPack | null
+  payload?: {
+    customer_email?: string | null
+    account_mode?: "existing" | "new" | null
+  } | null
 }
 
 type OutcomeStatus = "success" | "pending" | "error"
+
+type AccountStatus = {
+  exists: boolean
+  has_auth_account: boolean
+  has_client_profile: boolean
+}
 
 function ForfaitsContent() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("session_id")
   const checkoutState = searchParams.get("checkout")
+  const supabase = useMemo(() => createClient(), [])
   const [selectedPackId, setSelectedPackId] = useState("")
   const [installmentCount, setInstallmentCount] = useState("1")
   const [form, setForm] = useState({
@@ -34,8 +46,11 @@ function ForfaitsContent() {
     customer_last_name: "",
     customer_phone: "",
     customer_email: "",
+    password: "",
+    confirmPassword: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [emailToCheck, setEmailToCheck] = useState("")
 
   const { data: packs, isLoading } = useQuery({
     queryKey: ["public-packs"],
@@ -49,10 +64,36 @@ function ForfaitsContent() {
     refetchInterval: (query) => query.state.data?.status === "open" ? 3000 : false,
   })
 
+  const { data: accountStatus, isFetching: isCheckingAccount } = useQuery({
+    queryKey: ["client-account-status", emailToCheck],
+    queryFn: () =>
+      fetchAPI<AccountStatus>("/auth/client/account-status", {
+        method: "POST",
+        body: JSON.stringify({ email: emailToCheck }),
+      }),
+    enabled: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToCheck),
+    staleTime: 60_000,
+  })
+
   const selectedPack = useMemo(
     () => packs?.find((pack) => pack.id === selectedPackId),
     [packs, selectedPackId]
   )
+  const normalizedEmail = form.customer_email.trim().toLowerCase()
+  const hasValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)
+  const hasAuthAccount =
+    hasValidEmail && emailToCheck === normalizedEmail ? Boolean(accountStatus?.has_auth_account) : false
+  const hasClientProfile =
+    hasValidEmail && emailToCheck === normalizedEmail ? Boolean(accountStatus?.has_client_profile) : false
+  const requiresPassword = hasValidEmail && !hasAuthAccount
+  const passwordError =
+    requiresPassword && form.password && form.password.length < 8
+      ? "Le mot de passe doit contenir au moins 8 caractères."
+      : null
+  const confirmPasswordError =
+    requiresPassword && form.confirmPassword && form.confirmPassword !== form.password
+      ? "Les mots de passe ne correspondent pas."
+      : null
   const checkoutHero: {
     status: OutcomeStatus | null
     title: string
@@ -71,7 +112,9 @@ function ForfaitsContent() {
                 : "",
         description:
           checkoutStatus?.status === "completed"
-            ? "Votre paiement est confirmé et votre forfait client est maintenant disponible. Un email vient d’être envoyé pour créer votre mot de passe et accéder à votre espace client."
+            ? checkoutStatus.payload?.account_mode === "new"
+              ? "Votre paiement est confirmé, votre forfait est actif et votre nouveau compte client est déjà prêt avec le mot de passe choisi avant le paiement."
+              : "Votre paiement est confirmé et votre forfait client a bien été ajouté à votre compte existant."
             : checkoutStatus?.status === "failed"
               ? "Le paiement ou l’activation du forfait n’a pas abouti. Vous pouvez relancer l’achat."
               : checkoutStatus?.status === "open"
@@ -79,7 +122,9 @@ function ForfaitsContent() {
                 : "",
         helper:
           checkoutStatus?.status === "completed" && checkoutStatus.client_pack
-            ? `${checkoutStatus.client_pack.remaining_sessions} séance(s) disponible(s) sur ${checkoutStatus.client_pack.total_sessions}. Vérifiez votre boîte mail, créez votre mot de passe puis connectez-vous pour retrouver votre forfait et réserver vos séances.`
+            ? checkoutStatus.payload?.account_mode === "new"
+              ? `${checkoutStatus.client_pack.remaining_sessions} séance(s) disponible(s) sur ${checkoutStatus.client_pack.total_sessions}. Connectez-vous avec ${checkoutStatus.payload?.customer_email || "votre email"} et le mot de passe déjà choisi pour réserver vos séances.`
+              : `${checkoutStatus.client_pack.remaining_sessions} séance(s) disponible(s) sur ${checkoutStatus.client_pack.total_sessions}. Reconnectez-vous à votre compte habituel pour retrouver votre forfait et réserver vos séances.`
             : checkoutStatus?.status === "open"
               ? "La page se met à jour automatiquement."
               : undefined,
@@ -97,6 +142,32 @@ function ForfaitsContent() {
       setInstallmentCount(String(selectedPack.allowed_installments[0] || 1))
     }
   }, [installmentCount, selectedPack])
+
+  useEffect(() => {
+    const nextEmail = normalizedEmail
+    if (!hasValidEmail) {
+      setEmailToCheck("")
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      setEmailToCheck(nextEmail)
+    }, 350)
+
+    return () => window.clearTimeout(timeout)
+  }, [hasValidEmail, normalizedEmail])
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const user = data.user
+      if (!user?.email) return
+
+      setForm((current) => ({
+        ...current,
+        customer_email: current.customer_email || user.email || "",
+      }))
+    })
+  }, [supabase])
 
   const handlePurchase = async () => {
     if (!selectedPack) {
@@ -120,13 +191,28 @@ function ForfaitsContent() {
     }
 
     if (!form.customer_email.trim()) {
-      toast.error("Renseignez votre email pour recevoir l’accès au compte.")
+      toast.error("Renseignez votre email pour rattacher ou créer votre compte.")
+      return
+    }
+
+    if (isCheckingAccount) {
+      toast.error("Vérification du compte en cours, patientez une seconde.")
+      return
+    }
+
+    if (requiresPassword && !form.password) {
+      toast.error("Choisissez un mot de passe pour créer votre compte.")
+      return
+    }
+
+    if (passwordError || confirmPasswordError) {
+      toast.error(passwordError || confirmPasswordError || "Le mot de passe n'est pas valide.")
       return
     }
 
     setIsSubmitting(true)
     try {
-      const response = await fetchAPI<{ url: string }>("/packs/purchase", {
+      const response = await fetchAPI<{ url: string; account_mode: "existing" | "new" }>("/packs/purchase", {
         method: "POST",
         body: JSON.stringify({
           pack_id: selectedPack.id,
@@ -134,9 +220,21 @@ function ForfaitsContent() {
           customer_first_name: form.customer_first_name,
           customer_last_name: form.customer_last_name,
           customer_phone: form.customer_phone,
-          customer_email: form.customer_email,
+          customer_email: normalizedEmail,
+          password: requiresPassword ? form.password : undefined,
         }),
       })
+
+      if (response.account_mode === "new" && form.password) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password: form.password,
+        })
+
+        if (error) {
+          console.error("[packs] auto-login after account creation failed:", error)
+        }
+      }
 
       window.location.href = response.url
     } catch (error: any) {
@@ -167,7 +265,7 @@ function ForfaitsContent() {
             </span>
             <h1 className="text-4xl md:text-5xl font-serif font-bold">Acheter un pack de séances</h1>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Achetez votre forfait, créez votre accès client et utilisez vos séances directement lors de vos prochaines réservations.
+              Si vous avez déjà un compte, le forfait sera simplement ajouté dessus. Sinon, vous créez votre mot de passe tout de suite avant de payer.
             </p>
           </div>
 
@@ -271,8 +369,55 @@ function ForfaitsContent() {
                 />
               </div>
 
+              {hasValidEmail ? (
+                <div className="rounded-lg border p-3 text-sm">
+                  {isCheckingAccount ? (
+                    <p className="text-muted-foreground">Vérification du compte en cours...</p>
+                  ) : hasAuthAccount ? (
+                    <p className="text-muted-foreground">
+                      Un compte client existe déjà pour cet email. Le forfait sera ajouté directement dessus, sans recréer de compte ni renvoyer de lien.
+                    </p>
+                  ) : hasClientProfile ? (
+                    <p className="text-muted-foreground">
+                      Un profil client existe déjà pour cet email, mais aucun accès complet n&apos;est encore actif. Choisissez maintenant votre mot de passe pour finaliser le compte une bonne fois pour toutes.
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      Aucun compte trouvé pour cet email. Choisissez maintenant votre mot de passe pour créer votre compte avant le paiement.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+
+              {requiresPassword ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="pack-password">Mot de passe</Label>
+                    <Input
+                      id="pack-password"
+                      type="password"
+                      value={form.password}
+                      onChange={(e) => setForm((current) => ({ ...current, password: e.target.value }))}
+                      placeholder="Minimum 8 caractères"
+                    />
+                    {passwordError ? <p className="text-sm text-destructive">{passwordError}</p> : null}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="pack-confirm-password">Confirmer le mot de passe</Label>
+                    <Input
+                      id="pack-confirm-password"
+                      type="password"
+                      value={form.confirmPassword}
+                      onChange={(e) => setForm((current) => ({ ...current, confirmPassword: e.target.value }))}
+                      placeholder="Confirmez votre mot de passe"
+                    />
+                    {confirmPasswordError ? <p className="text-sm text-destructive">{confirmPasswordError}</p> : null}
+                  </div>
+                </div>
+              ) : null}
+
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Ces informations servent à créer votre compte client automatiquement et à préremplir vos futures réservations avec votre forfait.
+                Vos informations servent à rattacher le forfait au bon compte client et à préremplir vos prochaines réservations.
               </p>
 
               <div className="space-y-3">

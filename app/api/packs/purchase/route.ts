@@ -1,5 +1,6 @@
 export const runtime = "nodejs"
 
+import { createClientAccountWithPassword, findAuthUserByEmail, findClientByEmail } from "@/lib/client-auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getBaseUrl } from "@/lib/gift-cards"
 import { eurosToCents, getInstallmentAmounts, PackPurchaseSchema } from "@/lib/packs"
@@ -12,6 +13,31 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const payload = PackPurchaseSchema.parse(body)
     const supabase = createAdminClient()
+    const normalizedEmail = payload.customer_email.trim().toLowerCase()
+
+    const [existingClient, existingAuthUser] = await Promise.all([
+      findClientByEmail(normalizedEmail),
+      findAuthUserByEmail(normalizedEmail),
+    ])
+    const hasAuthAccount = Boolean(existingAuthUser || existingClient?.auth_user_id)
+
+    if (!hasAuthAccount && !payload.password) {
+      return NextResponse.json(
+        { error: "Choisissez un mot de passe pour créer votre compte avant de payer." },
+        { status: 400 }
+      )
+    }
+
+    if (!hasAuthAccount && payload.password) {
+      await createClientAccountWithPassword({
+        email: normalizedEmail,
+        fullName: `${payload.customer_first_name} ${payload.customer_last_name}`.trim(),
+        firstName: payload.customer_first_name,
+        lastName: payload.customer_last_name,
+        phone: payload.customer_phone,
+        password: payload.password,
+      })
+    }
 
     const { data: pack, error: packError } = await supabase
       .from("packs")
@@ -44,11 +70,12 @@ export async function POST(request: NextRequest) {
               type: "pack",
               pack_id: pack.id,
               installment_count: String(payload.installment_count),
-              customer_email: payload.customer_email,
+              customer_email: normalizedEmail,
               customer_name: `${payload.customer_first_name} ${payload.customer_last_name}`.trim(),
               customer_first_name: payload.customer_first_name,
               customer_last_name: payload.customer_last_name,
               customer_phone: payload.customer_phone,
+              account_mode: hasAuthAccount ? "existing" : "new",
             },
             line_items: [{
               quantity: 1,
@@ -71,11 +98,12 @@ export async function POST(request: NextRequest) {
               type: "pack",
               pack_id: pack.id,
               installment_count: String(payload.installment_count),
-              customer_email: payload.customer_email,
+              customer_email: normalizedEmail,
               customer_name: `${payload.customer_first_name} ${payload.customer_last_name}`.trim(),
               customer_first_name: payload.customer_first_name,
               customer_last_name: payload.customer_last_name,
               customer_phone: payload.customer_phone,
+              account_mode: hasAuthAccount ? "existing" : "new",
             },
             line_items: [{
               quantity: 1,
@@ -106,10 +134,11 @@ export async function POST(request: NextRequest) {
           pack_id: pack.id,
           installment_count: payload.installment_count,
           installment_amounts: installmentAmounts,
-          customer_email: payload.customer_email,
+          customer_email: normalizedEmail,
           customer_first_name: payload.customer_first_name,
           customer_last_name: payload.customer_last_name,
           customer_phone: payload.customer_phone,
+          account_mode: hasAuthAccount ? "existing" : "new",
         },
       }])
 
@@ -119,6 +148,7 @@ export async function POST(request: NextRequest) {
       success: true,
       session_id: session.id,
       url: session.url,
+      account_mode: hasAuthAccount ? "existing" : "new",
     })
   } catch (error) {
     console.error("[packs] Purchase error:", error)

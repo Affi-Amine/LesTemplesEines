@@ -191,6 +191,10 @@ export async function GET(request: NextRequest) {
         pack_id: payloadPackId,
         customer_email: typeof payload?.customer_email === "string" ? payload.customer_email : null,
         customer_name: typeof payload?.customer_name === "string" ? payload.customer_name : null,
+        account_mode:
+          typeof payload?.account_mode === "string" && (payload.account_mode === "existing" || payload.account_mode === "new")
+            ? payload.account_mode
+            : null,
       } : null,
       service,
       pack,

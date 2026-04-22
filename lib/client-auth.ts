@@ -272,7 +272,7 @@ export async function createClientAccountWithPassword(params: {
   const existingClient = await findClientByEmail(normalizedEmail)
   const existingAuthUser = await findAuthUserByEmail(normalizedEmail)
 
-  if (existingClient || existingAuthUser) {
+  if (existingAuthUser || existingClient?.auth_user_id) {
     throw new Error("Un compte existe déjà avec cet email.")
   }
 

@@ -17,6 +17,7 @@ export const PackPurchaseSchema = z.object({
   customer_last_name: z.string().trim().min(2),
   customer_phone: z.string().trim().min(9),
   customer_email: z.string().email(),
+  password: z.string().min(8).optional(),
 })
 
 export function eurosToCents(amount: number) {

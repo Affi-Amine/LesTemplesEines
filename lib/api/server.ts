@@ -17,6 +17,7 @@ export type Salon = {
   description?: string
   photo_url?: string
   image_url?: string
+  images?: string[]
   opening_hours?: Record<string, { open: string; close: string }>
   is_active: boolean
   created_at?: string

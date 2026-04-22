@@ -24,9 +24,12 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
 import { useServices } from "@/lib/hooks/use-services"
+import { useClientSearch } from "@/lib/hooks/use-client-search"
 import { DndContext, PointerSensor, TouchSensor, useSensors, useSensor, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core"
 import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
+import { ClientSuggestionList } from "@/components/client-suggestion-list"
 import { findOverlappingAppointment, getAppointmentDurationMinutes } from "@/lib/calendar/scheduling"
+import type { Client } from "@/lib/types/database"
 
 import { useRouter } from "next/navigation"
 
@@ -261,6 +264,8 @@ export default function SalonDashboardPage() {
           email: "",
           notes: ""
         })
+        setCreateClientSearchTerm("")
+        setDebouncedCreateClientSearchTerm("")
         refetchAppointments()
       }
     })
@@ -309,11 +314,45 @@ export default function SalonDashboardPage() {
     email: "",
     notes: ""
   })
+  const [createClientSearchTerm, setCreateClientSearchTerm] = useState("")
+  const [debouncedCreateClientSearchTerm, setDebouncedCreateClientSearchTerm] = useState("")
+  const { data: createClientSuggestions, isFetching: isFetchingCreateClientSuggestions } = useClientSearch(
+    debouncedCreateClientSearchTerm,
+    8
+  )
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedCreateClientSearchTerm(createClientSearchTerm.trim())
+    }, 250)
+
+    return () => window.clearTimeout(timeout)
+  }, [createClientSearchTerm])
 
   // Handle empty slot click for quick create
   const handleEmptySlotClick = (data: { hour: number; minute: number; date: Date; staffId?: string }) => {
     setQuickCreateData(data)
     setIsQuickCreateOpen(true)
+  }
+
+  const handleCreateClientFieldChange = (field: "phone" | "first_name" | "last_name", value: string) => {
+    setCreateForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+    setCreateClientSearchTerm(value)
+  }
+
+  const handleSelectCreateClientSuggestion = (client: Client) => {
+    setCreateForm((current) => ({
+      ...current,
+      first_name: client.first_name || "",
+      last_name: client.last_name || "",
+      phone: client.phone || "",
+      email: client.email || "",
+    }))
+    setCreateClientSearchTerm("")
+    setDebouncedCreateClientSearchTerm("")
   }
 
   // Handle drag start
@@ -1017,7 +1056,16 @@ export default function SalonDashboardPage() {
         </Dialog>
 
         {/* Create Manual Appointment Dialog */}
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog
+          open={isCreateOpen}
+          onOpenChange={(open) => {
+            setIsCreateOpen(open)
+            if (!open) {
+              setCreateClientSearchTerm("")
+              setDebouncedCreateClientSearchTerm("")
+            }
+          }}
+        >
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Ajouter un rendez-vous</DialogTitle>
@@ -1092,7 +1140,7 @@ export default function SalonDashboardPage() {
                   <Label>Prénom *</Label>
                   <Input
                     value={createForm.first_name}
-                    onChange={(e) => setCreateForm({...createForm, first_name: e.target.value})}
+                    onChange={(e) => handleCreateClientFieldChange("first_name", e.target.value)}
                     placeholder="Prénom"
                   />
                 </div>
@@ -1100,7 +1148,7 @@ export default function SalonDashboardPage() {
                   <Label>Nom *</Label>
                   <Input
                     value={createForm.last_name}
-                    onChange={(e) => setCreateForm({...createForm, last_name: e.target.value})}
+                    onChange={(e) => handleCreateClientFieldChange("last_name", e.target.value)}
                     placeholder="Nom"
                   />
                 </div>
@@ -1111,7 +1159,7 @@ export default function SalonDashboardPage() {
                   <Label>Téléphone *</Label>
                   <Input
                     value={createForm.phone}
-                    onChange={(e) => setCreateForm({...createForm, phone: e.target.value})}
+                    onChange={(e) => handleCreateClientFieldChange("phone", e.target.value)}
                     placeholder="06..."
                   />
                 </div>
@@ -1125,6 +1173,13 @@ export default function SalonDashboardPage() {
                   />
                 </div>
               </div>
+
+              <ClientSuggestionList
+                visible={debouncedCreateClientSearchTerm.length >= 2 || createClientSearchTerm.trim().length >= 2}
+                clients={createClientSuggestions}
+                isLoading={isFetchingCreateClientSuggestions}
+                onSelect={handleSelectCreateClientSuggestion}
+              />
 
               <div className="space-y-2">
                 <Label>Notes</Label>

@@ -1,7 +1,14 @@
+"use client"
+
 import Link from "next/link"
 import { Facebook, Instagram, Twitter, Mail, Phone } from "lucide-react"
+import { useSalons } from "@/lib/hooks/use-salons"
 
 export function Footer() {
+  const { data: salons } = useSalons()
+  const primaryPhone = salons?.find((salon) => salon.phone)?.phone
+  const primaryEmail = salons?.find((salon) => salon.email)?.email
+
   return (
     <footer id="contact" className="border-t bg-card">
       <div className="max-w-7xl mx-auto px-4 py-12">
@@ -38,6 +45,16 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/nos-temples" className="text-muted-foreground hover:text-primary transition-colors">
+                  Nos temples
+                </Link>
+              </li>
+              <li>
+                <Link href="/contact" className="text-muted-foreground hover:text-primary transition-colors">
+                  Contact
+                </Link>
+              </li>
+              <li>
                 <Link href="/admin" className="text-muted-foreground hover:text-primary transition-colors">
                   Administration
                 </Link>
@@ -49,17 +66,26 @@ export function Footer() {
           <div>
             <h4 className="font-semibold mb-4">Contact</h4>
             <ul className="space-y-2 text-sm">
-              <li className="flex items-center gap-2 text-muted-foreground">
-                <Phone className="w-4 h-4" />
-                <a href="tel:+33123456789" className="hover:text-primary transition-colors">
-                  +33 1 23 45 67 89
-                </a>
-              </li>
-              <li className="flex items-center gap-2 text-muted-foreground">
-                <Mail className="w-4 h-4" />
-                <a href="mailto:info@lestemples.fr" className="hover:text-primary transition-colors">
-                  info@lestemples.fr
-                </a>
+              {primaryPhone ? (
+                <li className="flex items-center gap-2 text-muted-foreground">
+                  <Phone className="w-4 h-4" />
+                  <a href={`tel:${primaryPhone}`} className="hover:text-primary transition-colors">
+                    {primaryPhone}
+                  </a>
+                </li>
+              ) : null}
+              {primaryEmail ? (
+                <li className="flex items-center gap-2 text-muted-foreground">
+                  <Mail className="w-4 h-4" />
+                  <a href={`mailto:${primaryEmail}`} className="hover:text-primary transition-colors">
+                    {primaryEmail}
+                  </a>
+                </li>
+              ) : null}
+              <li className="text-muted-foreground">
+                <Link href="/contact" className="hover:text-primary transition-colors">
+                  Voir toutes les coordonnées
+                </Link>
               </li>
             </ul>
           </div>
@@ -67,11 +93,12 @@ export function Footer() {
           {/* Hours */}
           <div>
             <h4 className="font-semibold mb-4">Horaires</h4>
-            <ul className="space-y-1 text-sm text-muted-foreground">
-              <li>Lun - Ven : 10:00 - 20:00</li>
-              <li>Sam : 09:00 - 21:00</li>
-              <li>Dim : 10:00 - 19:00</li>
-            </ul>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>Les horaires varient selon chaque temple.</p>
+              <Link href="/contact" className="hover:text-primary transition-colors">
+                Consulter les horaires par adresse
+              </Link>
+            </div>
           </div>
         </div>
 

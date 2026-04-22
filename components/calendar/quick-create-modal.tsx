@@ -13,8 +13,11 @@ import { format } from "date-fns"
 import { useServices } from "@/lib/hooks/use-services"
 import { useStaff } from "@/lib/hooks/use-staff"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
+import { useClientSearch } from "@/lib/hooks/use-client-search"
 import { findOverlappingAppointment, snapMinuteToQuarter, toQuarterTimeOptions, type CalendarAppointmentLike } from "@/lib/calendar/scheduling"
 import { toast } from "sonner"
+import type { Client } from "@/lib/types/database"
+import { ClientSuggestionList } from "@/components/client-suggestion-list"
 
 type QuickCreateMode = "appointment" | "blocked"
 
@@ -43,6 +46,12 @@ export function QuickCreateModal({
   const { data: services } = useServices(salonId)
   const { data: staff } = useStaff(salonId)
   const createAppointment = useCreateAppointment()
+  const [clientSearchTerm, setClientSearchTerm] = useState("")
+  const [debouncedClientSearchTerm, setDebouncedClientSearchTerm] = useState("")
+  const { data: clientSuggestions, isFetching: isFetchingClientSuggestions } = useClientSearch(
+    debouncedClientSearchTerm,
+    8
+  )
   const timeOptions = useMemo(() => toQuarterTimeOptions(8, 20), [])
   const blockedDurationOptions = [15, 30, 45, 60, 90, 120, 180]
 
@@ -88,8 +97,18 @@ export function QuickCreateModal({
       setBlockedDurationMinutes("60")
       setStartTime("09:00")
       setSelectedDate(new Date())
+      setClientSearchTerm("")
+      setDebouncedClientSearchTerm("")
     }
   }, [isOpen, prefillData])
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedClientSearchTerm(clientSearchTerm.trim())
+    }, 250)
+
+    return () => window.clearTimeout(timeout)
+  }, [clientSearchTerm])
 
   const selectedService = useMemo(
     () => services?.find((service) => service.id === form.service_id),
@@ -151,6 +170,26 @@ export function QuickCreateModal({
     } else {
       setForm({ ...form, staff_ids: [...current, staffId] })
     }
+  }
+
+  const handleClientFieldChange = (field: "phone" | "first_name" | "last_name", value: string) => {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+    setClientSearchTerm(value)
+  }
+
+  const handleSelectClientSuggestion = (client: Client) => {
+    setForm((current) => ({
+      ...current,
+      first_name: client.first_name || "",
+      last_name: client.last_name || "",
+      phone: client.phone || "",
+      email: client.email || "",
+    }))
+    setClientSearchTerm("")
+    setDebouncedClientSearchTerm("")
   }
 
   const hasRequiredFields = Boolean(
@@ -379,7 +418,7 @@ export function QuickCreateModal({
                   <Label>Prénom *</Label>
                   <Input
                     value={form.first_name}
-                    onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                    onChange={(e) => handleClientFieldChange("first_name", e.target.value)}
                     placeholder="Prénom"
                   />
                 </div>
@@ -387,7 +426,7 @@ export function QuickCreateModal({
                   <Label>Nom *</Label>
                   <Input
                     value={form.last_name}
-                    onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+                    onChange={(e) => handleClientFieldChange("last_name", e.target.value)}
                     placeholder="Nom"
                   />
                 </div>
@@ -398,7 +437,7 @@ export function QuickCreateModal({
                   <Label>Téléphone *</Label>
                   <Input
                     value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    onChange={(e) => handleClientFieldChange("phone", e.target.value)}
                     placeholder="06..."
                   />
                 </div>
@@ -412,6 +451,13 @@ export function QuickCreateModal({
                   />
                 </div>
               </div>
+
+              <ClientSuggestionList
+                visible={debouncedClientSearchTerm.length >= 2 || clientSearchTerm.trim().length >= 2}
+                clients={clientSuggestions}
+                isLoading={isFetchingClientSuggestions}
+                onSelect={handleSelectClientSuggestion}
+              />
             </>
           ) : (
             <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">

@@ -12,6 +12,47 @@ function randomPassword() {
   return `${Math.random().toString(36).slice(2)}A!9${Date.now().toString(36)}`
 }
 
+function sortClientsForReuse<T extends { auth_user_id?: string | null; updated_at?: string | null; created_at?: string | null }>(clients: T[]) {
+  return [...clients].sort((a, b) => {
+    const aHasAuth = Boolean(a.auth_user_id)
+    const bHasAuth = Boolean(b.auth_user_id)
+
+    if (aHasAuth !== bHasAuth) {
+      return aHasAuth ? -1 : 1
+    }
+
+    const aTimestamp = new Date(a.updated_at || a.created_at || 0).getTime()
+    const bTimestamp = new Date(b.updated_at || b.created_at || 0).getTime()
+
+    return bTimestamp - aTimestamp
+  })
+}
+
+async function findBestClientByField(field: "email" | "phone" | "auth_user_id", value: string) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("clients")
+    .select("*")
+    .eq(field, value)
+    .limit(20)
+
+  if (error) {
+    throw error
+  }
+
+  const clients = data || []
+  if (clients.length > 1) {
+    console.warn("[client-auth] Duplicate clients found", {
+      field,
+      value,
+      count: clients.length,
+      selectedClientId: sortClientsForReuse(clients)[0]?.id,
+    })
+  }
+
+  return sortClientsForReuse(clients)[0] || null
+}
+
 export async function findAuthUserByEmail(email: string) {
   const supabase = createAdminClient()
   let page = 1
@@ -44,20 +85,21 @@ export async function findAuthUserByEmail(email: string) {
 }
 
 export async function findClientByEmail(email: string) {
-  const supabase = createAdminClient()
   const normalizedEmail = email.trim().toLowerCase()
+  return findBestClientByField("email", normalizedEmail)
+}
 
-  const { data, error } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("email", normalizedEmail)
-    .maybeSingle()
-
-  if (error) {
-    throw error
+export async function findClientByPhone(phone: string) {
+  const normalizedPhone = normalizePhone(phone)
+  if (!normalizedPhone) {
+    return null
   }
 
-  return data || null
+  return findBestClientByField("phone", normalizedPhone)
+}
+
+export async function findClientByAuthUserId(authUserId: string) {
+  return findBestClientByField("auth_user_id", authUserId)
 }
 
 async function sendClientPasswordEmail(params: {
@@ -111,19 +153,8 @@ export async function ensureClientAuthUser(params: {
   const last_name = params.lastName?.trim() || fallbackName.last_name
   const phone = normalizePhone(params.phone)
 
-  const { data: emailClient } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("email", normalizedEmail)
-    .maybeSingle()
-
-  const { data: phoneClient } = phone
-    ? await supabase
-        .from("clients")
-        .select("*")
-        .eq("phone", phone)
-        .maybeSingle()
-    : { data: null }
+  const emailClient = await findBestClientByField("email", normalizedEmail)
+  const phoneClient = phone ? await findBestClientByField("phone", phone) : null
 
   let client = emailClient || phoneClient || null
 

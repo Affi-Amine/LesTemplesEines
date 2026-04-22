@@ -2,6 +2,7 @@ export const runtime = "nodejs"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
 import { ClientDataSchema, createBookableAppointment } from "@/lib/appointments/create"
+import { findClientByPhone } from "@/lib/client-auth"
 import { after, type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { fromZonedTime } from "date-fns-tz"
@@ -173,11 +174,7 @@ export async function POST(request: NextRequest) {
     if (appointmentData.client_data && !clientId) {
       const clientLookupStartedAt = Date.now()
       // Check if client already exists by phone
-      const { data: existingClient } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("phone", appointmentData.client_data.phone)
-        .single()
+      const existingClient = await findClientByPhone(appointmentData.client_data.phone)
 
       if (existingClient) {
         clientId = existingClient.id

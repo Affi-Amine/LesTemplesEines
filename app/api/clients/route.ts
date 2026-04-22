@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
+import { findClientByPhone } from "@/lib/client-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -72,11 +73,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createAdminClient()
 
     // Check if client already exists
-    const { data: existingClient } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("phone", clientData.phone)
-      .single()
+    const existingClient = await findClientByPhone(clientData.phone)
 
     if (existingClient) {
       return NextResponse.json(existingClient, { status: 200 })

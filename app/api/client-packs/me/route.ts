@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { findClientByAuthUserId, findClientByEmail } from "@/lib/client-auth"
 import { NextResponse } from "next/server"
 
 export async function GET() {
@@ -12,18 +13,10 @@ export async function GET() {
     }
 
     const admin = createAdminClient()
-    let { data: client } = await admin
-      .from("clients")
-      .select("*")
-      .eq("auth_user_id", authData.user.id)
-      .maybeSingle()
+    let client = await findClientByAuthUserId(authData.user.id)
 
     if (!client && authData.user.email) {
-      const { data: emailClient } = await admin
-        .from("clients")
-        .select("*")
-        .eq("email", authData.user.email.toLowerCase())
-        .maybeSingle()
+      const emailClient = await findClientByEmail(authData.user.email.toLowerCase())
 
       if (emailClient) {
         const { data: linkedClient } = await admin

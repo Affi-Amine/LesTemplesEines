@@ -1,6 +1,7 @@
 import type { createAdminClient } from "@/lib/supabase/admin"
 import { z } from "zod"
 import { canUseClientPackStatus } from "@/lib/packs"
+import { findClientByEmail, findClientByPhone } from "@/lib/client-auth"
 
 const PhoneSchema = z
   .string()
@@ -143,11 +144,7 @@ async function resolveClientId(supabase: SupabaseClient, input: BookableAppointm
     throw new Error("Client data is required")
   }
 
-  const { data: existingClient } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("phone", input.client_data.phone)
-    .maybeSingle()
+  const existingClient = await findClientByPhone(input.client_data.phone)
 
   if (existingClient?.id) {
     const updates: Record<string, unknown> = {}
@@ -166,11 +163,7 @@ async function resolveClientId(supabase: SupabaseClient, input: BookableAppointm
   }
 
   if (input.client_data.email) {
-    const { data: emailClient } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("email", input.client_data.email)
-      .maybeSingle()
+    const emailClient = await findClientByEmail(input.client_data.email)
 
     if (emailClient?.id) {
       const updates: Record<string, unknown> = {

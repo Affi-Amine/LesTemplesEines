@@ -273,7 +273,7 @@ function ForfaitsContent() {
             <span className="inline-flex items-center rounded-full border px-4 py-2 text-sm text-muted-foreground">
               Forfaits
             </span>
-            <h1 className="text-4xl md:text-5xl font-serif font-bold">Acheter un pack de séances</h1>
+            <h1 className="text-4xl md:text-5xl font-serif font-bold">Choisissez votre forfait de massages</h1>
             <p className="text-muted-foreground max-w-2xl mx-auto">
               Si vous avez déjà un compte, le forfait sera simplement ajouté dessus. Sinon, vous créez votre mot de passe tout de suite avant de payer.
             </p>

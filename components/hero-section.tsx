@@ -108,12 +108,10 @@ export function HeroSection() {
 
           <div className="home-reveal home-reveal-delay-1 home-reveal-soft">
             <h1 className="mb-4 max-w-4xl text-[2rem] font-serif font-bold leading-[1.08] tracking-[-0.02em] text-foreground drop-shadow-[0_10px_30px_rgba(0,0,0,0.38)] sm:mb-5 sm:text-5xl md:text-6xl lg:text-7xl">
-              Les temples
-              <br />
-              <span className="text-primary">du bien-être</span>
+              Un rituel de détente inspiré des temples thaïlandais
             </h1>
             <p className="max-w-md text-sm leading-7 text-[#d8cebf] sm:max-w-lg sm:text-base sm:leading-8 md:text-lg md:leading-9">
-              Massage traditionnel de Thaïlande, gestes précis et atmosphère apaisante. Réservez votre soin, offrez une carte cadeau ou choisissez votre forfait simplement.
+              Réservez votre moment de bien-être.
             </p>
           </div>
 
@@ -131,7 +129,7 @@ export function HeroSection() {
               </Button>
               <Button asChild size="lg" variant="outline" className="w-full border-primary/30 bg-background/20 backdrop-blur-sm hover:bg-primary/8">
                 <Link href="/forfaits" className="w-full">
-                  Forfaits
+                  Nos forfaits
                 </Link>
               </Button>
             </div>

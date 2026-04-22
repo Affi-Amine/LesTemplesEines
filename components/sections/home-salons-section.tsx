@@ -150,14 +150,11 @@ export function HomeSalonsSection() {
                   )}
                 </div>
                 <div className="p-5 sm:p-6">
-                  <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="mb-4">
                     <div className="min-w-0">
                       <h3 className="truncate text-xl font-serif font-semibold leading-tight sm:text-2xl">{salon.name}</h3>
                       <p className="text-sm text-primary/90 mt-1">{salon.city}</p>
                     </div>
-                    <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-primary">
-                      Thaïlande
-                    </span>
                   </div>
 
                   <div className="space-y-3 mb-6 text-sm">

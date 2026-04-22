@@ -23,6 +23,9 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }
-    return NextResponse.json({ error: "Failed to send reset email" }, { status: 500 })
+
+    const message = error instanceof Error ? error.message : "Failed to send reset email"
+    const status = message.includes("Aucun compte client") ? 404 : 500
+    return NextResponse.json({ error: message }, { status })
   }
 }

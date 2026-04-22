@@ -12,7 +12,7 @@ function randomPassword() {
   return `${Math.random().toString(36).slice(2)}A!9${Date.now().toString(36)}`
 }
 
-async function findAuthUserByEmail(email: string) {
+export async function findAuthUserByEmail(email: string) {
   const supabase = createAdminClient()
   let page = 1
   const perPage = 200
@@ -41,6 +41,23 @@ async function findAuthUserByEmail(email: string) {
 
     page = nextPage
   }
+}
+
+export async function findClientByEmail(email: string) {
+  const supabase = createAdminClient()
+  const normalizedEmail = email.trim().toLowerCase()
+
+  const { data, error } = await supabase
+    .from("clients")
+    .select("*")
+    .eq("email", normalizedEmail)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  return data || null
 }
 
 async function sendClientPasswordEmail(params: {
@@ -242,16 +259,65 @@ export async function ensureClientAccount(params: {
   }
 }
 
+export async function createClientAccountWithPassword(params: {
+  email: string
+  fullName: string
+  firstName?: string
+  lastName?: string
+  phone?: string
+  password: string
+}) {
+  const normalizedEmail = params.email.trim().toLowerCase()
+  const supabase = createAdminClient()
+  const existingClient = await findClientByEmail(normalizedEmail)
+  const existingAuthUser = await findAuthUserByEmail(normalizedEmail)
+
+  if (existingClient || existingAuthUser) {
+    throw new Error("Un compte existe déjà avec cet email.")
+  }
+
+  const { client } = await ensureClientAuthUser({
+    email: normalizedEmail,
+    fullName: params.fullName,
+    firstName: params.firstName,
+    lastName: params.lastName,
+    phone: params.phone,
+  })
+
+  if (!client.auth_user_id) {
+    throw new Error("Impossible de lier le compte client à un utilisateur.")
+  }
+
+  const { error } = await supabase.auth.admin.updateUserById(client.auth_user_id, {
+    password: params.password,
+    email_confirm: true,
+  })
+
+  if (error) {
+    throw error
+  }
+
+  return { client }
+}
+
 export async function sendClientResetPasswordEmail(params: {
   email: string
   origin?: string
 }) {
+  const normalizedEmail = params.email.trim().toLowerCase()
+  const existingClient = await findClientByEmail(normalizedEmail)
+  const existingAuthUser = await findAuthUserByEmail(normalizedEmail)
+
+  if (!existingClient && !existingAuthUser) {
+    throw new Error("Aucun compte client trouvé avec cet email.")
+  }
+
   const { client, firstName } = await ensureClientAuthUser({
-    email: params.email,
+    email: normalizedEmail,
   })
 
   await sendClientPasswordEmail({
-    email: params.email.trim().toLowerCase(),
+    email: normalizedEmail,
     firstName,
     origin: params.origin,
     type: "reset_password",

@@ -16,6 +16,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const payload = SetPasswordSchema.parse(body)
     const tokenPayload = verifyClientPasswordToken(payload.token)
+    if (
+      tokenPayload.type !== "setup_password" &&
+      tokenPayload.type !== "reset_password" &&
+      tokenPayload.type !== "password_session"
+    ) {
+      return NextResponse.json({ error: "Lien invalide ou expiré." }, { status: 400 })
+    }
     const supabase = createAdminClient()
 
     const { authUserId } = await ensureClientAuthUser({

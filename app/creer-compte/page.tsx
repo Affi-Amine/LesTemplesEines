@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,8 +14,11 @@ import { fetchAPI } from "@/lib/api/client"
 import { toast } from "sonner"
 
 export default function CreateAccountPage() {
+  const router = useRouter()
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
 
@@ -30,14 +34,26 @@ export default function CreateAccountPage() {
     return null
   }, [email])
 
+  const passwordError = useMemo(() => {
+    if (!password) return null
+    if (password.length < 8) return "Le mot de passe doit contenir au moins 8 caractères."
+    return null
+  }, [password])
+
+  const confirmPasswordError = useMemo(() => {
+    if (!confirmPassword) return null
+    if (confirmPassword !== password) return "Les mots de passe ne correspondent pas."
+    return null
+  }, [confirmPassword, password])
+
   const handleSubmit = async () => {
-    if (!fullName.trim() || !email.trim()) {
-      toast.error("Renseignez votre nom et votre email.")
+    if (!fullName.trim() || !email.trim() || !password || !confirmPassword) {
+      toast.error("Renseignez votre nom, votre email et votre mot de passe.")
       return
     }
 
-    if (fullNameError || emailError) {
-      toast.error(fullNameError || emailError || "Le formulaire contient des erreurs.")
+    if (fullNameError || emailError || passwordError || confirmPasswordError) {
+      toast.error(fullNameError || emailError || passwordError || confirmPasswordError || "Le formulaire contient des erreurs.")
       return
     }
 
@@ -48,13 +64,14 @@ export default function CreateAccountPage() {
         body: JSON.stringify({
           full_name: fullName.trim(),
           email: email.trim(),
+          password,
         }),
       })
 
       toast.success(response.message)
       setIsSuccess(true)
     } catch (error: any) {
-      toast.error(error.message || "Impossible de préparer le compte.")
+      toast.error(error.message || "Impossible de créer le compte.")
     } finally {
       setIsSubmitting(false)
     }
@@ -70,16 +87,16 @@ export default function CreateAccountPage() {
               <FlowOutcomeHero
                 status="success"
                 eyebrow="Compte client"
-                title="Vérifiez votre boîte mail"
-                description={`Nous avons envoyé un lien de création de mot de passe à ${email.trim()}.`}
-                helper="Ouvrez le dernier email reçu puis suivez le lien pour activer votre accès client."
+                title="Compte créé"
+                description={`Votre compte client est prêt pour ${email.trim()}.`}
+                helper="Vous pouvez maintenant vous connecter immédiatement avec votre email et votre mot de passe."
               />
               <Card className="p-6 space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Une fois le mot de passe défini, vous pourrez vous connecter et retrouver vos forfaits ainsi que vos prochaines réservations.
+                  Votre accès client est actif. Vous retrouverez vos forfaits et vos prochaines réservations après connexion.
                 </p>
-                <Button className="w-full" asChild>
-                  <Link href="/login">Aller à la connexion</Link>
+                <Button className="w-full" onClick={() => router.push("/login")}>
+                  Aller à la connexion
                 </Button>
               </Card>
             </div>
@@ -88,7 +105,7 @@ export default function CreateAccountPage() {
               <div>
                 <h1 className="text-3xl font-serif font-bold">Créer un compte client</h1>
                 <p className="text-muted-foreground mt-2">
-                  Nous préparons votre compte puis nous vous envoyons un email pour définir votre mot de passe.
+                  Créez votre compte et choisissez votre mot de passe tout de suite.
                 </p>
               </div>
 
@@ -104,8 +121,20 @@ export default function CreateAccountPage() {
                 {emailError && <p className="text-sm text-destructive">{emailError}</p>}
               </div>
 
-              <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting || Boolean(fullNameError) || Boolean(emailError)}>
-                {isSubmitting ? "Préparation..." : "Créer mon compte"}
+              <div className="space-y-2">
+                <Label htmlFor="password">Mot de passe</Label>
+                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Minimum 8 caractères" />
+                {passwordError && <p className="text-sm text-destructive">{passwordError}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
+                <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirmez votre mot de passe" />
+                {confirmPasswordError && <p className="text-sm text-destructive">{confirmPasswordError}</p>}
+              </div>
+
+              <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting || Boolean(fullNameError) || Boolean(emailError) || Boolean(passwordError) || Boolean(confirmPasswordError)}>
+                {isSubmitting ? "Création..." : "Créer mon compte"}
               </Button>
 
               <p className="text-sm text-muted-foreground">

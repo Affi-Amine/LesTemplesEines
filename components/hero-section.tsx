@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import Image from "next/image"
@@ -14,12 +15,72 @@ type HomeStats = {
   clients: number
 }
 
+function useCountUp(target: number, shouldAnimate: boolean, duration = 1400) {
+  const [value, setValue] = useState(0)
+
+  useEffect(() => {
+    if (!shouldAnimate) return
+
+    let frameId = 0
+    const start = performance.now()
+
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1)
+      const easedProgress = 1 - Math.pow(1 - progress, 3)
+      setValue(Math.round(target * easedProgress))
+
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(tick)
+      }
+    }
+
+    setValue(0)
+    frameId = window.requestAnimationFrame(tick)
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [duration, shouldAnimate, target])
+
+  return value
+}
+
 export function HeroSection() {
+  const statsRef = useRef<HTMLDivElement | null>(null)
+  const [statsVisible, setStatsVisible] = useState(false)
+
   useSalons()
   const { data: homeStats } = useQuery({
     queryKey: ["home-stats"],
     queryFn: () => fetchAPI<HomeStats>("/public/home-stats"),
   })
+
+  useEffect(() => {
+    const node = statsRef.current
+    if (!node) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setStatsVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.35 }
+    )
+
+    observer.observe(node)
+
+    return () => observer.disconnect()
+  }, [])
+
+  const statsTargets = {
+    salons: Math.max(homeStats?.salons ?? 0, 5),
+    clients: Math.max(homeStats?.clients ?? 0, 20000),
+    staff: Math.max(homeStats?.staff ?? 0, 50),
+  }
+
+  const animatedSalons = useCountUp(statsTargets.salons, statsVisible)
+  const animatedClients = useCountUp(statsTargets.clients, statsVisible)
+  const animatedStaff = useCountUp(statsTargets.staff, statsVisible)
 
   return (
     <section className="relative flex min-h-[100svh] items-center justify-center overflow-hidden pt-24 md:min-h-screen md:pt-20">
@@ -40,17 +101,19 @@ export function HeroSection() {
         <div className="max-w-3xl space-y-5 sm:space-y-7 md:space-y-8">
           <div className="home-reveal inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-background/35 px-3 py-2 backdrop-blur-sm sm:px-4">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span className="truncate text-xs font-semibold uppercase tracking-[0.22em] text-primary sm:text-sm">Massage thaï à Paris</span>
+            <span className="truncate text-[0.67rem] font-semibold uppercase tracking-[0.18em] text-primary sm:text-sm">
+              Massage traditionnel thailandais
+            </span>
           </div>
 
           <div className="home-reveal home-reveal-delay-1 home-reveal-soft">
-            <h1 className="mb-4 max-w-4xl text-[2.55rem] font-serif font-bold leading-[0.94] text-foreground drop-shadow-[0_10px_30px_rgba(0,0,0,0.38)] sm:mb-5 sm:text-5xl md:text-6xl lg:text-7xl">
-              Le massage thaï,
+            <h1 className="mb-4 max-w-4xl text-[2rem] font-serif font-bold leading-[1.08] tracking-[-0.02em] text-foreground drop-shadow-[0_10px_30px_rgba(0,0,0,0.38)] sm:mb-5 sm:text-5xl md:text-6xl lg:text-7xl">
+              Les temples
               <br />
-              <span className="text-primary">détendre le corps et apaiser l’esprit.</span>
+              <span className="text-primary">du bien-être</span>
             </h1>
-            <p className="hidden max-w-md text-sm leading-relaxed text-[#d8cebf] sm:block sm:max-w-lg sm:text-base md:text-lg">
-              Réservez votre soin, offrez une carte cadeau ou découvrez nos forfaits, simplement et sans complication.
+            <p className="max-w-md text-sm leading-7 text-[#d8cebf] sm:max-w-lg sm:text-base sm:leading-8 md:text-lg md:leading-9">
+              Massage thaï traditionnel, gestes précis et atmosphère apaisante. Réservez votre soin, offrez une carte cadeau ou choisissez votre forfait simplement.
             </p>
           </div>
 
@@ -74,17 +137,17 @@ export function HeroSection() {
             </div>
           </div>
 
-          <div className="home-reveal home-reveal-delay-3 home-reveal-soft grid grid-cols-3 gap-3 border-t border-primary/10 pt-5 sm:gap-4 sm:pt-8 md:max-w-2xl">
+          <div ref={statsRef} className="home-reveal home-reveal-delay-3 home-reveal-soft grid grid-cols-3 gap-3 border-t border-primary/10 pt-5 sm:gap-4 sm:pt-8 md:max-w-2xl">
             <div className="min-w-0">
-              <p className="text-xl font-bold text-foreground sm:text-2xl">{homeStats?.salons ?? 0}</p>
-              <p className="text-xs leading-5 text-muted-foreground sm:text-sm">Adresses</p>
+              <p className="text-xl font-bold text-foreground sm:text-2xl">{animatedSalons}</p>
+              <p className="text-xs leading-5 text-muted-foreground sm:text-sm">Salons</p>
             </div>
             <div className="min-w-0">
-              <p className="text-xl font-bold text-foreground sm:text-2xl">{homeStats ? `${homeStats.clients.toLocaleString("fr-FR")}+` : "0"}</p>
+              <p className="text-xl font-bold text-foreground sm:text-2xl">+{animatedClients.toLocaleString("fr-FR")}</p>
               <p className="text-xs leading-5 text-muted-foreground sm:text-sm">Clients</p>
             </div>
             <div className="min-w-0">
-              <p className="text-xl font-bold text-foreground sm:text-2xl">{homeStats ? `${homeStats.staff}+` : "0"}</p>
+              <p className="text-xl font-bold text-foreground sm:text-2xl">+{animatedStaff}</p>
               <p className="text-xs leading-5 text-muted-foreground sm:text-sm">Thérapeutes</p>
             </div>
           </div>

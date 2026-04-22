@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Suspense, useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
@@ -250,13 +251,22 @@ function ForfaitsContent() {
       <section className="pt-28 pb-16 px-4">
         <div className="max-w-6xl mx-auto space-y-8">
           {checkoutHero?.status ? (
-            <FlowOutcomeHero
-              status={checkoutHero.status}
-              eyebrow="Forfait"
-              title={checkoutHero.title}
-              description={checkoutHero.description}
-              helper={checkoutHero.helper}
-            />
+            <div className="space-y-4">
+              <FlowOutcomeHero
+                status={checkoutHero.status}
+                eyebrow="Forfait"
+                title={checkoutHero.title}
+                description={checkoutHero.description}
+                helper={checkoutHero.helper}
+              />
+              {checkoutStatus?.status === "completed" && checkoutStatus.client_pack ? (
+                <div className="flex justify-center">
+                  <Button asChild size="lg">
+                    <Link href="/mes-forfaits">Voir mon forfait</Link>
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           ) : null}
 
           <div className="text-center space-y-4">

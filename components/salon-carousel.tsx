@@ -6,6 +6,7 @@ import Autoplay from "embla-carousel-autoplay"
 import { Button } from "@/components/ui/button"
 import { Icon } from "@iconify/react"
 import { cn } from "@/lib/utils"
+import { SalonImageFrame } from "@/components/salon-image-frame"
 
 interface SalonCarouselProps {
   images: string[]
@@ -86,11 +87,11 @@ export function SalonCarousel({
   if (images.length === 1) {
     return (
       <div className={cn("relative w-full h-full temple-frame rounded-[1.75rem] overflow-hidden", className)}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <SalonImageFrame
           src={images[0]}
           alt={alt}
-          className="h-full w-full object-cover"
+          className="h-full w-full"
+          imageClassName="px-3 py-3 sm:px-5 sm:py-5"
         />
       </div>
     )
@@ -106,11 +107,11 @@ export function SalonCarousel({
               key={index}
               className="flex-[0_0_100%] min-w-0 h-full relative"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <SalonImageFrame
                 src={image}
                 alt={`${alt} - Image ${index + 1}`}
-                className="h-full w-full object-cover"
+                className="h-full w-full"
+                imageClassName="px-3 py-3 sm:px-5 sm:py-5"
                 draggable={false}
               />
             </div>

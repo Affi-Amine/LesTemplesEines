@@ -24,7 +24,7 @@ export default function Home() {
             <span className="text-sm font-semibold text-primary tracking-widest uppercase">Pourquoi nous choisir</span>
             <h2 className="mt-2 mb-3 text-3xl font-serif font-bold md:mb-4 md:text-5xl">Une signature de soin sobre et raffinée</h2>
             <p className="mx-auto max-w-xl text-sm leading-7 text-muted-foreground sm:max-w-2xl sm:text-base">
-              L&apos;inspiration est thaï, l&apos;expérience est tenue : un vrai calme, des gestes précis et des adresses cohérentes.
+              L&apos;inspiration vient de la Thaïlande, l&apos;expérience est tenue : un vrai calme, des gestes précis et des adresses cohérentes.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-3 md:gap-8">
@@ -32,7 +32,7 @@ export default function Home() {
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 transition-all group-hover:-translate-y-1 group-hover:bg-primary/20 md:mb-6 md:h-16 md:w-16">
                 <Users className="h-7 w-7 text-primary md:h-8 md:w-8" />
               </div>
-              <h3 className="mb-2 text-lg font-semibold md:mb-3 md:text-xl">Un geste thaï maîtrisé</h3>
+              <h3 className="mb-2 text-lg font-semibold md:mb-3 md:text-xl">Un savoir-faire de Thaïlande</h3>
               <p className="text-sm leading-6 text-muted-foreground md:text-base md:leading-7">
                 Pressions, étirements et travail des lignes pour délier les tensions avec précision.
               </p>

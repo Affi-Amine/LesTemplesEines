@@ -435,7 +435,7 @@ export default function StaffPage() {
                 id="specialties"
                 value={formData.specialties}
                 onChange={(e) => setFormData({ ...formData, specialties: e.target.value })}
-                placeholder="Massage suédois, Massage thaïlandais"
+                placeholder="Massage suédois, Massage de Thaïlande"
               />
             </div>
 

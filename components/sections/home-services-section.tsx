@@ -13,7 +13,7 @@ function normalize(value: string | null | undefined) {
 function getServiceBadge(name: string, category: string | null) {
   const haystack = `${normalize(name)} ${normalize(category)}`
 
-  if (haystack.includes("thai") || haystack.includes("thaï")) return "Nuad Thai"
+  if (haystack.includes("thai") || haystack.includes("thaï")) return "Nuad de Thaïlande"
   if (haystack.includes("huile") || haystack.includes("oil")) return "Huile"
   if (haystack.includes("pied") || haystack.includes("planta")) return "Foot massage"
   if (haystack.includes("duo")) return "Massage duo"
@@ -40,7 +40,7 @@ function getServiceDescription(name: string, category: string | null, descriptio
   if (!genericDescription) return current
 
   if (haystack.includes("thai") || haystack.includes("thaï")) {
-    return "Pressions, étirements et mobilisations inspirés du Nuad Thaï pour libérer le corps en profondeur."
+    return "Pressions, étirements et mobilisations inspirés des rituels de Thaïlande pour libérer le corps en profondeur."
   }
 
   if (haystack.includes("huile") || haystack.includes("oil")) {
@@ -119,7 +119,7 @@ export function HomeServicesSection() {
           <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos massages</span>
           <h2 className="mt-2 mb-3 text-3xl font-serif font-bold sm:mb-4 sm:text-4xl md:text-5xl">Des rituels pensés pour chaque besoin</h2>
           <p className="mx-auto max-w-xl text-sm leading-7 text-muted-foreground sm:max-w-2xl sm:text-base">
-            Une carte sobre, portée par le geste thaï, pour apaiser, relâcher ou travailler plus en profondeur.
+            Une carte sobre, portée par des gestes inspirés de la Thaïlande, pour apaiser, relâcher ou travailler plus en profondeur.
           </p>
         </div>
         <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-5">

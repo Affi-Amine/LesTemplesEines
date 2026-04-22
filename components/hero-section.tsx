@@ -87,7 +87,7 @@ export function HeroSection() {
       <div className="absolute inset-0 z-0">
         <Image
           src="/home-hero-les-temples.png"
-          alt="Cabine de massage thaïlandais Les Temples"
+          alt="Cabine de massage de Thaïlande Les Temples"
           fill
           className="hero-image-pan object-cover"
           priority
@@ -102,7 +102,7 @@ export function HeroSection() {
           <div className="home-reveal inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-background/35 px-3 py-2 backdrop-blur-sm sm:px-4">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
             <span className="truncate text-[0.67rem] font-semibold uppercase tracking-[0.18em] text-primary sm:text-sm">
-              Massage traditionnel thailandais
+              Massage traditionnel de Thaïlande
             </span>
           </div>
 
@@ -113,7 +113,7 @@ export function HeroSection() {
               <span className="text-primary">du bien-être</span>
             </h1>
             <p className="max-w-md text-sm leading-7 text-[#d8cebf] sm:max-w-lg sm:text-base sm:leading-8 md:text-lg md:leading-9">
-              Massage thaï traditionnel, gestes précis et atmosphère apaisante. Réservez votre soin, offrez une carte cadeau ou choisissez votre forfait simplement.
+              Massage traditionnel de Thaïlande, gestes précis et atmosphère apaisante. Réservez votre soin, offrez une carte cadeau ou choisissez votre forfait simplement.
             </p>
           </div>
 

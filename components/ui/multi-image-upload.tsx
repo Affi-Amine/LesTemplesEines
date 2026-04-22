@@ -2,10 +2,10 @@
 
 import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Upload, X, Loader2, GripVertical } from "lucide-react"
-import Image from "next/image"
+import { Upload, X, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
+import { SalonImageFrame } from "@/components/salon-image-frame"
 
 interface MultiImageUploadProps {
   value: string[]
@@ -131,18 +131,18 @@ export function MultiImageUpload({
           {value.map((url, index) => (
             <div key={index} className="relative aspect-video overflow-hidden rounded-lg border bg-muted group">
               {(url.startsWith('/') || url.includes('supabase.co')) ? (
-                <Image
-                  fill
+                <SalonImageFrame
                   src={url}
                   alt={`Image ${index + 1}`}
-                  className="object-cover"
+                  className="h-full w-full"
+                  imageClassName="px-2 py-2"
                 />
               ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <SalonImageFrame
                   src={url}
                   alt={`Image ${index + 1}`}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full"
+                  imageClassName="px-2 py-2"
                 />
               )}
 

@@ -24,6 +24,7 @@ import { Switch } from "@/components/ui/switch"
 import { MultiImageUpload } from "@/components/ui/multi-image-upload"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
+import { SalonImageFrame } from "@/components/salon-image-frame"
 
 type Salon = {
   id: string
@@ -181,9 +182,19 @@ export default function SalonsPage() {
                 <div className="relative h-48 bg-gradient-to-br from-primary/10 to-primary/5">
                   {/* Show first image from images array, fall back to image_url */}
                   {(salon.images && salon.images.length > 0) ? (
-                    <img src={salon.images[0]} alt={salon.name} className="w-full h-full object-cover" />
+                    <SalonImageFrame
+                      src={salon.images[0]}
+                      alt={salon.name}
+                      className="w-full h-full"
+                      imageClassName="px-3 py-3"
+                    />
                   ) : salon.image_url ? (
-                    <img src={salon.image_url} alt={salon.name} className="w-full h-full object-cover" />
+                    <SalonImageFrame
+                      src={salon.image_url}
+                      alt={salon.name}
+                      className="w-full h-full"
+                      imageClassName="px-3 py-3"
+                    />
                   ) : (
                     <div className="flex items-center justify-center h-full">
                       <Icon icon="solar:building-bold" className="w-16 h-16 text-primary/30" />
@@ -352,7 +363,7 @@ export default function SalonsPage() {
             <div className="space-y-2">
               <Label>Images du salon</Label>
               <p className="text-xs text-muted-foreground mb-2">
-                Ajoutez plusieurs images pour créer un carousel sur la page du salon
+                Ajoutez plusieurs images pour créer un carousel sur la page du salon. Les visuels sont maintenant affichés en entier, sans coupe brutale.
               </p>
               <MultiImageUpload
                 value={formData.images}

@@ -9,6 +9,7 @@ import { Icon } from "@iconify/react"
 import { useSalons } from "@/lib/hooks/use-salons"
 import useEmblaCarousel from "embla-carousel-react"
 import Autoplay from "embla-carousel-autoplay"
+import { SalonImageFrame } from "@/components/salon-image-frame"
 
 export function HomeSalonsSection() {
   const { data: salons, isLoading, error } = useSalons()
@@ -119,18 +120,20 @@ export function HomeSalonsSection() {
                 <div className="relative h-52 overflow-hidden bg-muted sm:h-56">
                   {/* Use images array if available, otherwise fall back to single image_url */}
                   {(salon.images && salon.images.length > 0) ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <SalonImageFrame
                       src={salon.images[0]}
                       alt={salon.name}
-                      className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      className="h-full w-full"
+                      imageClassName="px-3 py-3 transition-transform duration-500 group-hover:scale-[1.03]"
+                      backgroundClassName="transition-transform duration-500 group-hover:scale-[1.16]"
                     />
                   ) : salon.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <SalonImageFrame
                       src={salon.image_url}
                       alt={salon.name}
-                      className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      className="h-full w-full"
+                      imageClassName="px-3 py-3 transition-transform duration-500 group-hover:scale-[1.03]"
+                      backgroundClassName="transition-transform duration-500 group-hover:scale-[1.16]"
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full bg-gradient-to-br from-primary/10 to-primary/5">
@@ -153,7 +156,7 @@ export function HomeSalonsSection() {
                       <p className="text-sm text-primary/90 mt-1">{salon.city}</p>
                     </div>
                     <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-primary">
-                      Thai
+                      Thaïlande
                     </span>
                   </div>
 

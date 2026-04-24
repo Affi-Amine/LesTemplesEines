@@ -27,6 +27,9 @@ type CheckoutStatus = {
   session_id: string
   checkout_type: "gift_card" | "appointment"
   status: "open" | "completed" | "failed"
+  payload?: {
+    buyer_name: string | null
+  } | null
   gift_card?: {
     code: string
     recipient_email: string | null
@@ -46,6 +49,7 @@ function GiftPageContent() {
   const [selectedServiceId, setSelectedServiceId] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [form, setForm] = useState({
+    buyer_name: "",
     buyer_email: "",
     recipient_email: "",
     recipient_name: "",
@@ -72,7 +76,7 @@ function GiftPageContent() {
 
   const handlePurchase = async () => {
     if (!selectedService || !form.buyer_email) {
-      toast.error("Veuillez choisir une prestation et renseigner l'email acheteur.")
+      toast.error("Veuillez choisir une prestation et renseigner le nom et l'email de l'offrant.")
       return
     }
 
@@ -82,6 +86,7 @@ function GiftPageContent() {
         method: "POST",
         body: JSON.stringify({
           service_id: selectedService.id,
+          buyer_name: form.buyer_name,
           buyer_email: form.buyer_email,
           recipient_email: form.recipient_email || undefined,
           recipient_name: form.recipient_name || undefined,
@@ -188,6 +193,16 @@ function GiftPageContent() {
               )}
 
               <div className="space-y-2">
+                <Label htmlFor="buyer_name">Nom de l&apos;offrant *</Label>
+                <Input
+                  id="buyer_name"
+                  value={form.buyer_name}
+                  onChange={(e) => setForm({ ...form, buyer_name: e.target.value })}
+                  placeholder="Prénom Nom"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="buyer_email">Email acheteur *</Label>
                 <Input
                   id="buyer_email"
@@ -230,7 +245,7 @@ function GiftPageContent() {
                 />
               </div>
 
-              <Button onClick={handlePurchase} disabled={!selectedService || !form.buyer_email || isSubmitting} className="w-full">
+              <Button onClick={handlePurchase} disabled={!selectedService || !form.buyer_name || !form.buyer_email || isSubmitting} className="w-full">
                 {isSubmitting ? "Redirection vers Stripe..." : "Payer"}
               </Button>
 

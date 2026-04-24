@@ -2,6 +2,9 @@ import type { createAdminClient } from "@/lib/supabase/admin"
 import { z } from "zod"
 import { canUseClientPackStatus } from "@/lib/packs"
 import { findClientByEmail, findClientByPhone } from "@/lib/client-auth"
+import { formatInTimeZone, toZonedTime } from "date-fns-tz"
+
+const APPOINTMENT_TIMEZONE = "Europe/Paris"
 
 const PhoneSchema = z
   .string()
@@ -41,6 +44,33 @@ export const BookableAppointmentSchema = z.object({
 
 type SupabaseClient = ReturnType<typeof createAdminClient>
 export type BookableAppointmentInput = z.infer<typeof BookableAppointmentSchema>
+export type AppointmentSchedulingInput = Pick<
+  BookableAppointmentInput,
+  "salon_id" | "service_id" | "start_time" | "end_time" | "staff_id" | "staff_ids"
+>
+
+export function getTodayInParis() {
+  return formatInTimeZone(new Date(), APPOINTMENT_TIMEZONE, "yyyy-MM-dd")
+}
+
+export function isDateBeforeTodayInParis(date: string) {
+  return date < getTodayInParis()
+}
+
+export function assertAppointmentStartIsNotInPast(startTime: string) {
+  const appointmentStart = new Date(startTime)
+
+  if (Number.isNaN(appointmentStart.getTime())) {
+    throw new Error("Date de rendez-vous invalide")
+  }
+
+  const nowInParis = toZonedTime(new Date(), APPOINTMENT_TIMEZONE)
+  const appointmentStartInParis = toZonedTime(appointmentStart, APPOINTMENT_TIMEZONE)
+
+  if (appointmentStartInParis.getTime() < nowInParis.getTime()) {
+    throw new Error("Impossible de créer un rendez-vous dans le passé")
+  }
+}
 
 function logAppointmentTiming(requestId: string | undefined, step: string, startedAt: number, details?: Record<string, unknown>) {
   const durationMs = Date.now() - startedAt
@@ -81,6 +111,21 @@ export async function validateBookableAppointment(
   supabase: SupabaseClient,
   input: BookableAppointmentInput
 ) {
+  const { endTime, service } = await validateAppointmentScheduling(supabase, input)
+
+  const allStaffIds = input.staff_ids || (input.staff_id ? [input.staff_id] : [])
+
+  return { endTime, service, allStaffIds }
+}
+
+export async function validateAppointmentScheduling(
+  supabase: SupabaseClient,
+  input: AppointmentSchedulingInput,
+  options?: {
+    ignoreAppointmentId?: string
+  }
+) {
+  assertAppointmentStartIsNotInPast(input.start_time)
   const { endTime, service } = await resolveAppointmentTiming(supabase, input)
 
   const { data: serviceSalon, error: serviceSalonError } = await supabase
@@ -100,13 +145,19 @@ export async function validateBookableAppointment(
 
   const allStaffIds = input.staff_ids || (input.staff_id ? [input.staff_id] : [])
   for (const staffId of allStaffIds) {
-    const { data: conflicts, error: conflictError } = await supabase
+    let conflictQuery = supabase
       .from("appointments")
       .select("id")
       .eq("staff_id", staffId)
       .in("status", ["confirmed", "pending", "blocked"])
       .lt("start_time", endTime)
       .gt("end_time", input.start_time)
+
+    if (options?.ignoreAppointmentId) {
+      conflictQuery = conflictQuery.neq("id", options.ignoreAppointmentId)
+    }
+
+    const { data: conflicts, error: conflictError } = await conflictQuery
 
     if (conflictError) {
       throw new Error(conflictError.message)
@@ -116,13 +167,19 @@ export async function validateBookableAppointment(
       throw new Error("Un ou plusieurs creneaux ne sont plus disponibles")
     }
 
-    const { data: deepConflicts, error: deepConflictError } = await supabase
+    let assignmentConflictQuery = supabase
       .from("appointment_assignments")
-      .select("appointment:appointments!inner(start_time, end_time, status)")
+      .select("appointment_id, appointment:appointments!inner(id, start_time, end_time, status)")
       .eq("staff_id", staffId)
       .filter("appointment.status", "in", '("confirmed","pending","blocked")')
       .filter("appointment.start_time", "lt", endTime)
       .filter("appointment.end_time", "gt", input.start_time)
+
+    if (options?.ignoreAppointmentId) {
+      assignmentConflictQuery = assignmentConflictQuery.neq("appointment_id", options.ignoreAppointmentId)
+    }
+
+    const { data: deepConflicts, error: deepConflictError } = await assignmentConflictQuery
 
     if (deepConflictError) {
       throw new Error(deepConflictError.message)

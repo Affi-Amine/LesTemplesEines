@@ -19,7 +19,7 @@ import { t } from "@/lib/i18n/get-translations"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { fromZonedTime } from "date-fns-tz"
+import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
 import type { Locale } from "@/i18n.config"
 import { quarterOptionsBetween } from "@/lib/calendar/scheduling"
 import { fetchAPI } from "@/lib/api/client"
@@ -72,6 +72,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   })
   const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false)
   const [hasClientSession, setHasClientSession] = useState(false)
+  const todayInParis = useMemo(() => formatInTimeZone(new Date(), "Europe/Paris", "yyyy-MM-dd"), [])
 
   const updateData = (updates: Partial<BookingData>) => {
     setData((current) => ({ ...current, ...updates }))
@@ -104,14 +105,20 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     setData((current) => ({
       ...current,
       employee: employeeId,
-      time: "",
     }))
   }
 
   const handleDateChange = (date: string) => {
+    if (date && date < todayInParis) {
+      toast.error("Impossible de réserver dans le passé")
+      return
+    }
+
     setData((current) => ({
       ...current,
       date,
+      employee: "",
+      employees: [],
       time: "",
     }))
   }
@@ -234,7 +241,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   // Availability based on selected therapist and date
   const selectedDateObj = data.date ? new Date(data.date) : undefined
   const { data: availabilityData, isLoading: availabilityLoading } = useAvailability(
-    (data.employees.length > 0 ? data.employees : (data.employee ? data.employee : undefined)),
+    undefined,
     selectedDateObj,
     data.service || undefined,
     data.salon || undefined,
@@ -255,6 +262,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     )
     return selectedSlot?.available_staff || []
   }
+  const availableEmployeesForSelectedTime = useMemo(() => {
+    const availableStaffIds = new Set(getStaffForSelectedTime())
+    return salonEmployees.filter((employee) => availableStaffIds.has(employee.id))
+  }, [availabilityData?.available_slots, data.time, salonEmployees])
 
   // Generate time options from salon hours with 15-min steps if available, otherwise fallback
   const defaultTimes = [
@@ -279,9 +290,45 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
   useEffect(() => {
     if (data.time && !availableTimesSet.has(data.time)) {
-      setData((current) => ({ ...current, time: "" }))
+      setData((current) => ({
+        ...current,
+        time: "",
+        employee: "",
+        employees: [],
+      }))
     }
   }, [availableTimesSet, data.time])
+
+  useEffect(() => {
+    if (!data.employee) {
+      return
+    }
+
+    const isStillAvailable = availableEmployeesForSelectedTime.some((employee) => employee.id === data.employee)
+
+    if (!isStillAvailable) {
+      setData((current) => ({
+        ...current,
+        employee: "",
+      }))
+    }
+  }, [availableEmployeesForSelectedTime, data.employee])
+
+  useEffect(() => {
+    if (data.employees.length === 0) {
+      return
+    }
+
+    const availableEmployeeIds = new Set(availableEmployeesForSelectedTime.map((employee) => employee.id))
+    const nextEmployees = data.employees.filter((employeeId) => availableEmployeeIds.has(employeeId))
+
+    if (nextEmployees.length !== data.employees.length) {
+      setData((current) => ({
+        ...current,
+        employees: nextEmployees,
+      }))
+    }
+  }, [availableEmployeesForSelectedTime, data.employees])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -307,10 +354,18 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
          if (newSelection.length >= requiredCount) return
       }
     }
-    setData((current) => ({ ...current, employees: newSelection, time: "" }))
+    setData((current) => ({ ...current, employees: newSelection }))
   }
 
   const isMultiStaff = (currentService?.required_staff_count || 1) > 1
+  const handleTimeChange = (time: string) => {
+    setData((current) => ({
+      ...current,
+      time,
+      employee: "",
+      employees: [],
+    }))
+  }
 
   const handleNext = () => {
     const steps: BookingStep[] = ["salon", "service", "time", "info", "confirm"]
@@ -343,6 +398,13 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     // Convert Paris time to UTC ISO string
     const parisTime = fromZonedTime(`${data.date} ${data.time}:00`, "Europe/Paris")
     const startTime = parisTime.toISOString()
+    const nowInParis = toZonedTime(new Date(), "Europe/Paris")
+    const selectedStartInParis = toZonedTime(new Date(startTime), "Europe/Paris")
+
+    if (selectedStartInParis.getTime() < nowInParis.getTime()) {
+      toast.error("Impossible de réserver un créneau dans le passé")
+      return
+    }
     
     // For multi-staff, get the assigned staff from availability data
     let assignedStaffIds: string[] = []
@@ -496,7 +558,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
   const renderStaffName = (employee: Pick<Staff, "first_name" | "last_name" | "gender">) => {
     const genderIcon =
-      employee.gender === "female" ? "mdi:gender-female" : employee.gender === "male" ? "mdi:gender-male" : null
+      employee.gender === "female" ? "mdi:face-woman-profile" : employee.gender === "male" ? "mdi:face-man-profile" : null
 
     return (
       <span className="inline-flex items-center gap-2">
@@ -669,77 +731,120 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           <h2 className="text-2xl font-semibold mb-2">{t(locale, "booking.step3_title")}</h2>
           <p className="text-muted-foreground mb-6">{t(locale, "booking.step3_subtitle")}</p>
           <div className="space-y-6">
-            {/* Select Therapist first to compute availability */}
-            {(!currentService?.required_staff_count || currentService.required_staff_count <= 1) ? (
             <div>
-              <Label className="font-semibold">{t(locale, "booking.select_therapist")}</Label>
-              {staffLoading ? (
-                <div className="space-y-2 mt-3">
-                  {[1, 2].map((i) => (
-                    <div key={i} className="p-3 border rounded-lg animate-pulse">
-                      <div className="h-4 bg-muted rounded w-1/3" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <RadioGroup value={data.employee} onValueChange={handleEmployeeChange}>
-                  <div className="space-y-2 mt-3">
-                    {salonEmployees.length > 0 ? (
-                      salonEmployees.map((emp) => (
-                        <div
-                          key={emp.id}
-                          onClick={() => handleEmployeeChange(emp.id)}
-                          className={`flex items-center space-x-3 rounded-lg border p-3 transition-all cursor-pointer ${
-                            data.employee === emp.id
-                              ? "border-primary bg-primary/10"
-                              : "bg-card/65 hover:bg-muted hover:border-primary"
-                          }`}
-                        >
-                          <RadioGroupItem value={emp.id} id={emp.id} className="pointer-events-none" />
-                          <Label htmlFor={emp.id} className="flex-1 cursor-pointer pointer-events-none">
-                            {renderStaffName(emp)}
-                          </Label>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Aucun thérapeute disponible</p>
-                    )}
-                  </div>
-                </RadioGroup>
-              )}
+              <Label htmlFor="date" className="font-semibold">
+                {t(locale, "booking.select_date")}
+              </Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={data.date}
+                  onChange={(e) => handleDateChange(e.target.value)}
+                  min={todayInParis}
+                  className="mt-2 w-full min-w-0 max-w-full"
+                />
             </div>
+            <div>
+              <Label className="font-semibold">{t(locale, "booking.select_time")}</Label>
+              <p className="text-xs text-muted-foreground mt-2">
+                {!data.date && "Sélectionnez d'abord la date pour voir les créneaux disponibles."}
+                {availabilityLoading && data.date && "Chargement des créneaux disponibles..."}
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mt-3">
+                {timeOptions.map((time) => {
+                  const isAvailable = data.date ? availableTimesSet.has(time) : false
+                  const isSelected = data.time === time
+                  return (
+                    <Button
+                      key={time}
+                      variant={isSelected ? "default" : "outline"}
+                      onClick={() => handleTimeChange(time)}
+                      className={`w-full ${!isAvailable ? "bg-muted text-muted-foreground border-muted-foreground/10 opacity-100 cursor-not-allowed hover:bg-muted hover:text-muted-foreground" : ""}`}
+                      disabled={!isAvailable || availabilityLoading}
+                    >
+                      {time}
+                    </Button>
+                  )
+                })}
+              </div>
+            </div>
+            {(!currentService?.required_staff_count || currentService.required_staff_count <= 1) ? (
+              <div>
+                <Label className="font-semibold">{t(locale, "booking.select_therapist")}</Label>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {!data.time && "Choisissez d'abord un créneau, puis sélectionnez un praticien disponible."}
+                </p>
+                {staffLoading ? (
+                  <div className="space-y-2 mt-3">
+                    {[1, 2].map((i) => (
+                      <div key={i} className="p-3 border rounded-lg animate-pulse">
+                        <div className="h-4 bg-muted rounded w-1/3" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <RadioGroup value={data.employee} onValueChange={handleEmployeeChange}>
+                    <div className="space-y-2 mt-3">
+                      {data.time ? (
+                        availableEmployeesForSelectedTime.length > 0 ? (
+                          availableEmployeesForSelectedTime.map((emp) => (
+                            <div
+                              key={emp.id}
+                              onClick={() => handleEmployeeChange(emp.id)}
+                              className={`flex items-center space-x-3 rounded-lg border p-3 transition-all cursor-pointer ${
+                                data.employee === emp.id
+                                  ? "border-primary bg-primary/10"
+                                  : "bg-card/65 hover:bg-muted hover:border-primary"
+                              }`}
+                            >
+                              <RadioGroupItem value={emp.id} id={emp.id} className="pointer-events-none" />
+                              <Label htmlFor={emp.id} className="flex-1 cursor-pointer pointer-events-none">
+                                {renderStaffName(emp)}
+                              </Label>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Aucun thérapeute disponible pour ce créneau.</p>
+                        )
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Sélectionnez un créneau pour voir les thérapeutes disponibles.</p>
+                      )}
+                    </div>
+                  </RadioGroup>
+                )}
+              </div>
             ) : (
               <div>
-                 <Label className="font-semibold">
-                   Sélectionnez {currentService.required_staff_count} praticiens
-                   {data.employees.length > 0 && ` (${data.employees.length}/${currentService.required_staff_count})`}
-                 </Label>
-                 <p className="text-xs text-muted-foreground mb-3">
-                   Veuillez choisir les praticiens pour ce soin duo ou trio. Laissez vide pour une attribution automatique.
-                 </p>
-                 
-                 {staffLoading ? (
-                    <div className="space-y-2 mt-3">
-                      {[1, 2].map((i) => (
-                        <div key={i} className="p-3 border rounded-lg animate-pulse">
-                          <div className="h-4 bg-muted rounded w-1/3" />
-                        </div>
-                      ))}
-                    </div>
-                 ) : (
-                   <div className="space-y-2 mt-3">
-                      {salonEmployees.map((emp) => {
+                <Label className="font-semibold">
+                  Sélectionnez {currentService.required_staff_count} praticiens
+                  {data.employees.length > 0 && ` (${data.employees.length}/${currentService.required_staff_count})`}
+                </Label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Choisissez d'abord un créneau, puis les praticiens disponibles. Laissez vide pour une attribution automatique.
+                </p>
+                {staffLoading ? (
+                  <div className="space-y-2 mt-3">
+                    {[1, 2].map((i) => (
+                      <div key={i} className="p-3 border rounded-lg animate-pulse">
+                        <div className="h-4 bg-muted rounded w-1/3" />
+                      </div>
+                    ))}
+                  </div>
+                ) : data.time ? (
+                  <div className="space-y-2 mt-3">
+                    {availableEmployeesForSelectedTime.length > 0 ? (
+                      availableEmployeesForSelectedTime.map((emp) => {
                         const isSelected = data.employees.includes(emp.id)
                         const isFull = data.employees.length >= (currentService.required_staff_count || 2)
                         const disabled = !isSelected && isFull
 
                         return (
-                          <div 
-                            key={emp.id} 
-                            className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-primary/12 border-primary' : 'bg-card/65 hover:bg-muted'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          <div
+                            key={emp.id}
+                            className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? "bg-primary/12 border-primary" : "bg-card/65 hover:bg-muted"} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
                             onClick={() => !disabled && toggleEmployeeSelection(emp.id, currentService.required_staff_count || 2)}
                           >
-                            <Checkbox 
+                            <Checkbox
                               checked={isSelected}
                               onCheckedChange={() => {}}
                               id={`staff-${emp.id}`}
@@ -750,53 +855,22 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                             </Label>
                           </div>
                         )
-                      })}
-                   </div>
-                 )}
+                      })
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Aucun praticien disponible pour ce créneau.</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-3">Sélectionnez un créneau pour voir les praticiens disponibles.</p>
+                )}
               </div>
             )}
-            <div>
-              <Label htmlFor="date" className="font-semibold">
-                {t(locale, "booking.select_date")}
-              </Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={data.date}
-                  onChange={(e) => handleDateChange(e.target.value)}
-                  className="mt-2 w-full min-w-0 max-w-full"
-                />
-            </div>
-            <div>
-              <Label className="font-semibold">{t(locale, "booking.select_time")}</Label>
-              <p className="text-xs text-muted-foreground mt-2">
-                {(!data.employee && (!currentService?.required_staff_count || currentService.required_staff_count <= 1) && !data.date) && "Sélectionnez d'abord le thérapeute et la date pour voir les créneaux disponibles."}
-                {availabilityLoading && data.date && "Chargement des créneaux disponibles..."}
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mt-3">
-                {timeOptions.map((time) => {
-                  const isAvailable = (data.employee || (currentService?.required_staff_count || 1) > 1) && data.date ? availableTimesSet.has(time) : false
-                  const isSelected = data.time === time
-                  return (
-                    <Button
-                      key={time}
-                      variant={isSelected ? "default" : "outline"}
-                      onClick={() => updateData({ time })}
-                      className={`w-full ${!isAvailable ? "bg-muted text-muted-foreground border-muted-foreground/10 opacity-100 cursor-not-allowed hover:bg-muted hover:text-muted-foreground" : ""}`}
-                      disabled={!isAvailable || availabilityLoading || (!data.employee && (currentService?.required_staff_count || 1) <= 1)}
-                    >
-                      {time}
-                    </Button>
-                  )
-                })}
-              </div>
-            </div>
           </div>
           <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 mt-8">
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
-            <Button onClick={handleNext} disabled={!data.date || !data.time || (!data.employee && (currentService?.required_staff_count || 1) <= 1)} size="lg" className="cursor-pointer w-full sm:w-auto">
+            <Button onClick={handleNext} disabled={!data.date || !data.time || (!isMultiStaff && !data.employee)} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.next")}
             </Button>
           </div>

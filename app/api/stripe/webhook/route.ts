@@ -16,6 +16,7 @@ import { getPackPaymentStatus } from "@/lib/packs"
 
 const GiftCardPayloadSchema = z.object({
   service_id: z.string().uuid(),
+  buyer_name: z.string().min(1),
   buyer_email: z.string().email(),
   recipient_email: z.string().email().optional(),
   recipient_name: z.string().optional(),
@@ -110,6 +111,7 @@ async function handleGiftCardCheckout(
 
   try {
     await sendGiftCardEmails({
+      buyerName: payload.buyer_name,
       buyerEmail: giftCard.buyer_email,
       recipientEmail: giftCard.recipient_email,
       recipientName: giftCard.recipient_name,

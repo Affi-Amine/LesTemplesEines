@@ -4,6 +4,7 @@ import { giftCardRecipientHtml, giftCardRecipientSubject } from "./templates/gif
 import { generateGiftCardAttachment } from "./gift-card-attachment"
 
 export async function sendGiftCardEmails(params: {
+  buyerName: string
   buyerEmail: string
   recipientEmail?: string | null
   recipientName?: string | null
@@ -17,6 +18,7 @@ export async function sendGiftCardEmails(params: {
   }
 
   const attachment = await generateGiftCardAttachment({
+    buyerName: params.buyerName,
     serviceName: params.serviceName,
     code: params.code,
     recipientName: params.recipientName,
@@ -27,9 +29,11 @@ export async function sendGiftCardEmails(params: {
     to: params.buyerEmail,
     subject: giftCardBuyerSubject({ serviceName: params.serviceName }),
     html: giftCardBuyerHtml({
+      buyerName: params.buyerName,
       serviceName: params.serviceName,
       code: params.code,
       recipientName: params.recipientName,
+      recipientEmail: params.recipientEmail,
     }),
     attachments: [attachment],
   })
@@ -39,6 +43,7 @@ export async function sendGiftCardEmails(params: {
       to: params.recipientEmail,
       subject: giftCardRecipientSubject({ serviceName: params.serviceName }),
       html: giftCardRecipientHtml({
+        buyerName: params.buyerName,
         serviceName: params.serviceName,
         code: params.code,
         recipientName: params.recipientName,

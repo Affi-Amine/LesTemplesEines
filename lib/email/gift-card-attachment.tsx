@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og"
 import { formatGiftCardCode, getBaseUrl } from "@/lib/gift-cards"
 
 type GiftCardAttachmentInput = {
+  buyerName: string
   serviceName: string
   code: string
   recipientName?: string | null
@@ -54,6 +55,8 @@ export async function generateGiftCardAttachment(input: GiftCardAttachmentInput)
   const formattedCode = formatGiftCardCode(input.code)
   const redeemUrl = `${getBaseUrl()}/jai-une-carte-cadeau`
   const messageLines = normalizeLines(input.personalMessage)
+  const buyerNameLines = normalizeLines(input.buyerName, 24, 2)
+  const recipientNameLines = normalizeLines(input.recipientName || "Le destinataire de votre choix", 24, 2)
 
   const image = new ImageResponse(
     (
@@ -140,7 +143,8 @@ export async function generateGiftCardAttachment(input: GiftCardAttachmentInput)
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "flex-end",
-                gap: 12,
+                gap: 14,
+                minWidth: 360,
               }}
             >
               <span
@@ -156,15 +160,82 @@ export async function generateGiftCardAttachment(input: GiftCardAttachmentInput)
               <div
                 style={{
                   display: "flex",
-                  padding: "14px 20px",
-                  borderRadius: 999,
-                  background: "rgba(248, 241, 231, 0.1)",
-                  border: "1px solid rgba(248, 241, 231, 0.18)",
-                  fontSize: 20,
-                  color: "#f5d498",
+                  gap: 12,
+                  width: "100%",
                 }}
               >
-                {input.recipientName ? `Pour ${input.recipientName}` : "À offrir"}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    flex: 1,
+                    padding: "18px 18px",
+                    borderRadius: 24,
+                    background: "rgba(248, 241, 231, 0.08)",
+                    border: "1px solid rgba(248, 241, 231, 0.16)",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 13,
+                      letterSpacing: 2,
+                      textTransform: "uppercase",
+                      color: "rgba(248, 241, 231, 0.54)",
+                    }}
+                  >
+                    Offert par
+                  </span>
+                  {buyerNameLines.map((line, index) => (
+                    <span
+                      key={`buyer-${line}-${index}`}
+                      style={{
+                        display: "flex",
+                        marginTop: index === 0 ? 10 : 4,
+                        fontSize: 24,
+                        color: "#fff4e1",
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {line}
+                    </span>
+                  ))}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    flex: 1,
+                    padding: "18px 18px",
+                    borderRadius: 24,
+                    background: "rgba(248, 241, 231, 0.12)",
+                    border: "1px solid rgba(248, 241, 231, 0.18)",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 13,
+                      letterSpacing: 2,
+                      textTransform: "uppercase",
+                      color: "rgba(248, 241, 231, 0.54)",
+                    }}
+                  >
+                    Pour
+                  </span>
+                  {recipientNameLines.map((line, index) => (
+                    <span
+                      key={`recipient-${line}-${index}`}
+                      style={{
+                        display: "flex",
+                        marginTop: index === 0 ? 10 : 4,
+                        fontSize: 24,
+                        color: "#f5d498",
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {line}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -272,7 +343,7 @@ export async function generateGiftCardAttachment(input: GiftCardAttachmentInput)
                       color: "rgba(248, 241, 231, 0.56)",
                     }}
                   >
-                    Message
+                    Le mot de {input.buyerName}
                   </span>
                   {messageLines.map((line, index) => (
                     <span key={`${line}-${index}`} style={{ display: "flex", marginTop: index === 0 ? 10 : 6, fontSize: 24, lineHeight: 1.35 }}>

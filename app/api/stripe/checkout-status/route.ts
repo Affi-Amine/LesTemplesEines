@@ -183,6 +183,7 @@ export async function GET(request: NextRequest) {
       amount_cents: checkoutSession.amount_cents,
       currency: checkoutSession.currency,
       payload: payload ? {
+        buyer_name: typeof payload.buyer_name === "string" ? payload.buyer_name : null,
         buyer_email: typeof payload.buyer_email === "string" ? payload.buyer_email : null,
         recipient_email: typeof payload.recipient_email === "string" ? payload.recipient_email : null,
         recipient_name: typeof payload.recipient_name === "string" ? payload.recipient_name : null,

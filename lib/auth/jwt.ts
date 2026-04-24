@@ -8,7 +8,7 @@ export interface JWTPayload {
   staffId: string
   salonId: string
   email: string
-  role: "therapist" | "assistant" | "manager" | "admin"
+  role: "therapist" | "assistant" | "manager" | "admin" | "receptionist"
 }
 
 export function generateAccessToken(payload: JWTPayload): string {

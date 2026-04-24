@@ -1,3 +1,4 @@
+import { getTodayInParis, isDateBeforeTodayInParis } from "@/lib/appointments/create"
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes } from "date-fns"
@@ -31,6 +32,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     if (!dateParam) {
       return NextResponse.json({ error: "Date parameter is required" }, { status: 400 })
+    }
+
+    if (isDateBeforeTodayInParis(dateParam)) {
+      return NextResponse.json({
+        staff_id,
+        date: dateParam,
+        available_slots: [],
+        total_slots: 0,
+        message: "Cannot book appointments in the past",
+      })
     }
 
     const supabase = await createClient()
@@ -143,7 +154,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       ...(assignments?.map((a: any) => a.appointment) || [])
     ]
 
-    const todayInParis = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd")
+    const todayInParis = getTodayInParis()
     const isTodayInParis = dateParam === todayInParis
     const nowInParis = toZonedTime(new Date(), TIMEZONE)
 

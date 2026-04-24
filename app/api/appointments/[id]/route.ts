@@ -1,4 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
+import { validateAppointmentScheduling } from "@/lib/appointments/create"
+import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -28,6 +30,11 @@ const UpdateAppointmentSchema = z.object({
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
+    const auth = requireStaffAuth(request, ["admin", "manager", "receptionist", "assistant", "therapist"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const { id } = await context.params
     const body = await request.json()
     const updates = UpdateAppointmentSchema.parse(body)
@@ -39,11 +46,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const supabase = await createAdminClient()
 
     // Ensure appointment exists and get current data for calculations
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("appointments")
       .select("id, status, start_time, service_id, staff_id, salon_id")
       .eq("id", id)
       .single()
+
+    if (existingError) {
+      return NextResponse.json({ error: existingError.message || "Failed to load appointment" }, { status: 400 })
+    }
 
     if (!existing) {
       return NextResponse.json({ error: "Appointment not found" }, { status: 404 })
@@ -67,96 +78,103 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       updateData.paid_at = new Date().toISOString()
     }
 
-    const targetSalonId = updates.salon_id || existing.salon_id
-    const targetServiceId = updates.service_id || existing.service_id
-
-    if (targetSalonId && targetServiceId) {
-      const { data: serviceSalon, error: serviceSalonError } = await supabase
-        .from("service_salons")
-        .select("service_id")
-        .eq("service_id", targetServiceId)
-        .eq("salon_id", targetSalonId)
-        .maybeSingle()
-
-      if (serviceSalonError) {
-        throw new Error(serviceSalonError.message)
-      }
-
-      if (!serviceSalon) {
-        return NextResponse.json({ error: "Ce service n'est pas disponible dans le salon sélectionné" }, { status: 400 })
-      }
-    }
-
-    // Handle Service/Time updates (recalculate end_time)
-    if (updates.service_id || updates.start_time) {
-      const serviceId = updates.service_id || existing.service_id
-      const startTimeStr = updates.start_time || existing.start_time
-      
-      if (updates.service_id) updateData.service_id = updates.service_id
-      if (updates.start_time) updateData.start_time = updates.start_time
-
-      // Get service duration
-      const { data: service } = await supabase
-        .from("services")
-        .select("duration_minutes")
-        .eq("id", serviceId)
-        .single()
-
-      if (service) {
-        const startDate = new Date(startTimeStr)
-        const endDate = new Date(startDate.getTime() + service.duration_minutes * 60000)
-        updateData.end_time = endDate.toISOString()
-      }
-    }
-
-    // Handle Staff updates
     let staffIdsToUpdate = updates.staff_ids
     if (!staffIdsToUpdate && updates.staff_id) {
         staffIdsToUpdate = [updates.staff_id]
     }
 
-    if (staffIdsToUpdate) {
-        // Update primary staff_id (use first one)
-        updateData.staff_id = staffIdsToUpdate[0]
+    const targetSalonId = updates.salon_id || existing.salon_id
+    const targetServiceId = updates.service_id || existing.service_id
+    const targetStartTime = updates.start_time || existing.start_time
+    const targetStaffIds = staffIdsToUpdate && staffIdsToUpdate.length > 0
+      ? staffIdsToUpdate
+      : existing.staff_id
+        ? [existing.staff_id]
+        : []
 
-        // Update assignments table
-        // First delete existing assignments
-        await supabase
-            .from("appointment_assignments")
-            .delete()
-            .eq("appointment_id", id)
-        
-        // Then insert new ones
-        if (staffIdsToUpdate.length > 0) {
-            const assignments = staffIdsToUpdate.map(staffId => ({
-                appointment_id: id,
-                staff_id: staffId
-            }))
-            
-            const { error: assignmentError } = await supabase
-                .from("appointment_assignments")
-                .insert(assignments)
-            
-            if (assignmentError) {
-                throw new Error("Failed to update staff assignments: " + assignmentError.message)
-            }
+    if (updates.service_id) updateData.service_id = updates.service_id
+    if (updates.start_time) updateData.start_time = updates.start_time
+
+    if (targetSalonId && targetServiceId && targetStaffIds.length > 0) {
+      const { endTime } = await validateAppointmentScheduling(
+        supabase,
+        {
+          salon_id: targetSalonId,
+          service_id: targetServiceId,
+          start_time: targetStartTime,
+          staff_id: targetStaffIds[0],
+          staff_ids: targetStaffIds,
+        },
+        {
+          ignoreAppointmentId: id,
         }
+      )
+
+      updateData.end_time = endTime
     }
 
-    // Handle multiple payments if provided
-    if (updates.payments && updates.payments.length > 0) {
-      const paymentRecords = updates.payments.map(p => ({
-        appointment_id: id,
-        amount_cents: p.amount_cents,
-        method: p.method
-      }))
+    const { data: existingAssignments, error: existingAssignmentsError } = await supabase
+      .from("appointment_assignments")
+      .select("staff_id")
+      .eq("appointment_id", id)
 
-      const { error: paymentsError } = await supabase
-        .from("payments")
-        .insert(paymentRecords)
-      
-      if (paymentsError) {
-        throw new Error("Failed to record payments: " + paymentsError.message)
+    if (existingAssignmentsError) {
+      throw new Error(existingAssignmentsError.message)
+    }
+
+    const previousStaffIds = (existingAssignments || []).map((assignment) => assignment.staff_id)
+    const normalizedStaffIdsToUpdate = staffIdsToUpdate
+      ? Array.from(new Set(staffIdsToUpdate))
+      : null
+
+    if (normalizedStaffIdsToUpdate) {
+      updateData.staff_id = normalizedStaffIdsToUpdate[0] || null
+    }
+
+    let assignmentsWereUpdated = false
+    if (normalizedStaffIdsToUpdate) {
+      const previousStaffIdSet = new Set(previousStaffIds)
+      const nextStaffIdSet = new Set(normalizedStaffIdsToUpdate)
+      const staffIdsToAdd = normalizedStaffIdsToUpdate.filter((staffId) => !previousStaffIdSet.has(staffId))
+      const staffIdsToRemove = previousStaffIds.filter((staffId) => !nextStaffIdSet.has(staffId))
+
+      if (staffIdsToAdd.length > 0) {
+        const { error: insertAssignmentsError } = await supabase
+          .from("appointment_assignments")
+          .insert(
+            staffIdsToAdd.map((staffId) => ({
+              appointment_id: id,
+              staff_id: staffId,
+            }))
+          )
+
+        if (insertAssignmentsError) {
+          throw new Error("Failed to update staff assignments: " + insertAssignmentsError.message)
+        }
+
+        assignmentsWereUpdated = true
+      }
+
+      if (staffIdsToRemove.length > 0) {
+        const { error: deleteAssignmentsError } = await supabase
+          .from("appointment_assignments")
+          .delete()
+          .eq("appointment_id", id)
+          .in("staff_id", staffIdsToRemove)
+
+        if (deleteAssignmentsError) {
+          if (staffIdsToAdd.length > 0) {
+            await supabase
+              .from("appointment_assignments")
+              .delete()
+              .eq("appointment_id", id)
+              .in("staff_id", staffIdsToAdd)
+          }
+
+          throw new Error("Failed to update staff assignments: " + deleteAssignmentsError.message)
+        }
+
+        assignmentsWereUpdated = true
       }
     }
 
@@ -175,11 +193,40 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .single()
 
     if (error) {
+      if (assignmentsWereUpdated) {
+        await supabase.from("appointment_assignments").delete().eq("appointment_id", id)
+
+        if (existingAssignments && existingAssignments.length > 0) {
+          await supabase.from("appointment_assignments").insert(
+            existingAssignments.map((assignment) => ({
+              appointment_id: id,
+              staff_id: assignment.staff_id,
+            }))
+          )
+        }
+      }
+
       // Likely a Postgres CHECK constraint error when setting unknown status
       const message = error.message?.includes("status")
         ? "Invalid status value for appointment"
         : error.message
       return NextResponse.json({ error: message || "Failed to update appointment" }, { status: 400 })
+    }
+
+    if (updates.payments && updates.payments.length > 0) {
+      const paymentRecords = updates.payments.map(p => ({
+        appointment_id: id,
+        amount_cents: p.amount_cents,
+        method: p.method
+      }))
+
+      const { error: paymentsError } = await supabase
+        .from("payments")
+        .insert(paymentRecords)
+
+      if (paymentsError) {
+        throw new Error("Failed to record payments: " + paymentsError.message)
+      }
     }
 
     return NextResponse.json(data)
@@ -193,6 +240,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
+    const auth = requireStaffAuth(request, ["admin", "manager", "receptionist"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const { id } = await context.params
     const supabase = await createAdminClient()
 

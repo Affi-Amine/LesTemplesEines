@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
+import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -16,6 +17,11 @@ interface RouteContext {
 
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
+    const auth = requireStaffAuth(request, ["admin", "manager", "receptionist", "assistant", "therapist"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const { id } = await context.params
     const supabase = await createAdminClient()
 
@@ -36,6 +42,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 export async function PUT(request: NextRequest, context: RouteContext) {
   try {
+    const auth = requireStaffAuth(request, ["admin", "manager", "receptionist", "assistant"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const { id } = await context.params
     const body = await request.json()
     const clientData = UpdateClientSchema.parse(body)
@@ -80,6 +91,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
+    const auth = requireStaffAuth(request, ["admin", "manager", "receptionist"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const { id } = await context.params
     const supabase = await createAdminClient()
 

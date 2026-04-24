@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { X, Calendar, Clock, User } from "lucide-react"
 import { format } from "date-fns"
+import { formatInTimeZone, toZonedTime } from "date-fns-tz"
 import { useServices } from "@/lib/hooks/use-services"
 import { useStaff } from "@/lib/hooks/use-staff"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
@@ -54,6 +55,7 @@ export function QuickCreateModal({
   )
   const timeOptions = useMemo(() => toQuarterTimeOptions(8, 20), [])
   const blockedDurationOptions = [15, 30, 45, 60, 90, 120, 180]
+  const todayInParis = useMemo(() => formatInTimeZone(new Date(), "Europe/Paris", "yyyy-MM-dd"), [])
 
   const [form, setForm] = useState({
     service_id: "",
@@ -211,6 +213,12 @@ export function QuickCreateModal({
       toast.error("Veuillez remplir tous les champs obligatoires")
       return
     }
+    const nowInParis = toZonedTime(new Date(), "Europe/Paris")
+    const selectedStartInParis = toZonedTime(selectedStart, "Europe/Paris")
+    if (selectedStartInParis.getTime() < nowInParis.getTime()) {
+      toast.error("Impossible de créer un rendez-vous dans le passé")
+      return
+    }
     if (conflict) {
       toast.error("Conflit détecté: ce créneau chevauche un rendez-vous existant")
       return
@@ -295,6 +303,7 @@ export function QuickCreateModal({
             <Input
               type="date"
               value={format(selectedDate, "yyyy-MM-dd")}
+              min={todayInParis}
               onChange={(e) => {
                 const [year, month, day] = e.target.value.split("-").map((v) => Number.parseInt(v, 10))
                 if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {

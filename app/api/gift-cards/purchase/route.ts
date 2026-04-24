@@ -8,6 +8,7 @@ import { z } from "zod"
 
 const PurchaseGiftCardSchema = z.object({
   service_id: z.string().uuid(),
+  buyer_name: z.string().trim().min(1),
   buyer_email: z.string().email(),
   recipient_email: z.string().email().optional().or(z.literal("")),
   recipient_name: z.string().trim().optional(),
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
         currency: "eur",
         payload: {
           service_id: service.id,
+          buyer_name: payload.buyer_name,
           buyer_email: payload.buyer_email,
           recipient_email: payload.recipient_email || undefined,
           recipient_name: payload.recipient_name || undefined,

@@ -1,8 +1,13 @@
 export const runtime = "nodejs"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
-import { ClientDataSchema, createBookableAppointment } from "@/lib/appointments/create"
+import {
+  assertAppointmentStartIsNotInPast,
+  ClientDataSchema,
+  createBookableAppointment,
+} from "@/lib/appointments/create"
 import { findClientByPhone } from "@/lib/client-auth"
+import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { after, type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { fromZonedTime } from "date-fns-tz"
@@ -58,6 +63,11 @@ function scheduleAppointmentNotifications(
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireStaffAuth(request, ["admin", "manager", "receptionist", "assistant", "therapist"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const salonId = request.nextUrl.searchParams.get("salon_id")
     const staffId = request.nextUrl.searchParams.get("staff_id")
     const clientId = request.nextUrl.searchParams.get("client_id")
@@ -226,6 +236,8 @@ export async function POST(request: NextRequest) {
     if (!clientId && appointmentData.status !== "blocked") {
       return NextResponse.json({ error: "Client ID is required" }, { status: 400 })
     }
+
+    assertAppointmentStartIsNotInPast(appointmentData.start_time)
 
     // Calculate end_time if not provided
     let endTime = appointmentData.end_time

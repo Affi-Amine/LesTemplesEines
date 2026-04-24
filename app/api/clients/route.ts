@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { findClientByPhone } from "@/lib/client-auth"
+import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -13,6 +14,11 @@ const ClientSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireStaffAuth(request, ["admin", "manager", "receptionist", "assistant", "therapist"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const search = request.nextUrl.searchParams.get("search")
     const limitParam = request.nextUrl.searchParams.get("limit")
     const limit = Math.min(Math.max(Number.parseInt(limitParam || "20", 10) || 20, 1), 50)
@@ -67,6 +73,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireStaffAuth(request, ["admin", "manager", "receptionist", "assistant"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const body = await request.json()
     const clientData = ClientSchema.parse(body)
 

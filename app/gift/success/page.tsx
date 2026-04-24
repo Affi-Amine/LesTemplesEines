@@ -20,6 +20,7 @@ type GiftCheckoutStatus = {
   amount_cents: number
   currency: string
   payload: {
+    buyer_name: string | null
     buyer_email: string | null
     recipient_email: string | null
     recipient_name: string | null
@@ -118,7 +119,8 @@ function GiftSuccessContent() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
-                    <p className="text-sm text-muted-foreground">Acheteur</p>
+                    <p className="text-sm text-muted-foreground">Offert par</p>
+                    <p className="mt-1 font-medium">{data?.payload?.buyer_name || "Non renseigné"}</p>
                     <p className="mt-1 break-all font-medium">{data?.payload?.buyer_email || "Non renseigné"}</p>
                   </div>
 

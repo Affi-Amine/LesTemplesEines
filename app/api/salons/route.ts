@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
+import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -32,6 +33,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireStaffAuth(request, ["admin"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const body = await request.json()
     const salonData = SalonSchema.parse(body)
 

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getTodayInParis, isDateBeforeTodayInParis } from "@/lib/appointments/create"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes, format, areIntervalsOverlapping } from "date-fns"
 import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
@@ -32,6 +33,17 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     if (!dateParam) {
       return NextResponse.json({ error: "Date parameter is required" }, { status: 400 })
+    }
+
+    if (isDateBeforeTodayInParis(dateParam)) {
+      return NextResponse.json({
+        service_id,
+        date: dateParam,
+        available_slots: [],
+        required_staff: 0,
+        total_slots: 0,
+        message: "Cannot book appointments in the past",
+      })
     }
 
     const supabase = await createAdminClient()
@@ -201,7 +213,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // 5. Find intersection slots
     const availableSlots: Array<{start: string, end: string, available_staff: string[]}> = []
     
-    const todayInParis = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd")
+    const todayInParis = getTodayInParis()
     const isTodayInParis = dateParam === todayInParis
     const nowInParis = toZonedTime(new Date(), TIMEZONE)
 

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
+import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -67,6 +68,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 export async function PUT(request: NextRequest, context: RouteContext) {
   try {
+    const auth = requireStaffAuth(request, ["admin", "manager"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const { id } = await context.params
     const body = await request.json()
     const serviceData = UpdateServiceSchema.parse(body)
@@ -138,6 +144,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
+    const auth = requireStaffAuth(request, ["admin", "manager"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const { id } = await context.params
     const supabase = await createAdminClient()
 

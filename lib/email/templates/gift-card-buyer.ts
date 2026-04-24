@@ -16,6 +16,10 @@ export function giftCardBuyerHtml(params: {
   <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111;">
     <h2 style="margin: 0 0 16px;">Votre carte cadeau est prête</h2>
     <p>Merci pour votre achat chez Les Temples.</p>
+    <p>La carte cadeau est jointe à cet email au format PNG, prête à être transférée ou imprimée.</p>
+    <div style="margin: 18px 0;">
+      <img src="cid:gift-card-preview" alt="Carte cadeau Les Temples" style="display:block; width:100%; max-width:560px; border-radius:18px;" />
+    </div>
     <p><strong>Prestation:</strong> ${params.serviceName}</p>
     ${params.recipientName ? `<p><strong>Destinataire:</strong> ${params.recipientName}</p>` : ""}
     <p><strong>Code cadeau:</strong> <span style="font-size: 18px; letter-spacing: 1px;">${code}</span></p>

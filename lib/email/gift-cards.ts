@@ -1,6 +1,7 @@
 import { sendEmail, isEmailEnabled } from "./resend"
 import { giftCardBuyerHtml, giftCardBuyerSubject } from "./templates/gift-card-buyer"
 import { giftCardRecipientHtml, giftCardRecipientSubject } from "./templates/gift-card-recipient"
+import { generateGiftCardAttachment } from "./gift-card-attachment"
 
 export async function sendGiftCardEmails(params: {
   buyerEmail: string
@@ -15,6 +16,13 @@ export async function sendGiftCardEmails(params: {
     return { skipped: true }
   }
 
+  const attachment = await generateGiftCardAttachment({
+    serviceName: params.serviceName,
+    code: params.code,
+    recipientName: params.recipientName,
+    personalMessage: params.personalMessage,
+  })
+
   await sendEmail({
     to: params.buyerEmail,
     subject: giftCardBuyerSubject({ serviceName: params.serviceName }),
@@ -23,6 +31,7 @@ export async function sendGiftCardEmails(params: {
       code: params.code,
       recipientName: params.recipientName,
     }),
+    attachments: [attachment],
   })
 
   if (params.recipientEmail) {
@@ -35,6 +44,7 @@ export async function sendGiftCardEmails(params: {
         recipientName: params.recipientName,
         personalMessage: params.personalMessage,
       }),
+      attachments: [attachment],
     })
   }
 }

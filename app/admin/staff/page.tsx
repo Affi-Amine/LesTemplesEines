@@ -59,6 +59,7 @@ export default function StaffPage() {
     password: "",
     first_name: "",
     last_name: "",
+    gender: null as "male" | "female" | null,
     phone: "",
     role: "therapist" as "therapist" | "assistant" | "manager" | "admin" | "receptionist",
     photo_url: "",
@@ -76,6 +77,7 @@ export default function StaffPage() {
       password: "", // Don't pre-fill password
       first_name: member.first_name,
       last_name: member.last_name,
+      gender: member.gender,
       phone: member.phone || "",
       role: member.role,
       photo_url: member.photo_url || "",
@@ -93,6 +95,7 @@ export default function StaffPage() {
       password: "",
       first_name: "",
       last_name: "",
+      gender: null,
       phone: "",
       role: "therapist",
       photo_url: "",
@@ -120,6 +123,14 @@ export default function StaffPage() {
       return
     }
 
+    if (formData.role === "therapist" && !formData.gender) {
+      toast.error("Erreur", {
+        description: "Veuillez renseigner le sexe du thérapeute",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+      return
+    }
+
     setIsSaving(true)
     try {
       const endpoint = editingStaff ? `/api/staff/${editingStaff.id}` : "/api/staff"
@@ -130,6 +141,7 @@ export default function StaffPage() {
         email: formData.email,
         first_name: formData.first_name,
         last_name: formData.last_name,
+        gender: formData.gender,
         phone: formData.phone || undefined,
         role: formData.role,
         photo_url: formData.photo_url || undefined,
@@ -250,6 +262,11 @@ export default function StaffPage() {
                   <h3 className="font-semibold text-lg mb-1">
                     {emp.first_name} {emp.last_name}
                   </h3>
+                  {emp.gender && (
+                    <p className="text-xs text-muted-foreground mb-1">
+                      {emp.gender === "male" ? "Homme" : "Femme"}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground mb-1 capitalize">{emp.role}</p>
                   <p className="text-xs text-muted-foreground mb-3">{emp.email}</p>
                   <div className="flex flex-wrap gap-2 mb-4">
@@ -382,6 +399,27 @@ export default function StaffPage() {
                         {salon.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gender">
+                  Sexe {formData.role === "therapist" && <span className="text-red-500">*</span>}
+                </Label>
+                <Select
+                  value={formData.gender ?? "unspecified"}
+                  onValueChange={(value: "male" | "female" | "unspecified") =>
+                    setFormData({ ...formData, gender: value === "unspecified" ? null : value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un sexe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unspecified">Non renseigné</SelectItem>
+                    <SelectItem value="female">Femme</SelectItem>
+                    <SelectItem value="male">Homme</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

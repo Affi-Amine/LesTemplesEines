@@ -32,6 +32,7 @@ export const BookableAppointmentSchema = z.object({
   amount_paid_cents: z.number().int().min(0).optional(),
   paid_at: z.string().optional(),
   client_pack_id: z.string().uuid().optional(),
+  booking_source: z.enum(["client", "admin"]).optional(),
 }).refine((data) => data.client_id || data.client_data, {
   message: "Either client_id or client_data must be provided",
 }).refine((data) => data.staff_id || (data.staff_ids && data.staff_ids.length > 0), {

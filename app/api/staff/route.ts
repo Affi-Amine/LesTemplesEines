@@ -9,10 +9,12 @@ const StaffSchema = z.object({
   password: z.string().min(8),
   first_name: z.string().min(1),
   last_name: z.string().min(1),
+  gender: z.enum(["male", "female"]).nullable().optional(),
   phone: z.string().optional(),
   role: z.enum(["therapist", "assistant", "manager", "admin", "receptionist"]),
   photo_url: z.string().optional(),
   specialties: z.array(z.string()).optional(),
+  is_active: z.boolean().optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from("staff")
-      .select("id, salon_id, email, first_name, last_name, phone, role, photo_url, specialties, is_active, created_at, updated_at")
+      .select("id, salon_id, email, first_name, last_name, gender, phone, role, photo_url, specialties, is_active, created_at, updated_at")
 
     if (salonIdOrSlug) {
       // Check if it's a UUID or a slug
@@ -91,13 +93,15 @@ export async function POST(request: NextRequest) {
           password_hash: passwordHash,
           first_name: staffData.first_name,
           last_name: staffData.last_name,
+          gender: staffData.gender ?? null,
           phone: staffData.phone,
           role: staffData.role,
           photo_url: staffData.photo_url,
           specialties: staffData.specialties || [],
+          is_active: staffData.is_active ?? true,
         },
       ])
-      .select("id, salon_id, email, first_name, last_name, phone, role, photo_url, specialties, is_active, created_at, updated_at")
+      .select("id, salon_id, email, first_name, last_name, gender, phone, role, photo_url, specialties, is_active, created_at, updated_at")
       .single()
 
     if (error) throw error

@@ -9,6 +9,7 @@ const UpdateStaffSchema = z.object({
   password: z.string().min(8).optional(),
   first_name: z.string().min(1).optional(),
   last_name: z.string().min(1).optional(),
+  gender: z.enum(["male", "female"]).nullable().optional(),
   phone: z.string().optional(),
   role: z.enum(["therapist", "assistant", "manager", "admin", "receptionist"]).optional(),
   photo_url: z.string().optional(),
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const { data: staff, error } = await supabase
       .from("staff")
-      .select("id, salon_id, email, first_name, last_name, phone, role, photo_url, specialties, is_active, created_at, updated_at")
+      .select("id, salon_id, email, first_name, last_name, gender, phone, role, photo_url, specialties, is_active, created_at, updated_at")
       .eq("id", id)
       .single()
 
@@ -87,7 +88,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       .from("staff")
       .update(updateData)
       .eq("id", id)
-      .select("id, salon_id, email, first_name, last_name, phone, role, photo_url, specialties, is_active, created_at, updated_at")
+      .select("id, salon_id, email, first_name, last_name, gender, phone, role, photo_url, specialties, is_active, created_at, updated_at")
       .single()
 
     if (error) throw error

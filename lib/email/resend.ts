@@ -12,6 +12,12 @@ export async function sendEmail(params: {
   subject: string
   html: string
   from?: string
+  attachments?: Array<{
+    filename: string
+    content: string | Buffer
+    contentType?: string
+    contentId?: string
+  }>
 }) {
   if (!client) {
     console.warn("[email] RESEND_API_KEY not set — skipping send to:", params.to)
@@ -24,6 +30,12 @@ export async function sendEmail(params: {
       to: params.to,
       subject: params.subject,
       html: params.html,
+      attachments: params.attachments?.map((attachment) => ({
+        filename: attachment.filename,
+        content: attachment.content,
+        contentType: attachment.contentType,
+        contentId: attachment.contentId,
+      })),
     })
     if ((result as any)?.error) {
       const err = (result as any).error

@@ -243,6 +243,7 @@ export function QuickCreateModal({
             },
             client_notes: form.notes,
             status: "confirmed",
+            booking_source: "admin",
           },
       {
         onSuccess: () => {

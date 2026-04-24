@@ -24,6 +24,7 @@ const AppointmentSchema = z.object({
   amount_paid_cents: z.number().int().min(0).optional(),
   paid_at: z.string().optional(),
   client_pack_id: z.string().uuid().optional(),
+  booking_source: z.enum(["client", "admin"]).optional(),
 }).refine((data) => data.status === "blocked" || data.client_id || data.client_data, {
   message: "Either client_id or client_data must be provided (unless status is blocked)",
 }).refine((data) => data.status === "blocked" || data.service_id, {
@@ -32,14 +33,21 @@ const AppointmentSchema = z.object({
   message: "At least one staff member must be assigned",
 })
 
-function scheduleAppointmentNotifications(appointment: any, context: string) {
+function scheduleAppointmentNotifications(
+  appointment: any,
+  context: string,
+  metadata?: { bookingSource?: "client" | "admin" }
+) {
   after(async () => {
     const startedAt = Date.now()
     try {
-      await sendAppointmentBookedEmails(appointment)
+      await sendAppointmentBookedEmails(appointment, {
+        bookingSource: metadata?.bookingSource || "client",
+      })
       console.log("[appointments] Notifications completed", {
         context,
         appointmentId: appointment?.id,
+        bookingSource: metadata?.bookingSource || "client",
         durationMs: Date.now() - startedAt,
       })
     } catch (error) {
@@ -158,7 +166,9 @@ export async function POST(request: NextRequest) {
         durationMs: Date.now() - createStartedAt,
       })
 
-      scheduleAppointmentNotifications(appointment, "bookable")
+      scheduleAppointmentNotifications(appointment, "bookable", {
+        bookingSource: appointmentData.booking_source || "client",
+      })
       console.log("[appointments] POST success", {
         requestId,
         appointmentId: appointment.id,
@@ -382,7 +392,11 @@ export async function POST(request: NextRequest) {
         })
       }
     }
-    scheduleAppointmentNotifications(appointment, "legacy")
+    if (appointmentData.status !== "blocked") {
+      scheduleAppointmentNotifications(appointment, "legacy", {
+        bookingSource: appointmentData.booking_source || "client",
+      })
+    }
     console.log("[appointments] POST success", {
       requestId,
       appointmentId: appointment.id,

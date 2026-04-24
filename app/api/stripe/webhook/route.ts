@@ -200,7 +200,9 @@ async function handleAppointmentCheckout(
 
   after(async () => {
     try {
-      await sendAppointmentBookedEmails(appointment)
+      await sendAppointmentBookedEmails(appointment, {
+        bookingSource: storedSession?.payload?.booking_source === "admin" ? "admin" : "client",
+      })
     } catch (emailError) {
       console.error("[stripe] Failed to send appointment emails:", emailError)
     }

@@ -24,7 +24,7 @@ import type { Locale } from "@/i18n.config"
 import { quarterOptionsBetween } from "@/lib/calendar/scheduling"
 import { fetchAPI } from "@/lib/api/client"
 import { createClient } from "@/lib/supabase/client"
-import type { ClientPack } from "@/lib/types/database"
+import type { ClientPack, Staff } from "@/lib/types/database"
 import { canUseClientPackStatus } from "@/lib/packs"
 
 type BookingStep = "salon" | "service" | "time" | "info" | "confirm"
@@ -145,6 +145,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   const currentService = services?.find((s) => s.id === data.service)
   const currentEmployee = staff?.find((e) => e.id === data.employee)
   const salonEmployees = staff || []
+  const selectedEmployees = salonEmployees.filter((employee) => data.employees.includes(employee.id))
   const defaultClientProfile = useMemo(
     () => clientPacks?.find((clientPack) => clientPack.client)?.client || null,
     [clientPacks]
@@ -455,6 +456,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
         payment_status: data.paymentOption === "pack" ? "paid" : "unpaid",
         amount_paid_cents: data.paymentOption === "pack" ? currentService.price_cents : 0,
         client_pack_id: data.paymentOption === "pack" ? data.clientPackId : undefined,
+        booking_source: "client",
       },
       {
         onSuccess: (appointment) => {
@@ -491,6 +493,20 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     t(locale, "booking.step5_title"),
   ]
   const stepIndex = ["salon", "service", "time", "info", "confirm"].indexOf(step) + 1
+
+  const renderStaffName = (employee: Pick<Staff, "first_name" | "last_name" | "gender">) => {
+    const genderIcon =
+      employee.gender === "female" ? "mdi:gender-female" : employee.gender === "male" ? "mdi:gender-male" : null
+
+    return (
+      <span className="inline-flex items-center gap-2">
+        {genderIcon && <Icon icon={genderIcon} className="h-4 w-4 text-primary" aria-hidden="true" />}
+        <span>
+          {employee.first_name} {employee.last_name}
+        </span>
+      </span>
+    )
+  }
 
   return (
     <div ref={containerRef} className="w-full max-w-2xl mx-auto p-4 scroll-mt-28">
@@ -681,7 +697,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                         >
                           <RadioGroupItem value={emp.id} id={emp.id} className="pointer-events-none" />
                           <Label htmlFor={emp.id} className="flex-1 cursor-pointer pointer-events-none">
-                            {emp.first_name} {emp.last_name}
+                            {renderStaffName(emp)}
                           </Label>
                         </div>
                       ))
@@ -730,7 +746,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                               className="pointer-events-none"
                             />
                             <Label htmlFor={`staff-${emp.id}`} className="cursor-pointer flex-1 font-medium pointer-events-none">
-                              {emp.first_name} {emp.last_name}
+                              {renderStaffName(emp)}
                             </Label>
                           </div>
                         )
@@ -972,7 +988,19 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">{t(locale, "booking.select_therapist")}</p>
-                <p className="font-semibold text-lg break-words">{currentEmployee?.first_name} {currentEmployee?.last_name}</p>
+                {selectedEmployees.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedEmployees.map((employee) => (
+                      <p key={employee.id} className="font-semibold text-lg break-words">
+                        {renderStaffName(employee)}
+                      </p>
+                    ))}
+                  </div>
+                ) : currentEmployee ? (
+                  <p className="font-semibold text-lg break-words">{renderStaffName(currentEmployee)}</p>
+                ) : (
+                  <p className="font-semibold text-lg break-words">Attribution automatique</p>
+                )}
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">{t(locale, "booking.step3_title")}</p>

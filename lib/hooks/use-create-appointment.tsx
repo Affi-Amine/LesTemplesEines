@@ -30,6 +30,7 @@ interface CreateAppointmentData {
   amount_paid_cents?: number
   paid_at?: string
   client_pack_id?: string
+  booking_source?: "client" | "admin"
 }
 
 export function useCreateAppointment() {

@@ -4,15 +4,28 @@ import { adminAppointmentBookedSubject, adminAppointmentBookedHtml } from "./tem
 import { sendSms, isSmsEnabled } from "./templates/sms"
 
 const APPOINTMENT_TIMEZONE = "Europe/Paris"
+const APPOINTMENT_NOTIFICATION_EMAIL = "reservations@les-temples.com"
 
-export async function sendAppointmentBookedEmails(appointment: any) {
+export async function sendAppointmentBookedEmails(
+  appointment: any,
+  options?: {
+    bookingSource?: "client" | "admin"
+  }
+) {
 
   const salonName = appointment?.salon?.name
   const clientEmail: string | undefined = appointment?.client?.email ?? undefined
   const clientPhone: string | undefined = appointment?.client?.phone ?? undefined // ⬅️ pour le SMS
+  const bookingSource = options?.bookingSource || "client"
 
   const adminEnv = process.env.NOTIFICATIONS_ADMIN_EMAIL
-  const adminEmails = adminEnv ? adminEnv.split(",").map((s) => s.trim()).filter(Boolean) : []
+  const adminEmails = Array.from(
+    new Set(
+      [APPOINTMENT_NOTIFICATION_EMAIL, ...(adminEnv ? adminEnv.split(",") : [])]
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  )
 
   const tasks: Promise<any>[] = []
 
@@ -39,12 +52,12 @@ export async function sendAppointmentBookedEmails(appointment: any) {
       tasks.push(
         sendEmail({
           to: adminEmails,
-          subject: adminAppointmentBookedSubject({ salonName }),
-          html: adminAppointmentBookedHtml(appointment),
+          subject: adminAppointmentBookedSubject({ salonName, bookingSource }),
+          html: adminAppointmentBookedHtml(appointment, { bookingSource }),
         }),
       )
     } else {
-      console.log("[email] NOTIFICATIONS_ADMIN_EMAIL not set — skipping admin notification")
+      console.log("[email] No admin notification recipients configured — skipping admin notification")
     }
   } else {
     console.log("[email] Disabled — skipping admin booking email")

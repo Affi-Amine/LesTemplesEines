@@ -63,6 +63,7 @@ CREATE TABLE staff (
     password_hash VARCHAR(255) NOT NULL, -- Bcrypt hashed password
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
+    gender VARCHAR(10) CHECK (gender IN ('male', 'female')),
     phone VARCHAR(20),
     role VARCHAR(50) NOT NULL CHECK (role IN ('therapist', 'assistant', 'manager', 'admin', 'receptionist')),
     photo_url TEXT,

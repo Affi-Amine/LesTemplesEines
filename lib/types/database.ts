@@ -40,8 +40,9 @@ export interface Staff {
   password_hash: string
   first_name: string
   last_name: string
+  gender: "male" | "female" | null
   phone: string | null
-  role: "therapist" | "assistant" | "manager" | "admin"
+  role: "therapist" | "assistant" | "manager" | "admin" | "receptionist"
   photo_url: string | null
   specialties: string[]
   is_active: boolean

@@ -60,9 +60,11 @@ export default function Home() {
           <div className="temple-frame home-reveal home-reveal-soft overflow-hidden rounded-[1.5rem] bg-[linear-gradient(135deg,rgba(214,171,89,0.96),rgba(171,122,47,0.92))] px-5 py-10 text-primary-foreground md:rounded-[1.75rem] md:px-10 md:py-12">
             <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
               <div className="text-center lg:text-left">
-                <h2 className="mb-3 text-3xl font-serif font-bold md:mb-4 md:text-5xl">Choisissez votre moment</h2>
-                <p className="mx-auto max-w-xl text-sm leading-7 opacity-90 md:max-w-2xl md:text-lg lg:mx-0">
-                  Réservez en quelques instants le rituel qui convient à votre corps et à votre tempo.
+                <h2 className="mb-3 animate-in fade-in duration-700 text-3xl font-serif font-bold md:mb-4 md:text-5xl">
+                  Un rituel de détente inspiré des temples thaïlandais
+                </h2>
+                <p className="mx-auto max-w-xl animate-in fade-in duration-700 delay-150 text-sm leading-7 opacity-90 md:max-w-2xl md:text-lg lg:mx-0">
+                  Offrez-vous une parenthèse de calme, entre gestes précis, atmosphère feutrée et savoir-faire thaïlandais.
                 </p>
               </div>
               <div className="flex justify-center lg:justify-end">

@@ -116,6 +116,20 @@ export function QuickCreateModal({
     () => services?.find((service) => service.id === form.service_id),
     [services, form.service_id]
   )
+  const eligibleStaff = useMemo(() => {
+    if (!staff) {
+      return []
+    }
+
+    if (mode === "blocked" || !form.service_id) {
+      return staff
+    }
+
+    return staff.filter((member) => {
+      const allowedServices = member.allowed_service_ids || []
+      return allowedServices.length === 0 || allowedServices.includes(form.service_id)
+    })
+  }, [form.service_id, mode, staff])
 
   const selectedStart = useMemo(() => {
     const [hour, minute] = startTime.split(":").map((v) => Number.parseInt(v, 10))
@@ -398,7 +412,8 @@ export function QuickCreateModal({
               </SelectTrigger>
               <SelectContent>
                 {staff
-                  ?.filter((s) => !form.staff_ids.includes(s.id))
+                  ?.filter((s) => eligibleStaff.some((eligibleMember) => eligibleMember.id === s.id))
+                  .filter((s) => !form.staff_ids.includes(s.id))
                   .map((member) => (
                     <SelectItem key={member.id} value={member.id}>
                       {member.first_name} {member.last_name}

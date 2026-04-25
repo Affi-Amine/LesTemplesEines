@@ -15,8 +15,16 @@ const UpdateStaffSchema = z.object({
   role: z.enum(["therapist", "assistant", "manager", "admin", "receptionist"]).optional(),
   photo_url: z.string().optional(),
   specialties: z.array(z.string()).optional(),
+  allowed_service_ids: z.array(z.string().uuid()).optional(),
   is_active: z.boolean().optional(),
 })
+
+function mapStaff(staff: any) {
+  return {
+    ...staff,
+    allowed_service_ids: staff.staff_services?.map((relation: any) => relation.service_id) || [],
+  }
+}
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -29,7 +37,22 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const { data: staff, error } = await supabase
       .from("staff")
-      .select("id, salon_id, email, first_name, last_name, gender, phone, role, photo_url, specialties, is_active, created_at, updated_at")
+      .select(`
+        id,
+        salon_id,
+        email,
+        first_name,
+        last_name,
+        gender,
+        phone,
+        role,
+        photo_url,
+        specialties,
+        is_active,
+        created_at,
+        updated_at,
+        staff_services!left(service_id)
+      `)
       .eq("id", id)
       .single()
 
@@ -39,7 +62,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Staff member not found" }, { status: 404 })
     }
 
-    return NextResponse.json(staff)
+    return NextResponse.json(mapStaff(staff))
   } catch (error) {
     console.error("[v0] Get staff by ID error:", error)
     return NextResponse.json({ error: "Failed to fetch staff member" }, { status: 500 })
@@ -82,6 +105,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     // Prepare update data
     const updateData: any = { ...staffData }
+    delete updateData.allowed_service_ids
 
     // Hash password if provided
     if (staffData.password) {
@@ -94,12 +118,71 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       .from("staff")
       .update(updateData)
       .eq("id", id)
-      .select("id, salon_id, email, first_name, last_name, gender, phone, role, photo_url, specialties, is_active, created_at, updated_at")
+      .select(`
+        id,
+        salon_id,
+        email,
+        first_name,
+        last_name,
+        gender,
+        phone,
+        role,
+        photo_url,
+        specialties,
+        is_active,
+        created_at,
+        updated_at
+      `)
       .single()
 
     if (error) throw error
 
-    return NextResponse.json(staff)
+    if (staffData.allowed_service_ids !== undefined) {
+      const { error: deleteRelationsError } = await supabase
+        .from("staff_services")
+        .delete()
+        .eq("staff_id", id)
+
+      if (deleteRelationsError) throw deleteRelationsError
+
+      if (staffData.allowed_service_ids.length > 0) {
+        const { error: insertRelationsError } = await supabase
+          .from("staff_services")
+          .insert(
+            staffData.allowed_service_ids.map((serviceId) => ({
+              staff_id: id,
+              service_id: serviceId,
+            }))
+          )
+
+        if (insertRelationsError) throw insertRelationsError
+      }
+    }
+
+    const { data: fullStaff, error: fullStaffError } = await supabase
+      .from("staff")
+      .select(`
+        id,
+        salon_id,
+        email,
+        first_name,
+        last_name,
+        gender,
+        phone,
+        role,
+        photo_url,
+        specialties,
+        is_active,
+        created_at,
+        updated_at,
+        staff_services!left(service_id)
+      `)
+      .eq("id", id)
+      .single()
+
+    if (fullStaffError) throw fullStaffError
+
+    return NextResponse.json(mapStaff(fullStaff))
   } catch (error) {
     console.error("[v0] Update staff error:", error)
     if (error instanceof z.ZodError) {

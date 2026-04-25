@@ -70,6 +70,28 @@ export async function GET(request: NextRequest, context: RouteContext) {
       if (service) {
         serviceDuration = service.duration_minutes
       }
+
+      const { data: staffAssignments, error: staffAssignmentsError } = await supabase
+        .from("staff_services")
+        .select("service_id")
+        .eq("staff_id", staff_id)
+
+      if (staffAssignmentsError) {
+        throw staffAssignmentsError
+      }
+
+      if ((staffAssignments || []).length > 0 && !(staffAssignments || []).some((assignment) => assignment.service_id === serviceId)) {
+        return NextResponse.json({
+          staff_id,
+          staff_name: `${staff.first_name} ${staff.last_name}`,
+          date: dateParam,
+          service_duration_minutes: serviceDuration,
+          salon_hours: null,
+          available_slots: [],
+          total_slots: 0,
+          message: "Staff member is not qualified for this service",
+        })
+      }
     }
 
     // Get salon opening hours

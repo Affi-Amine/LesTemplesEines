@@ -15,8 +15,16 @@ const StaffSchema = z.object({
   role: z.enum(["therapist", "assistant", "manager", "admin", "receptionist"]),
   photo_url: z.string().optional(),
   specialties: z.array(z.string()).optional(),
+  allowed_service_ids: z.array(z.string().uuid()).optional(),
   is_active: z.boolean().optional(),
 })
+
+function mapStaff(staff: any) {
+  return {
+    ...staff,
+    allowed_service_ids: staff.staff_services?.map((relation: any) => relation.service_id) || [],
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +36,22 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from("staff")
-      .select("id, salon_id, email, first_name, last_name, gender, phone, role, photo_url, specialties, is_active, created_at, updated_at")
+      .select(`
+        id,
+        salon_id,
+        email,
+        first_name,
+        last_name,
+        gender,
+        phone,
+        role,
+        photo_url,
+        specialties,
+        is_active,
+        created_at,
+        updated_at,
+        staff_services!left(service_id)
+      `)
 
     if (salonIdOrSlug) {
       // Check if it's a UUID or a slug
@@ -60,7 +83,7 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    return NextResponse.json(staff)
+    return NextResponse.json((staff || []).map(mapStaff))
   } catch (error) {
     console.error("[v0] Get staff error:", error)
     return NextResponse.json({ error: "Failed to fetch staff" }, { status: 500 })
@@ -107,12 +130,62 @@ export async function POST(request: NextRequest) {
           is_active: staffData.is_active ?? true,
         },
       ])
-      .select("id, salon_id, email, first_name, last_name, gender, phone, role, photo_url, specialties, is_active, created_at, updated_at")
+      .select(`
+        id,
+        salon_id,
+        email,
+        first_name,
+        last_name,
+        gender,
+        phone,
+        role,
+        photo_url,
+        specialties,
+        is_active,
+        created_at,
+        updated_at
+      `)
       .single()
 
     if (error) throw error
 
-    return NextResponse.json(staff, { status: 201 })
+    if (staffData.allowed_service_ids && staffData.allowed_service_ids.length > 0) {
+      const { error: relationError } = await supabase
+        .from("staff_services")
+        .insert(
+          staffData.allowed_service_ids.map((serviceId) => ({
+            staff_id: staff.id,
+            service_id: serviceId,
+          }))
+        )
+
+      if (relationError) throw relationError
+    }
+
+    const { data: fullStaff, error: fullStaffError } = await supabase
+      .from("staff")
+      .select(`
+        id,
+        salon_id,
+        email,
+        first_name,
+        last_name,
+        gender,
+        phone,
+        role,
+        photo_url,
+        specialties,
+        is_active,
+        created_at,
+        updated_at,
+        staff_services!left(service_id)
+      `)
+      .eq("id", staff.id)
+      .single()
+
+    if (fullStaffError) throw fullStaffError
+
+    return NextResponse.json(mapStaff(fullStaff), { status: 201 })
   } catch (error) {
     console.error("[v0] Create staff error:", error)
     if (error instanceof z.ZodError) {

@@ -36,6 +36,7 @@ import type { Staff } from "@/lib/types/database"
 
 import { SalonFilter } from "@/components/salon-filter"
 import { useRoleProtection } from "@/lib/hooks/use-role-protection"
+import { useServices } from "@/lib/hooks/use-services"
 
 export default function StaffPage() {
   const isAuthorized = useRoleProtection(["admin", "manager"])
@@ -64,8 +65,10 @@ export default function StaffPage() {
     role: "therapist" as "therapist" | "assistant" | "manager" | "admin" | "receptionist",
     photo_url: "",
     specialties: "",
+    allowed_service_ids: [] as string[],
     is_active: true,
   })
+  const { data: salonServices } = useServices(formData.salon_id || undefined)
 
   if (!isAuthorized) return null
 
@@ -82,6 +85,7 @@ export default function StaffPage() {
       role: member.role,
       photo_url: member.photo_url || "",
       specialties: member.specialties?.join(", ") || "",
+      allowed_service_ids: member.allowed_service_ids || [],
       is_active: member.is_active,
     })
     setIsDialogOpen(true)
@@ -100,6 +104,7 @@ export default function StaffPage() {
       role: "therapist",
       photo_url: "",
       specialties: "",
+      allowed_service_ids: [],
       is_active: true,
     })
     setIsDialogOpen(true)
@@ -146,6 +151,7 @@ export default function StaffPage() {
         role: formData.role,
         photo_url: formData.photo_url || undefined,
         specialties: formData.specialties ? formData.specialties.split(",").map((s) => s.trim()) : [],
+        allowed_service_ids: formData.role === "therapist" ? formData.allowed_service_ids : [],
         is_active: formData.is_active,
       }
 
@@ -278,7 +284,7 @@ export default function StaffPage() {
                       ))
                     ) : (
                       <Badge variant="secondary" className="text-xs">
-                        Toutes spécialités
+                        Tous les soins
                       </Badge>
                     )}
                   </div>
@@ -476,6 +482,56 @@ export default function StaffPage() {
                 placeholder="Massage suédois, Massage de Thaïlande"
               />
             </div>
+
+            {formData.role === "therapist" && (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label>Soins autorisés</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Si aucun soin n&apos;est sélectionné, ce thérapeute pourra être affecté à tous les soins du salon.
+                  </p>
+                </div>
+                {formData.salon_id ? (
+                  salonServices && salonServices.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-2 rounded-lg border p-3 max-h-56 overflow-y-auto">
+                      {salonServices.map((service) => {
+                        const isChecked = formData.allowed_service_ids.includes(service.id)
+                        return (
+                          <label
+                            key={service.id}
+                            className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/40"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                setFormData((current) => ({
+                                  ...current,
+                                  allowed_service_ids: e.target.checked
+                                    ? [...current.allowed_service_ids, service.id]
+                                    : current.allowed_service_ids.filter((serviceId) => serviceId !== service.id),
+                                }))
+                              }}
+                              className="mt-1"
+                            />
+                            <div className="min-w-0">
+                              <p className="font-medium">{service.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {service.duration_minutes} min
+                              </p>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Aucun soin actif trouvé pour ce salon.</p>
+                  )
+                ) : (
+                  <p className="text-sm text-muted-foreground">Choisissez d&apos;abord un salon.</p>
+                )}
+              </div>
+            )}
 
             <div className="flex items-center space-x-2">
               <Switch

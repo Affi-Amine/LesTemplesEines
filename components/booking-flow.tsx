@@ -558,7 +558,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
   const renderStaffName = (employee: Pick<Staff, "first_name" | "last_name" | "gender">) => {
     const genderIcon =
-      employee.gender === "female" ? "mdi:face-woman-profile" : employee.gender === "male" ? "mdi:face-man-profile" : null
+      employee.gender === "female" ? "mdi:human-female" : employee.gender === "male" ? "mdi:human-male" : null
 
     return (
       <span className="inline-flex items-center gap-2">

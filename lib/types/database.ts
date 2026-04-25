@@ -45,6 +45,7 @@ export interface Staff {
   role: "therapist" | "assistant" | "manager" | "admin" | "receptionist"
   photo_url: string | null
   specialties: string[]
+  allowed_service_ids?: string[]
   is_active: boolean
   created_at: string
   updated_at: string

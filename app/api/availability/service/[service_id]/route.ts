@@ -107,29 +107,57 @@ export async function GET(request: NextRequest, context: RouteContext) {
       })
     }
 
-    // 3. Get qualified staff
-    // Find staff in this salon who are active. 
-    // Ideally filter by specialty, but for now assuming all therapists in salon can do it.
+    // 3. Get staff in this salon, then filter by explicit service authorization if configured.
     let query = supabase
       .from("staff")
       .select("id, first_name, last_name")
       .eq("salon_id", targetSalonId)
       .eq("is_active", true)
-      .in("role", ["therapist", "manager", "admin"]) // Assuming managers/admins can also perform services if needed
+      .in("role", ["therapist", "manager", "admin"])
 
     if (staffIdsParam) {
       const requestedIds = staffIdsParam.split(',').map(id => id.trim()).filter(Boolean)
       query = query.in("id", requestedIds)
     }
 
-    const { data: allStaff } = await query
+    const { data: staffInSalon } = await query
+
+    if (!staffInSalon || staffInSalon.length === 0) {
+      return NextResponse.json({
+        service_id,
+        date: dateParam,
+        available_slots: [],
+        message: "No active staff available in this salon",
+      })
+    }
+
+    const { data: serviceAssignments, error: serviceAssignmentsError } = await supabase
+      .from("staff_services")
+      .select("staff_id, service_id")
+      .in("staff_id", staffInSalon.map((member) => member.id))
+
+    if (serviceAssignmentsError) {
+      throw serviceAssignmentsError
+    }
+
+    const assignmentMap = new Map<string, Set<string>>()
+    for (const assignment of serviceAssignments || []) {
+      const currentAssignments = assignmentMap.get(assignment.staff_id) || new Set<string>()
+      currentAssignments.add(assignment.service_id)
+      assignmentMap.set(assignment.staff_id, currentAssignments)
+    }
+
+    const allStaff = staffInSalon.filter((member) => {
+      const allowedServices = assignmentMap.get(member.id)
+      return !allowedServices || allowedServices.size === 0 || allowedServices.has(service_id)
+    })
 
     if (!allStaff || allStaff.length < requiredStaffCount) {
       return NextResponse.json({
         service_id,
         date: dateParam,
         available_slots: [],
-        message: `Not enough staff members available (Found: ${allStaff?.length || 0}, Required: ${requiredStaffCount})`,
+        message: `Not enough qualified staff members available (Found: ${allStaff?.length || 0}, Required: ${requiredStaffCount})`,
       })
     }
 

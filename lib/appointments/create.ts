@@ -144,6 +144,8 @@ export async function validateAppointmentScheduling(
   }
 
   const allStaffIds = input.staff_ids || (input.staff_id ? [input.staff_id] : [])
+  await assertStaffCanProvideService(supabase, allStaffIds, input.service_id)
+
   for (const staffId of allStaffIds) {
     let conflictQuery = supabase
       .from("appointments")
@@ -191,6 +193,47 @@ export async function validateAppointmentScheduling(
   }
 
   return { endTime, service, allStaffIds }
+}
+
+export async function assertStaffCanProvideService(
+  supabase: SupabaseClient,
+  staffIds: string[],
+  serviceId: string
+) {
+  if (staffIds.length === 0) {
+    return
+  }
+
+  const { data: allAssignments, error: assignmentsError } = await supabase
+    .from("staff_services")
+    .select("staff_id, service_id")
+    .in("staff_id", staffIds)
+
+  if (assignmentsError) {
+    throw new Error(assignmentsError.message)
+  }
+
+  const assignmentMap = new Map<string, Set<string>>()
+  for (const assignment of allAssignments || []) {
+    const currentAssignments = assignmentMap.get(assignment.staff_id) || new Set<string>()
+    currentAssignments.add(assignment.service_id)
+    assignmentMap.set(assignment.staff_id, currentAssignments)
+  }
+
+  const unavailableStaffIds = staffIds.filter((staffId) => {
+    const allowedServices = assignmentMap.get(staffId)
+
+    // Backward compatibility: no explicit assignment means the therapist can still perform all services.
+    if (!allowedServices || allowedServices.size === 0) {
+      return false
+    }
+
+    return !allowedServices.has(serviceId)
+  })
+
+  if (unavailableStaffIds.length > 0) {
+    throw new Error("Un ou plusieurs praticiens ne peuvent pas realiser ce soin")
+  }
 }
 
 async function resolveClientId(supabase: SupabaseClient, input: BookableAppointmentInput) {

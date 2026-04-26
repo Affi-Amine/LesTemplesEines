@@ -43,7 +43,7 @@ type Salon = {
 
 export default function SalonsPage() {
   const { t } = useTranslations()
-  const { data: salons, isLoading, refetch } = useSalons()
+  const { data: salons, isLoading, refetch } = useSalons({ includeInactive: true })
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingSalon, setEditingSalon] = useState<Salon | null>(null)
   const [isSaving, setIsSaving] = useState(false)

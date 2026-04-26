@@ -13,15 +13,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { useServices } from "@/lib/hooks/use-services"
 import { fetchAPI } from "@/lib/api/client"
 import { formatGiftCardCode } from "@/lib/gift-cards"
-import { Mail, Gift, AlertCircle, CheckCircle2 } from "lucide-react"
+import { Mail, Gift } from "lucide-react"
 import { toast } from "sonner"
-
-type EmailStatus = {
-  email_enabled: boolean
-  email_from: string
-  app_url: string
-  stripe_enabled: boolean
-}
 
 type CheckoutStatus = {
   session_id: string
@@ -39,10 +32,6 @@ type CheckoutStatus = {
 function GiftPageContent() {
   const searchParams = useSearchParams()
   const { data: services, isLoading } = useServices(undefined, true)
-  const { data: emailStatus } = useQuery({
-    queryKey: ["email-status"],
-    queryFn: () => fetchAPI<EmailStatus>("/email/status"),
-  })
   const sessionId = searchParams.get("session_id")
   const checkoutState = searchParams.get("checkout")
 
@@ -117,22 +106,6 @@ function GiftPageContent() {
               Choisissez une prestation, renseignez les informations de l&apos;acheteur et du destinataire, puis nous générons une carte cadeau avec envoi par email.
             </p>
           </div>
-
-          <Card className={`p-4 border ${emailStatus?.email_enabled ? "border-green-200 bg-green-50/70" : "border-amber-200 bg-amber-50/70"}`}>
-            <div className="flex items-start gap-3">
-              {emailStatus?.email_enabled ? <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" /> : <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />}
-              <div className="text-sm">
-                <p className="font-medium">
-                  {emailStatus?.email_enabled ? "Envoi d'email configuré" : "Envoi d'email non configuré"}
-                </p>
-                <p className="text-muted-foreground">
-                  {emailStatus?.email_enabled
-                    ? `Les emails partiront depuis ${emailStatus.email_from}.`
-                    : "Renseigne RESEND_API_KEY, EMAIL_FROM et APP_URL dans .env.local pour activer les envois réels."}
-                </p>
-              </div>
-            </div>
-          </Card>
 
           <div className="grid lg:grid-cols-[1.3fr_0.9fr] gap-8 items-start">
             <div className="space-y-6">

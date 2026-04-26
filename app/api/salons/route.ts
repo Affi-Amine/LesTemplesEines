@@ -16,11 +16,25 @@ const SalonSchema = z.object({
   opening_hours: z.record(z.string(), z.object({ open: z.string(), close: z.string() })).optional(),
 })
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const supabase = await createAdminClient()
+    const includeInactive = request.nextUrl.searchParams.get("include_inactive") === "true"
 
-    const { data: salons, error } = await supabase.from("salons").select("*").eq("is_active", true)
+    if (includeInactive) {
+      const auth = requireStaffAuth(request)
+      if ("response" in auth) {
+        return auth.response
+      }
+    }
+
+    const supabase = await createAdminClient()
+    let query = supabase.from("salons").select("*")
+
+    if (!includeInactive) {
+      query = query.eq("is_active", true)
+    }
+
+    const { data: salons, error } = await query.order("name", { ascending: true })
 
     if (error) throw error
 

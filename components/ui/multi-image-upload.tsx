@@ -151,6 +151,17 @@ export function MultiImageUpload({
                 {index + 1}
               </div>
 
+              <Button
+                type="button"
+                onClick={() => handleRemove(index)}
+                variant="destructive"
+                size="icon"
+                className="absolute right-2 top-2 z-10 h-8 w-8 shadow-sm"
+                disabled={disabled}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+
               {/* Controls overlay */}
               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                 {/* Move buttons */}
@@ -177,17 +188,6 @@ export function MultiImageUpload({
                   </Button>
                 </div>
 
-                {/* Remove button */}
-                <Button
-                  type="button"
-                  onClick={() => handleRemove(index)}
-                  variant="destructive"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={disabled}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
               </div>
             </div>
           ))}

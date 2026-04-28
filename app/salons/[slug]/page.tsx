@@ -80,6 +80,7 @@ export default async function SalonPage({ params }: SalonPageProps) {
     id: member.id,
     name: `${member.first_name} ${member.last_name}`,
     role: member.role.charAt(0).toUpperCase() + member.role.slice(1),
+    gender: member.gender,
     photo: member.photo_url || "/placeholder.svg?height=192&width=300&query=professional therapist",
     specialties: member.specialties || [],
   }))

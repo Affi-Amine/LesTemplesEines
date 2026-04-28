@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizeGiftCardCode } from "@/lib/gift-cards"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
 import { ClientDataSchema, createBookableAppointment } from "@/lib/appointments/create"
-import { type NextRequest, NextResponse } from "next/server"
+import { after, type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 const RedeemGiftCardSchema = z.object({
@@ -16,6 +16,18 @@ const RedeemGiftCardSchema = z.object({
   client_data: ClientDataSchema,
   client_notes: z.string().optional(),
 })
+
+function scheduleGiftCardAppointmentNotifications(appointment: any) {
+  after(async () => {
+    try {
+      await sendAppointmentBookedEmails(appointment, {
+        bookingSource: "client",
+      })
+    } catch (error) {
+      console.error("[gift-card] Failed to send appointment emails:", error)
+    }
+  })
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -105,11 +117,7 @@ export async function POST(request: NextRequest) {
 
     if (giftCardUpdateError) throw giftCardUpdateError
 
-    try {
-      await sendAppointmentBookedEmails(appointment)
-    } catch (emailError) {
-      console.error("[gift-card] Failed to send appointment emails:", emailError)
-    }
+    scheduleGiftCardAppointmentNotifications(appointment)
 
     return NextResponse.json({
       success: true,

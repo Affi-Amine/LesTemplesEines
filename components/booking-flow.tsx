@@ -34,6 +34,7 @@ interface BookingData {
   service: string
   employee: string
   employees: string[] // For multi-staff selection
+  assignmentMode: "specific" | "random"
   date: string
   time: string
   firstName: string
@@ -60,6 +61,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     service: "",
     employee: "",
     employees: [],
+    assignmentMode: "specific",
     date: "",
     time: "",
     firstName: "",
@@ -85,6 +87,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       service: "",
       employee: "",
       employees: [],
+      assignmentMode: "specific",
       date: "",
       time: "",
     }))
@@ -96,6 +99,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       service: serviceId,
       employee: "",
       employees: [],
+      assignmentMode: "specific",
       date: "",
       time: "",
     }))
@@ -104,7 +108,20 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   const handleEmployeeChange = (employeeId: string) => {
     setData((current) => ({
       ...current,
+      assignmentMode: "specific",
       employee: employeeId,
+      employees: [],
+      time: "",
+    }))
+  }
+
+  const handleRandomAssignment = () => {
+    setData((current) => ({
+      ...current,
+      assignmentMode: "random",
+      employee: "",
+      employees: [],
+      time: "",
     }))
   }
 
@@ -117,8 +134,6 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     setData((current) => ({
       ...current,
       date,
-      employee: "",
-      employees: [],
       time: "",
     }))
   }
@@ -150,9 +165,16 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   // Find current selections
   const currentSalon = salons?.find((s) => s.id === data.salon || s.slug === data.salon)
   const currentService = services?.find((s) => s.id === data.service)
-  const currentEmployee = staff?.find((e) => e.id === data.employee)
-  const salonEmployees = staff || []
+  const salonEmployees = (staff || []).filter((employee) => {
+    const canTakeBookings = employee.is_active && ["therapist", "manager", "admin"].includes(employee.role)
+    const allowedServiceIds = employee.allowed_service_ids || []
+    const canProvideService = !currentService || allowedServiceIds.length === 0 || allowedServiceIds.includes(currentService.id)
+
+    return canTakeBookings && canProvideService
+  })
+  const currentEmployee = salonEmployees.find((e) => e.id === data.employee)
   const selectedEmployees = salonEmployees.filter((employee) => data.employees.includes(employee.id))
+  const isRandomAssignment = data.assignmentMode === "random"
   const defaultClientProfile = useMemo(
     () => clientPacks?.find((clientPack) => clientPack.client)?.client || null,
     [clientPacks]
@@ -238,10 +260,18 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     }
   }, [data.clientPackId, data.paymentOption, data.service, selectedClientPack])
 
+  const isMultiStaff = (currentService?.required_staff_count || 1) > 1
+  const availabilitySelection =
+    isRandomAssignment
+      ? undefined
+      : isMultiStaff
+        ? data.employees
+        : data.employee || undefined
+
   // Availability based on selected therapist and date
   const selectedDateObj = data.date ? new Date(data.date) : undefined
   const { data: availabilityData, isLoading: availabilityLoading } = useAvailability(
-    undefined,
+    availabilitySelection,
     selectedDateObj,
     data.service || undefined,
     data.salon || undefined,
@@ -266,6 +296,26 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     const availableStaffIds = new Set(getStaffForSelectedTime())
     return salonEmployees.filter((employee) => availableStaffIds.has(employee.id))
   }, [availabilityData?.available_slots, data.time, salonEmployees])
+
+  const getPreferredStaffIds = (availableStaffIds: string[], requiredCount: number) => {
+    const sortByName = (a: Staff, b: Staff) =>
+      `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`, "fr")
+
+    const availableEmployees = salonEmployees
+      .filter((employee) => availableStaffIds.includes(employee.id))
+
+    const femaleEmployees = availableEmployees
+      .filter((employee) => employee.gender === "female")
+      .sort(sortByName)
+
+    const fallbackEmployees = availableEmployees
+      .filter((employee) => employee.gender !== "female")
+      .sort(sortByName)
+
+    return (femaleEmployees.length > 0 ? femaleEmployees : fallbackEmployees)
+      .slice(0, requiredCount)
+      .map((employee) => employee.id)
+  }
 
   // Generate time options from salon hours with 15-min steps if available, otherwise fallback
   const defaultTimes = [
@@ -293,14 +343,12 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       setData((current) => ({
         ...current,
         time: "",
-        employee: "",
-        employees: [],
       }))
     }
   }, [availableTimesSet, data.time])
 
   useEffect(() => {
-    if (!data.employee) {
+    if (!data.employee || isRandomAssignment) {
       return
     }
 
@@ -312,10 +360,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
         employee: "",
       }))
     }
-  }, [availableEmployeesForSelectedTime, data.employee])
+  }, [availableEmployeesForSelectedTime, data.employee, isRandomAssignment])
 
   useEffect(() => {
-    if (data.employees.length === 0) {
+    if (data.employees.length === 0 || isRandomAssignment) {
       return
     }
 
@@ -328,7 +376,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
         employees: nextEmployees,
       }))
     }
-  }, [availableEmployeesForSelectedTime, data.employees])
+  }, [availableEmployeesForSelectedTime, data.employees, isRandomAssignment])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -357,13 +405,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     setData((current) => ({ ...current, employees: newSelection }))
   }
 
-  const isMultiStaff = (currentService?.required_staff_count || 1) > 1
   const handleTimeChange = (time: string) => {
     setData((current) => ({
       ...current,
       time,
-      employee: "",
-      employees: [],
     }))
   }
 
@@ -387,7 +432,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     // If multi-staff, we don't need currentEmployee, but we need dynamic staff assignment
     // const isMultiStaff = (currentService?.required_staff_count || 1) > 1 // Defined above now
     
-    if (!currentSalon || !currentService || (!currentEmployee && !isMultiStaff)) {
+    if (!currentSalon || !currentService || (!currentEmployee && !isMultiStaff && !isRandomAssignment)) {
       toast.error("Erreur", {
         description: "Veuillez remplir tous les champs requis",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
@@ -410,7 +455,21 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     let assignedStaffIds: string[] = []
     let primaryStaffId = currentEmployee?.id
 
-    if (isMultiStaff) {
+    if (isRandomAssignment) {
+      const requiredCount = currentService.required_staff_count || 1
+      const preferredStaffIds = getPreferredStaffIds(getStaffForSelectedTime(), requiredCount)
+
+      if (preferredStaffIds.length < requiredCount) {
+        toast.error("Aucun praticien disponible pour ce créneau", {
+          description: "Choisissez un autre créneau ou un autre praticien.",
+          icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+        })
+        return
+      }
+
+      assignedStaffIds = preferredStaffIds
+      primaryStaffId = preferredStaffIds[0]
+    } else if (isMultiStaff) {
       // If user selected specific employees, use them. Otherwise auto-assign (fallback)
       // But since we are implementing manual selection now, we prefer data.employees if valid
       
@@ -422,15 +481,15 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       } else {
          // Fallback to auto-assignment if user didn't select or selected fewer (should be blocked by UI validation ideally)
          // But for now let's keep auto-assign as backup or if they chose "Any"
-         const availableStaff = getStaffForSelectedTime()
-         if (availableStaff.length < requiredCount) {
+         const preferredStaffIds = getPreferredStaffIds(getStaffForSelectedTime(), requiredCount)
+         if (preferredStaffIds.length < requiredCount) {
             toast.error("Erreur", {
               description: "Plus assez de personnel disponible pour ce créneau.",
               icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
             })
             return
          }
-         assignedStaffIds = availableStaff.slice(0, requiredCount)
+         assignedStaffIds = preferredStaffIds
       }
       
       primaryStaffId = assignedStaffIds[0] // Use first one as primary for compatibility
@@ -448,10 +507,12 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       return
     }
 
+    const assignedStaff = salonEmployees.find((employee) => employee.id === primaryStaffId) || currentEmployee
+
     const bookingDetails = {
       salon: currentSalon,
       service: currentService,
-      staff: currentEmployee,
+      staff: assignedStaff,
       start_time: startTime,
       client: {
         first_name: data.firstName,
@@ -558,7 +619,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
   const renderStaffName = (employee: Pick<Staff, "first_name" | "last_name" | "gender">) => {
     const genderIcon =
-      employee.gender === "female" ? "mdi:human-female" : employee.gender === "male" ? "mdi:human-male" : null
+      employee.gender === "female" ? "mdi:gender-female" : employee.gender === "male" ? "mdi:gender-male" : null
 
     return (
       <span className="inline-flex items-center gap-2">
@@ -569,6 +630,11 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       </span>
     )
   }
+
+  const isTherapistSelectionComplete =
+    isRandomAssignment ||
+    (!isMultiStaff && !!currentEmployee) ||
+    (isMultiStaff && selectedEmployees.length === (currentService?.required_staff_count || 1))
 
   return (
     <div ref={containerRef} className="mx-auto w-full max-w-2xl px-3 pb-2 pt-4 sm:p-4 scroll-mt-28">
@@ -751,22 +817,167 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           <p className="text-muted-foreground mb-6">{t(locale, "booking.step3_subtitle")}</p>
           <div className="space-y-6">
             <div>
+              {(!currentService?.required_staff_count || currentService.required_staff_count <= 1) ? (
+                <div className="mb-6">
+                  <Label className="font-semibold">{t(locale, "booking.select_therapist")}</Label>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Choisissez votre praticien avant de voir les créneaux, ou laissez-nous choisir pour vous.
+                  </p>
+                  {staffLoading ? (
+                    <div className="mt-3 space-y-2">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="rounded-lg border p-3 animate-pulse">
+                          <div className="h-4 w-1/3 rounded bg-muted" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <RadioGroup value={isRandomAssignment ? "random" : data.employee} onValueChange={(value) => {
+                      if (value === "random") {
+                        handleRandomAssignment()
+                        return
+                      }
+                      handleEmployeeChange(value)
+                    }}>
+                      <div className="mt-3 space-y-3">
+                        <div
+                          onClick={handleRandomAssignment}
+                          className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+                            isRandomAssignment
+                              ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
+                              : "bg-card/65 hover:bg-muted hover:border-primary"
+                          }`}
+                        >
+                          <Label htmlFor="booking-random-employee" className="pointer-events-none flex cursor-pointer items-start gap-3">
+                            <RadioGroupItem value="random" id="booking-random-employee" className="mt-1 shrink-0 pointer-events-none" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-base font-medium text-foreground">Aléatoire</span>
+                              <span className="mt-1 block text-sm leading-6 text-muted-foreground">
+                                Nous attribuons automatiquement un praticien disponible sur le créneau choisi, avec priorité absolue aux femmes disponibles.
+                              </span>
+                            </span>
+                          </Label>
+                        </div>
+                        {salonEmployees.map((emp) => (
+                          <div
+                            key={emp.id}
+                            onClick={() => handleEmployeeChange(emp.id)}
+                            className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+                              data.employee === emp.id && !isRandomAssignment
+                                ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
+                                : "bg-card/65 hover:bg-muted hover:border-primary"
+                            }`}
+                          >
+                            <Label htmlFor={emp.id} className="pointer-events-none flex cursor-pointer items-start gap-3">
+                              <RadioGroupItem value={emp.id} id={emp.id} className="mt-1 shrink-0 pointer-events-none" />
+                              <span className="min-w-0 flex-1 text-base font-medium leading-6 text-foreground">
+                                {renderStaffName(emp)}
+                              </span>
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </RadioGroup>
+                  )}
+                </div>
+              ) : (
+                <div className="mb-6">
+                  <Label className="font-semibold">
+                    Sélectionnez {currentService.required_staff_count} praticiens
+                    {data.employees.length > 0 && !isRandomAssignment && ` (${data.employees.length}/${currentService.required_staff_count})`}
+                  </Label>
+                  <p className="mb-3 mt-2 text-xs text-muted-foreground">
+                    Choisissez d'abord vos praticiens, ou laissez-nous faire l'attribution automatique sur le créneau choisi.
+                  </p>
+                  <div
+                    onClick={handleRandomAssignment}
+                    className={`mb-3 cursor-pointer rounded-2xl border p-4 transition-all ${
+                      isRandomAssignment
+                        ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
+                        : "bg-card/65 hover:bg-muted hover:border-primary"
+                    }`}
+                  >
+                    <Label htmlFor="booking-random-employees" className="pointer-events-none flex cursor-pointer items-start gap-3">
+                      <Checkbox
+                        checked={isRandomAssignment}
+                        onCheckedChange={() => {}}
+                        id="booking-random-employees"
+                        className="mt-1 pointer-events-none"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-base font-medium text-foreground">Attribution automatique</span>
+                        <span className="mt-1 block text-sm leading-6 text-muted-foreground">
+                          Nous choisirons les praticiens disponibles au moment du créneau, avec priorité absolue aux femmes disponibles.
+                        </span>
+                      </span>
+                    </Label>
+                  </div>
+                  {staffLoading ? (
+                    <div className="mt-3 space-y-2">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="rounded-lg border p-3 animate-pulse">
+                          <div className="h-4 w-1/3 rounded bg-muted" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      {salonEmployees.map((emp) => {
+                        const isSelected = data.employees.includes(emp.id)
+                        const isFull = data.employees.length >= (currentService.required_staff_count || 2)
+                        const disabled = !isSelected && isFull
+
+                        return (
+                          <div
+                            key={emp.id}
+                            className={`cursor-pointer rounded-2xl border p-4 transition-colors ${isSelected && !isRandomAssignment ? "border-primary bg-primary/12 shadow-[0_10px_24px_rgba(214,171,89,0.08)]" : "bg-card/65 hover:bg-muted"} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+                            onClick={() => {
+                              setData((current) => ({ ...current, assignmentMode: "specific", time: "" }))
+                              !disabled && toggleEmployeeSelection(emp.id, currentService.required_staff_count || 2)
+                            }}
+                          >
+                            <Label htmlFor={`staff-${emp.id}`} className="pointer-events-none flex cursor-pointer items-start gap-3">
+                              <Checkbox
+                                checked={isSelected && !isRandomAssignment}
+                                onCheckedChange={() => {}}
+                                id={`staff-${emp.id}`}
+                                className="mt-1 pointer-events-none"
+                              />
+                              <span className="min-w-0 flex-1 text-base font-medium leading-6 text-foreground">
+                                {renderStaffName(emp)}
+                              </span>
+                            </Label>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <Label htmlFor="date" className="font-semibold">
                 {t(locale, "booking.select_date")}
               </Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={data.date}
-                  onChange={(e) => handleDateChange(e.target.value)}
-                  min={todayInParis}
-                  className="mt-2 w-full min-w-0 max-w-full"
-                />
+              <Input
+                id="date"
+                type="date"
+                value={data.date}
+                onChange={(e) => handleDateChange(e.target.value)}
+                min={todayInParis}
+                className="mt-2 w-full min-w-0 max-w-full"
+                disabled={!isTherapistSelectionComplete}
+              />
+              {!isTherapistSelectionComplete ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Choisissez d'abord un praticien ou l'option aléatoire pour voir les créneaux.
+                </p>
+              ) : null}
             </div>
             <div>
               <Label className="font-semibold">{t(locale, "booking.select_time")}</Label>
               <p className="text-xs text-muted-foreground mt-2">
-                {!data.date && "Sélectionnez d'abord la date pour voir les créneaux disponibles."}
+                {!isTherapistSelectionComplete && "Choisissez d'abord un praticien ou l'option aléatoire."}
+                {isTherapistSelectionComplete && !data.date && "Sélectionnez d'abord la date pour voir les créneaux disponibles."}
                 {availabilityLoading && data.date && "Chargement des créneaux disponibles..."}
               </p>
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
@@ -779,7 +990,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                       variant={isSelected ? "default" : "outline"}
                       onClick={() => handleTimeChange(time)}
                       className={`h-12 w-full rounded-xl text-sm font-medium ${!isAvailable ? "bg-muted text-muted-foreground border-muted-foreground/10 opacity-100 cursor-not-allowed hover:bg-muted hover:text-muted-foreground" : ""}`}
-                      disabled={!isAvailable || availabilityLoading}
+                      disabled={!isTherapistSelectionComplete || !isAvailable || availabilityLoading}
                     >
                       {time}
                     </Button>
@@ -787,113 +998,12 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 })}
               </div>
             </div>
-            {(!currentService?.required_staff_count || currentService.required_staff_count <= 1) ? (
-              <div>
-                <Label className="font-semibold">{t(locale, "booking.select_therapist")}</Label>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {!data.time && "Choisissez d'abord un créneau, puis sélectionnez un praticien disponible."}
-                </p>
-                {staffLoading ? (
-                  <div className="space-y-2 mt-3">
-                    {[1, 2].map((i) => (
-                      <div key={i} className="p-3 border rounded-lg animate-pulse">
-                        <div className="h-4 bg-muted rounded w-1/3" />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <RadioGroup value={data.employee} onValueChange={handleEmployeeChange}>
-                    <div className="mt-3 space-y-3">
-                      {data.time ? (
-                        availableEmployeesForSelectedTime.length > 0 ? (
-                          availableEmployeesForSelectedTime.map((emp) => (
-                            <div
-                              key={emp.id}
-                              onClick={() => handleEmployeeChange(emp.id)}
-                              className={`cursor-pointer rounded-2xl border p-4 transition-all ${
-                                data.employee === emp.id
-                                  ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
-                                  : "bg-card/65 hover:bg-muted hover:border-primary"
-                              }`}
-                            >
-                              <Label htmlFor={emp.id} className="pointer-events-none flex cursor-pointer items-start gap-3">
-                                <RadioGroupItem value={emp.id} id={emp.id} className="mt-1 shrink-0 pointer-events-none" />
-                                <span className="min-w-0 flex-1 text-base font-medium leading-6 text-foreground">
-                                  {renderStaffName(emp)}
-                                </span>
-                              </Label>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-sm text-muted-foreground">Aucun thérapeute disponible pour ce créneau.</p>
-                        )
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Sélectionnez un créneau pour voir les thérapeutes disponibles.</p>
-                      )}
-                    </div>
-                  </RadioGroup>
-                )}
-              </div>
-            ) : (
-              <div>
-                <Label className="font-semibold">
-                  Sélectionnez {currentService.required_staff_count} praticiens
-                  {data.employees.length > 0 && ` (${data.employees.length}/${currentService.required_staff_count})`}
-                </Label>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Choisissez d'abord un créneau, puis les praticiens disponibles. Laissez vide pour une attribution automatique.
-                </p>
-                {staffLoading ? (
-                  <div className="space-y-2 mt-3">
-                    {[1, 2].map((i) => (
-                      <div key={i} className="p-3 border rounded-lg animate-pulse">
-                        <div className="h-4 bg-muted rounded w-1/3" />
-                      </div>
-                    ))}
-                  </div>
-                ) : data.time ? (
-                  <div className="mt-3 space-y-3">
-                    {availableEmployeesForSelectedTime.length > 0 ? (
-                      availableEmployeesForSelectedTime.map((emp) => {
-                        const isSelected = data.employees.includes(emp.id)
-                        const isFull = data.employees.length >= (currentService.required_staff_count || 2)
-                        const disabled = !isSelected && isFull
-
-                        return (
-                          <div
-                            key={emp.id}
-                            className={`cursor-pointer rounded-2xl border p-4 transition-colors ${isSelected ? "border-primary bg-primary/12 shadow-[0_10px_24px_rgba(214,171,89,0.08)]" : "bg-card/65 hover:bg-muted"} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
-                            onClick={() => !disabled && toggleEmployeeSelection(emp.id, currentService.required_staff_count || 2)}
-                          >
-                            <Label htmlFor={`staff-${emp.id}`} className="pointer-events-none flex cursor-pointer items-start gap-3">
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={() => {}}
-                                id={`staff-${emp.id}`}
-                                className="mt-1 pointer-events-none"
-                              />
-                              <span className="min-w-0 flex-1 text-base font-medium leading-6 text-foreground">
-                                {renderStaffName(emp)}
-                              </span>
-                            </Label>
-                          </div>
-                        )
-                      })
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Aucun praticien disponible pour ce créneau.</p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground mt-3">Sélectionnez un créneau pour voir les praticiens disponibles.</p>
-                )}
-              </div>
-            )}
           </div>
           <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 mt-8">
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
-            <Button onClick={handleNext} disabled={!data.date || !data.time || (!isMultiStaff && !data.employee)} size="lg" className="cursor-pointer w-full sm:w-auto">
+            <Button onClick={handleNext} disabled={!data.date || !data.time || !isTherapistSelectionComplete} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.next")}
             </Button>
           </div>

@@ -17,8 +17,10 @@ import { useStaff } from "@/lib/hooks/use-staff"
 import { fetchAPI } from "@/lib/api/client"
 import { formatGiftCardCode } from "@/lib/gift-cards"
 import { CheckCircle2, Gift } from "lucide-react"
+import { Icon } from "@iconify/react"
 import { toast } from "sonner"
 import { quarterOptionsBetween } from "@/lib/calendar/scheduling"
+import type { Staff } from "@/lib/types/database"
 
 type GiftCardStep = "salon" | "therapist" | "date" | "time" | "info"
 
@@ -61,6 +63,7 @@ export default function RedeemGiftCardPage() {
   const [step, setStep] = useState<GiftCardStep>("salon")
   const [selectedSalonId, setSelectedSalonId] = useState("")
   const [selectedDate, setSelectedDate] = useState("")
+  const [assignmentMode, setAssignmentMode] = useState<"specific" | "random">("specific")
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("")
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null)
@@ -75,9 +78,17 @@ export default function RedeemGiftCardPage() {
   const { data: staff, isLoading: staffLoading } = useStaff(selectedSalonId || undefined)
   const requiredStaffCount = giftCard?.service?.required_staff_count || 1
   const isMultiStaff = requiredStaffCount > 1
+  const isRandomAssignment = assignmentMode === "random"
+  const bookableStaff = (staff || []).filter((member) => {
+    const canTakeBookings = member.is_active && ["therapist", "manager", "admin"].includes(member.role)
+    const allowedServiceIds = member.allowed_service_ids || []
+    const canProvideService = !giftCard?.service_id || allowedServiceIds.length === 0 || allowedServiceIds.includes(giftCard.service_id)
+
+    return canTakeBookings && canProvideService
+  })
   const availabilitySelection = isMultiStaff
-    ? selectedEmployeeIds
-    : selectedEmployeeId || undefined
+    ? (isRandomAssignment ? undefined : selectedEmployeeIds)
+    : (isRandomAssignment ? undefined : selectedEmployeeId || undefined)
   const dateObject = selectedDate ? new Date(`${selectedDate}T00:00:00`) : undefined
   const { data: availabilityData, isLoading: isLoadingAvailability } = useAvailability(
     availabilitySelection,
@@ -100,7 +111,6 @@ export default function RedeemGiftCardPage() {
     }
     return []
   }, [availabilityData?.salon_hours?.close, availabilityData?.salon_hours?.open])
-
   const stepLabels = [
     "Choisir un temple",
     "Choisir un thérapeute",
@@ -111,14 +121,57 @@ export default function RedeemGiftCardPage() {
   const stepIndex = ["salon", "therapist", "date", "time", "info"].indexOf(step) + 1
 
   const selectedSalon = compatibleSalons.find((salon) => salon.id === selectedSalonId)
+  const selectedBookableStaffIds = selectedEmployeeIds.filter((staffId) =>
+    bookableStaff.some((member) => member.id === staffId)
+  )
+  const selectedBookableEmployee = bookableStaff.find((member) => member.id === selectedEmployeeId)
   const selectedStaffNames = isMultiStaff
-    ? (staff || [])
-        .filter((member) => selectedEmployeeIds.includes(member.id))
-        .map((member) => `${member.first_name} ${member.last_name}`)
-        .join(", ")
-    : (staff || []).find((member) => member.id === selectedEmployeeId)
-      ? `${(staff || []).find((member) => member.id === selectedEmployeeId)?.first_name} ${(staff || []).find((member) => member.id === selectedEmployeeId)?.last_name}`
-      : ""
+    ? isRandomAssignment
+      ? "Attribution automatique"
+      : bookableStaff
+          .filter((member) => selectedEmployeeIds.includes(member.id))
+          .map((member) => `${member.first_name} ${member.last_name}`)
+          .join(", ")
+    : isRandomAssignment
+      ? "Attribution automatique"
+      : selectedBookableEmployee
+        ? `${selectedBookableEmployee.first_name} ${selectedBookableEmployee.last_name}`
+        : ""
+  const today = useMemo(() => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Paris" }), [])
+
+  const renderStaffName = (employee: Pick<Staff, "first_name" | "last_name" | "gender">) => {
+    const genderIcon =
+      employee.gender === "female" ? "mdi:gender-female" : employee.gender === "male" ? "mdi:gender-male" : null
+
+    return (
+      <span className="inline-flex items-center gap-2">
+        {genderIcon ? <Icon icon={genderIcon} className="h-4 w-4 text-primary" aria-hidden="true" /> : null}
+        <span>
+          {employee.first_name} {employee.last_name}
+        </span>
+      </span>
+    )
+  }
+
+  const getPreferredStaffIds = (availableStaffIds: string[], requiredCount: number) => {
+    const sortByName = (a: Staff, b: Staff) =>
+      `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`, "fr")
+
+    const availableStaff = bookableStaff
+      .filter((member) => availableStaffIds.includes(member.id))
+
+    const femaleStaff = availableStaff
+      .filter((member) => member.gender === "female")
+      .sort(sortByName)
+
+    const fallbackStaff = availableStaff
+      .filter((member) => member.gender !== "female")
+      .sort(sortByName)
+
+    return (femaleStaff.length > 0 ? femaleStaff : fallbackStaff)
+      .slice(0, requiredCount)
+      .map((member) => member.id)
+  }
 
   const handleValidateCode = async () => {
     if (!codeInput.trim()) {
@@ -132,6 +185,7 @@ export default function RedeemGiftCardPage() {
       setGiftCard(response)
       setStep("salon")
       setSelectedSalonId("")
+      setAssignmentMode("specific")
       setSelectedDate("")
       setSelectedEmployeeId("")
       setSelectedEmployeeIds([])
@@ -151,9 +205,11 @@ export default function RedeemGiftCardPage() {
       return
     }
 
-    const staffIds = isMultiStaff
-      ? selectedEmployeeIds
-      : (selectedEmployeeId ? [selectedEmployeeId] : [])
+    const staffIds = isRandomAssignment
+      ? getPreferredStaffIds(selectedSlot.available_staff || [], requiredStaffCount)
+      : isMultiStaff
+        ? selectedBookableStaffIds
+        : (selectedBookableEmployee ? [selectedBookableEmployee.id] : [])
 
     if (staffIds.length < requiredStaffCount) {
       toast.error("Sélectionne le ou les praticiens requis.")
@@ -224,7 +280,7 @@ export default function RedeemGiftCardPage() {
 
   useEffect(() => {
     setSelectedSlot(null)
-  }, [selectedSalonId, selectedDate, selectedEmployeeId, selectedEmployeeIds])
+  }, [selectedSalonId, selectedDate, selectedEmployeeId, selectedEmployeeIds, assignmentMode])
 
   useEffect(() => {
     if (!giftCard) return
@@ -320,6 +376,7 @@ export default function RedeemGiftCardPage() {
                       <p className="text-muted-foreground mb-6">Sélectionnez le salon dans lequel vous souhaitez utiliser votre carte cadeau.</p>
                       <RadioGroup value={selectedSalonId} onValueChange={(value) => {
                         setSelectedSalonId(value)
+                        setAssignmentMode("specific")
                         setSelectedEmployeeId("")
                         setSelectedEmployeeIds([])
                         setSelectedDate("")
@@ -356,27 +413,92 @@ export default function RedeemGiftCardPage() {
                       </p>
                       {staffLoading ? (
                         <div className="text-sm text-muted-foreground">Chargement des praticiens...</div>
-                      ) : !staff?.length ? (
+                      ) : bookableStaff.length === 0 ? (
                         <div className="text-sm text-muted-foreground">Aucun praticien disponible dans ce salon.</div>
                       ) : !isMultiStaff ? (
-                        <RadioGroup value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                          <div className="space-y-2">
-                            {staff.map((member) => (
-                              <div key={member.id} className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted cursor-pointer">
-                                <RadioGroupItem value={member.id} id={`gift-staff-${member.id}`} />
-                                <Label htmlFor={`gift-staff-${member.id}`} className="cursor-pointer flex-1">
-                                  {member.first_name} {member.last_name}
+                        <RadioGroup value={isRandomAssignment ? "random" : selectedEmployeeId} onValueChange={(value) => {
+                          if (value === "random") {
+                            setAssignmentMode("random")
+                            setSelectedEmployeeId("")
+                            return
+                          }
+                          setAssignmentMode("specific")
+                          setSelectedEmployeeId(value)
+                        }}>
+                          <div className="space-y-3">
+                            <div
+                              className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+                                isRandomAssignment
+                                  ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
+                                  : "bg-card/65 hover:bg-muted hover:border-primary"
+                              }`}
+                              onClick={() => {
+                                setAssignmentMode("random")
+                                setSelectedEmployeeId("")
+                              }}
+                            >
+                              <Label htmlFor="gift-random-employee" className="pointer-events-none flex cursor-pointer items-start gap-3">
+                                <RadioGroupItem value="random" id="gift-random-employee" className="mt-1 shrink-0 pointer-events-none" />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-base font-medium text-foreground">Aléatoire</span>
+                                  <span className="mt-1 block text-sm leading-6 text-muted-foreground">
+                                    Nous attribuons automatiquement un praticien disponible sur le créneau choisi, avec priorité absolue aux femmes disponibles.
+                                  </span>
+                                </span>
+                              </Label>
+                            </div>
+                            {bookableStaff.map((member) => (
+                              <div
+                                key={member.id}
+                                className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+                                  selectedEmployeeId === member.id && !isRandomAssignment
+                                    ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
+                                    : "bg-card/65 hover:bg-muted hover:border-primary"
+                                }`}
+                                onClick={() => {
+                                  setAssignmentMode("specific")
+                                  setSelectedEmployeeId(member.id)
+                                }}
+                              >
+                                <Label htmlFor={`gift-staff-${member.id}`} className="pointer-events-none flex cursor-pointer items-start gap-3">
+                                  <RadioGroupItem value={member.id} id={`gift-staff-${member.id}`} className="mt-1 shrink-0 pointer-events-none" />
+                                  <span className="min-w-0 flex-1 text-base font-medium leading-6 text-foreground">
+                                    {renderStaffName(member)}
+                                  </span>
                                 </Label>
                               </div>
                             ))}
                           </div>
                         </RadioGroup>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
+                          <div
+                            className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+                              isRandomAssignment
+                                ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
+                                : "bg-card/65 hover:bg-muted hover:border-primary"
+                            }`}
+                            onClick={() => {
+                              setAssignmentMode("random")
+                              setSelectedEmployeeIds([])
+                            }}
+                          >
+                            <Label htmlFor="gift-random-employees" className="pointer-events-none flex cursor-pointer items-start gap-3">
+                              <Checkbox checked={isRandomAssignment} onCheckedChange={() => {}} id="gift-random-employees" className="mt-1 pointer-events-none" />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-base font-medium text-foreground">Attribution automatique</span>
+                                <span className="mt-1 block text-sm leading-6 text-muted-foreground">
+                                  Nous choisirons les praticiens disponibles au moment du créneau, avec priorité absolue aux femmes disponibles.
+                                </span>
+                              </span>
+                            </Label>
+                          </div>
                           <p className="text-xs text-muted-foreground">
-                            Sélection actuelle: {selectedEmployeeIds.length}/{requiredStaffCount}
+                            {isRandomAssignment
+                              ? "Attribution automatique sélectionnée"
+                              : `Sélection actuelle: ${selectedEmployeeIds.length}/${requiredStaffCount}`}
                           </p>
-                          {staff.map((member) => {
+                          {bookableStaff.map((member) => {
                             const isSelected = selectedEmployeeIds.includes(member.id)
                             const isFull = selectedEmployeeIds.length >= requiredStaffCount
                             const disabled = !isSelected && isFull
@@ -384,16 +506,22 @@ export default function RedeemGiftCardPage() {
                             return (
                               <div
                                 key={member.id}
-                                className={`flex items-center space-x-3 p-3 border rounded-lg transition-colors ${isSelected ? "bg-primary/5 border-primary" : "hover:bg-muted"} ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                                onClick={() => !disabled && toggleEmployeeSelection(member.id)}
+                                className={`cursor-pointer rounded-2xl border p-4 transition-colors ${isSelected && !isRandomAssignment ? "border-primary bg-primary/12 shadow-[0_10px_24px_rgba(214,171,89,0.08)]" : "bg-card/65 hover:bg-muted"} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+                                onClick={() => {
+                                  setAssignmentMode("specific")
+                                  !disabled && toggleEmployeeSelection(member.id)
+                                }}
                               >
-                                <Checkbox
-                                  checked={isSelected}
-                                  onCheckedChange={() => !disabled && toggleEmployeeSelection(member.id)}
-                                  id={`gift-staff-${member.id}`}
-                                />
-                                <Label htmlFor={`gift-staff-${member.id}`} className="cursor-pointer flex-1 font-medium">
-                                  {member.first_name} {member.last_name}
+                                <Label htmlFor={`gift-staff-${member.id}`} className="pointer-events-none flex cursor-pointer items-start gap-3">
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => {}}
+                                    id={`gift-staff-${member.id}`}
+                                    className="mt-1 pointer-events-none"
+                                  />
+                                  <span className="min-w-0 flex-1 text-base font-medium leading-6 text-foreground">
+                                    {renderStaffName(member)}
+                                  </span>
                                 </Label>
                               </div>
                             )
@@ -405,7 +533,7 @@ export default function RedeemGiftCardPage() {
                       <Button variant="outline" onClick={goToPreviousStep}>Retour</Button>
                       <Button
                         onClick={goToNextStep}
-                        disabled={(!isMultiStaff && !selectedEmployeeId) || (isMultiStaff && selectedEmployeeIds.length !== requiredStaffCount)}
+                        disabled={(!isMultiStaff && !selectedBookableEmployee && !isRandomAssignment) || (isMultiStaff && !isRandomAssignment && selectedBookableStaffIds.length !== requiredStaffCount)}
                       >
                         Suivant
                       </Button>
@@ -424,6 +552,7 @@ export default function RedeemGiftCardPage() {
                         type="date"
                         value={selectedDate}
                         onChange={(e) => setSelectedDate(e.target.value)}
+                        min={today}
                         className="mt-2 w-full min-w-0 max-w-full"
                       />
                     </div>

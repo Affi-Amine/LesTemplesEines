@@ -37,15 +37,15 @@ function getServiceName(appointment: EmployeeAppointment) {
 function getStatusClass(status: AppointmentStatus) {
   switch (status) {
     case "in_progress":
-      return "border-amber-200 bg-amber-100 text-amber-900"
+      return "border-amber-300 bg-amber-100 text-amber-950"
     case "completed":
-      return "border-emerald-200 bg-emerald-100 text-emerald-900"
+      return "border-emerald-300 bg-emerald-100 text-emerald-950"
     case "no_show":
-      return "border-orange-200 bg-orange-100 text-orange-900"
+      return "border-orange-300 bg-orange-100 text-orange-950"
     case "cancelled":
-      return "border-rose-200 bg-rose-100 text-rose-900"
+      return "border-rose-300 bg-rose-100 text-rose-950"
     default:
-      return "border-sky-200 bg-sky-100 text-sky-900"
+      return "border-sky-300 bg-sky-100 text-sky-950"
   }
 }
 
@@ -101,82 +101,82 @@ export default function EmployeeDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f3ed] px-3 pb-8 pt-4 sm:px-6">
-      <div className="mx-auto max-w-xl space-y-4">
-        <header className="rounded-[1.25rem] bg-[#181612] p-4 text-white shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/55">Hello</p>
-          <h1 className="mt-1 text-3xl font-black leading-tight">
+    <div className="min-h-screen bg-[#f4f1ea] px-3 pb-7 pt-3 sm:px-6">
+      <div className="mx-auto max-w-xl space-y-3">
+        <header className="rounded-xl bg-[#221d16] p-3.5 text-white shadow-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-white/75">Hello</p>
+          <h1 className="mt-0.5 text-2xl font-bold leading-tight">
             {userInfo?.first_name || "Therapist"}
           </h1>
-          <p className="mt-2 text-sm text-white/65">
+          <p className="mt-1 text-sm text-white/80">
             {formatInTimeZone(new Date(), TIMEZONE, "EEEE d MMMM")}
           </p>
 
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <div className="rounded-xl bg-white/10 p-3">
-              <p className="text-xs text-white/60">Today</p>
-              <p className="text-2xl font-black">{todayAppointments.length}</p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="rounded-lg bg-white/12 p-2.5">
+              <p className="text-[11px] text-white/75">Today</p>
+              <p className="text-xl font-bold">{todayAppointments.length}</p>
             </div>
-            <div className="rounded-xl bg-white/10 p-3">
-              <p className="text-xs text-white/60">To do</p>
-              <p className="text-2xl font-black">{openCount}</p>
+            <div className="rounded-lg bg-white/12 p-2.5">
+              <p className="text-[11px] text-white/75">To do</p>
+              <p className="text-xl font-bold">{openCount}</p>
             </div>
-            <div className="rounded-xl bg-white/10 p-3">
-              <p className="text-xs text-white/60">Done</p>
-              <p className="text-2xl font-black">{doneCount}</p>
+            <div className="rounded-lg bg-white/12 p-2.5">
+              <p className="text-[11px] text-white/75">Done</p>
+              <p className="text-xl font-bold">{doneCount}</p>
             </div>
           </div>
         </header>
 
-        <section className="rounded-[1.25rem] border border-black/5 bg-white p-4 shadow-sm">
+        <section className="rounded-xl border border-black/10 bg-white p-3.5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-black text-[#181612]">Next</h2>
-            <Clock className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-base font-bold text-[#221d16]">Next</h2>
+            <Clock className="h-4 w-4 text-[#6b6258]" />
           </div>
 
           {nextAppointment ? (
-            <div className="mt-4">
+            <div className="mt-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-4xl font-black tabular-nums text-[#181612]">
+                  <p className="text-3xl font-bold tabular-nums text-[#221d16]">
                     {formatTime(nextAppointment.start_time)}
                   </p>
-                  <p className="mt-1 text-sm font-bold text-muted-foreground">
+                  <p className="mt-0.5 text-xs font-semibold text-[#6b6258]">
                     {formatTime(nextAppointment.start_time)} - {formatTime(nextAppointment.end_time)}
                   </p>
                 </div>
-                <Badge className={cn("border px-2.5 py-1", getStatusClass(nextAppointment.status))}>
+                <Badge className={cn("border px-2 py-0.5 text-[11px]", getStatusClass(nextAppointment.status))}>
                   {getShortStatus(nextAppointment.status)}
                 </Badge>
               </div>
 
-              <p className="mt-4 text-xl font-black leading-tight">{getServiceName(nextAppointment)}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{getClientName(nextAppointment)}</p>
+              <p className="mt-3 text-lg font-bold leading-tight text-[#221d16]">{getServiceName(nextAppointment)}</p>
+              <p className="mt-1 text-sm text-[#6b6258]">{getClientName(nextAppointment)}</p>
 
-              <Link href="/employee/calendar" className="mt-4 block">
-                <Button className="h-14 w-full rounded-2xl text-base font-black">
+              <Link href="/employee/calendar" className="mt-3 block">
+                <Button className="h-11 w-full rounded-xl text-sm font-bold">
                   {nextAppointment.status === "in_progress" ? (
-                    <CheckCircle2 className="mr-2 h-5 w-5" />
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
                   ) : (
-                    <PlayCircle className="mr-2 h-5 w-5" />
+                    <PlayCircle className="mr-2 h-4 w-4" />
                   )}
                   Open
                 </Button>
               </Link>
             </div>
           ) : (
-            <div className="mt-4 rounded-2xl bg-[#f7f3ed] p-5 text-center">
-              <p className="font-black text-[#181612]">No next appointment</p>
-              <p className="mt-1 text-sm text-muted-foreground">Nothing to start now.</p>
+            <div className="mt-3 rounded-xl bg-[#f4f1ea] p-4 text-center">
+              <p className="font-bold text-[#221d16]">No next appointment</p>
+              <p className="mt-1 text-sm text-[#6b6258]">Nothing to start now.</p>
             </div>
           )}
         </section>
 
         <section className="space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-black text-[#181612]">Today list</h2>
+            <h2 className="text-base font-bold text-[#221d16]">Today list</h2>
             <Link href="/employee/calendar">
-              <Button variant="outline" size="sm" className="rounded-full">
+              <Button variant="outline" size="sm" className="h-9 rounded-full border-black/15">
                 <Calendar className="mr-2 h-4 w-4" />
                 Calendar
               </Button>
@@ -187,14 +187,14 @@ export default function EmployeeDashboard() {
             <Link
               key={appointment.id}
               href="/employee/calendar"
-              className="flex items-center justify-between gap-3 rounded-2xl border border-black/5 bg-white p-3 shadow-sm"
+              className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white p-3 shadow-sm"
             >
               <div className="min-w-0">
-                <p className="font-black tabular-nums text-[#181612]">{formatTime(appointment.start_time)}</p>
-                <p className="truncate text-sm font-semibold">{getServiceName(appointment)}</p>
-                <p className="truncate text-xs text-muted-foreground">{getClientName(appointment)}</p>
+                <p className="font-bold tabular-nums text-[#221d16]">{formatTime(appointment.start_time)}</p>
+                <p className="truncate text-sm font-semibold text-[#221d16]">{getServiceName(appointment)}</p>
+                <p className="truncate text-xs text-[#6b6258]">{getClientName(appointment)}</p>
               </div>
-              <Badge className={cn("shrink-0 border px-2.5 py-1", getStatusClass(appointment.status))}>
+              <Badge className={cn("shrink-0 border px-2 py-0.5 text-[11px]", getStatusClass(appointment.status))}>
                 {getShortStatus(appointment.status)}
               </Badge>
             </Link>

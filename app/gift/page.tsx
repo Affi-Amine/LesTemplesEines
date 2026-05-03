@@ -95,22 +95,22 @@ function GiftPageContent() {
   return (
     <main className="min-h-screen bg-background">
       <Navbar />
-      <section className="px-4 pb-14 pt-24 sm:pb-16 sm:pt-28">
-        <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8">
-          <div className="space-y-4 text-left sm:text-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/8 px-3 py-1.5 text-xs font-medium text-primary sm:px-4 sm:py-2 sm:text-sm">
+      <section className="px-4 pb-12 pt-[5.5rem] sm:pb-16 sm:pt-28">
+        <div className="max-w-6xl mx-auto space-y-5 sm:space-y-8">
+          <div className="space-y-3 text-left sm:space-y-4 sm:text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/8 px-3 py-1.5 text-[11px] font-medium text-primary sm:px-4 sm:py-2 sm:text-sm">
               <Gift className="w-4 h-4" />
               Cartes cadeaux
             </span>
-            <h1 className="text-3xl font-serif font-semibold leading-tight sm:text-4xl md:text-5xl md:font-bold">Offrir une expérience Les Temples</h1>
-            <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:mx-auto sm:text-base">
+            <h1 className="text-2xl font-serif font-semibold leading-tight sm:text-4xl md:text-5xl md:font-bold">Offrir une expérience Les Temples</h1>
+            <p className="max-w-2xl text-[0.82rem] leading-6 text-muted-foreground sm:mx-auto sm:text-base sm:leading-7">
               Choisissez une prestation, ajoutez un message, puis finalisez la carte cadeau en ligne.
             </p>
           </div>
 
           <div className="grid items-start gap-6 lg:grid-cols-[1.3fr_0.9fr] lg:gap-8">
-            <div className="space-y-4 sm:space-y-6">
-              <h2 className="text-lg font-semibold sm:text-2xl">1. Choisir une prestation</h2>
+            <div className="space-y-3 sm:space-y-6">
+              <h2 className="text-base font-semibold sm:text-2xl">1. Choisir une prestation</h2>
               {isLoading ? (
                 <div className="space-y-3">
                   {[1, 2, 3, 4].map((item) => (
@@ -131,8 +131,8 @@ function GiftPageContent() {
               )}
             </div>
 
-            <Card className="gap-4 space-y-0 rounded-[1.1rem] border-primary/10 bg-card/72 px-4 py-5 shadow-none sm:space-y-5 sm:rounded-xl sm:p-6 lg:sticky lg:top-24">
-              <h2 className="text-lg font-semibold sm:text-2xl">2. Informations d&apos;envoi</h2>
+            <Card className="gap-3.5 space-y-0 rounded-xl border-primary/10 bg-card/60 px-3.5 py-4 shadow-none sm:gap-4 sm:space-y-5 sm:p-6 lg:sticky lg:top-24">
+              <h2 className="text-base font-semibold sm:text-2xl">2. Informations d&apos;envoi</h2>
 
               {selectedService ? (
                 <div className="rounded-xl border border-primary/10 bg-background/28 p-3.5 sm:p-4">

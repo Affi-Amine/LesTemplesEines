@@ -109,13 +109,13 @@ export function HomeServicesSection() {
   }, [] as typeof services)
 
   return (
-      <section id="services" className="relative overflow-hidden py-16 sm:py-20">
+      <section id="services" className="relative overflow-hidden py-10 sm:py-20">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(214,171,89,0.12),transparent_34%),linear-gradient(180deg,rgba(33,26,20,0.34)_0%,rgba(10,9,8,0)_100%)]" />
       <div className="relative max-w-7xl mx-auto px-4">
-        <div className="mb-10 text-center sm:mb-16">
-          <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos massages</span>
-          <h2 className="mt-2 mb-3 text-3xl font-serif font-bold sm:mb-4 sm:text-4xl md:text-5xl">Des rituels pensés pour chaque besoin</h2>
-          <p className="mx-auto max-w-xl text-sm leading-7 text-muted-foreground sm:max-w-2xl sm:text-base">
+        <div className="mb-6 text-left sm:mb-16 sm:text-center">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary sm:text-sm sm:tracking-widest">Nos massages</span>
+          <h2 className="mt-2 mb-2 text-2xl font-serif font-semibold leading-tight sm:mb-4 sm:text-4xl sm:font-bold md:text-5xl">Des rituels pensés pour chaque besoin</h2>
+          <p className="max-w-xl text-sm leading-6 text-muted-foreground sm:mx-auto sm:max-w-2xl sm:text-base sm:leading-7">
             Une carte sobre, portée par des gestes inspirés de la Thaïlande, pour apaiser, relâcher ou travailler plus en profondeur.
           </p>
         </div>
@@ -129,7 +129,7 @@ export function HomeServicesSection() {
             compact
             getBadge={(service) => getServiceBadge(service.name, service.category)}
           />
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <div className="mt-5 flex flex-col gap-2.5 sm:mt-6 sm:flex-row sm:justify-center sm:gap-3">
             <Button asChild variant="outline" className="border-primary/25 bg-transparent">
               <Link href="/nos-prestations">Voir toutes les prestations</Link>
             </Button>

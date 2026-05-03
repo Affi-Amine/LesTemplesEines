@@ -636,7 +636,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     isRandomAssignment ||
     (!isMultiStaff && !!currentEmployee) ||
     (isMultiStaff && selectedEmployees.length === (currentService?.required_staff_count || 1))
-  const flowCardClass = "animate-in fade-in duration-300 gap-4 rounded-[1.1rem] border-primary/10 bg-card/70 px-4 py-5 shadow-none sm:gap-6 sm:rounded-xl sm:p-6 md:p-8"
+  const flowCardClass = "animate-in fade-in duration-300 gap-3 border-0 bg-transparent px-0 py-0 shadow-none sm:gap-6 sm:rounded-xl sm:border sm:border-primary/10 sm:bg-card/70 sm:p-6 md:p-8"
+  const flowTitleClass = "mb-1 text-[1.12rem] font-semibold leading-tight sm:text-2xl"
+  const flowSubtitleClass = "mb-3 text-[0.82rem] leading-5 text-muted-foreground sm:mb-6 sm:text-base sm:leading-6"
+  const flowActionsClass = "mt-4 flex flex-col-reverse gap-2.5 sm:mt-8 sm:flex-row sm:justify-between"
 
   return (
     <div ref={containerRef} className="mx-auto w-full max-w-2xl px-0 pb-2 pt-2 sm:p-4 scroll-mt-28">
@@ -645,8 +648,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       {/* Step 1: Select Salon */}
       {step === "salon" && (
         <Card className={flowCardClass}>
-          <h2 className="mb-1 text-[1.35rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step1_title")}</h2>
-          <p className="mb-4 text-sm leading-6 text-muted-foreground sm:mb-6 sm:text-base">{t(locale, "booking.step1_subtitle")}</p>
+          <h2 className={flowTitleClass}>{t(locale, "booking.step1_title")}</h2>
+          <p className={flowSubtitleClass}>{t(locale, "booking.step1_subtitle")}</p>
 
           {salonsLoading ? (
             <div className="space-y-3">
@@ -659,12 +662,12 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             </div>
           ) : (
             <RadioGroup value={data.salon} onValueChange={handleSalonChange}>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {salons?.map((salon) => (
                   <div
                     key={salon.id}
                     onClick={() => handleSalonChange(salon.id)}
-                    className={`rounded-xl border px-3.5 py-3 transition-all cursor-pointer sm:rounded-[1.35rem] sm:p-5 ${
+                    className={`rounded-xl border px-3 py-2.5 transition-all cursor-pointer sm:rounded-[1.35rem] sm:p-5 ${
                       data.salon === salon.id
                         ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
                         : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -674,19 +677,19 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                       <div className="flex items-start gap-3">
                         <RadioGroupItem value={salon.id} id={salon.id} className="mt-1 shrink-0 pointer-events-none" />
                         <div className="min-w-0 flex-1">
-                          <div className="text-base font-semibold leading-tight break-words text-foreground sm:text-[1.35rem]">
+                          <div className="text-[0.92rem] font-semibold leading-tight break-words text-foreground sm:text-[1.35rem]">
                             {salon.name}
                           </div>
                           <div className="mt-2 space-y-1.5 sm:mt-3 sm:space-y-2">
-                            <p className="text-sm leading-6 break-words text-muted-foreground sm:text-[0.95rem]">
+                            <p className="text-xs leading-5 break-words text-muted-foreground sm:text-[0.95rem] sm:leading-6">
                               {salon.address}
                             </p>
-                            <p className="text-sm font-medium text-foreground/90">
+                            <p className="text-xs font-medium text-foreground/90 sm:text-sm">
                               {salon.city}
                             </p>
                             {salon.phone ? (
                               <div className="pt-1">
-                                <span className="inline-flex w-fit rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary whitespace-nowrap">
+                                <span className="inline-flex w-fit rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary whitespace-nowrap sm:px-3 sm:py-1 sm:text-xs">
                                   {salon.phone}
                                 </span>
                               </div>
@@ -701,7 +704,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             </RadioGroup>
           )}
 
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:mt-8 sm:flex-row sm:justify-end">
+          <div className="mt-4 flex flex-col-reverse gap-2.5 sm:mt-8 sm:flex-row sm:justify-end">
             <Button onClick={handleNext} disabled={!data.salon || salonsLoading} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.next")}
             </Button>
@@ -712,8 +715,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       {/* Step 2: Select Service */}
       {step === "service" && (
         <Card className={flowCardClass}>
-          <h2 className="mb-1 text-[1.35rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step2_title")}</h2>
-          <p className="mb-4 text-sm leading-6 text-muted-foreground sm:mb-6 sm:text-base">{t(locale, "booking.step2_subtitle")}</p>
+          <h2 className={flowTitleClass}>{t(locale, "booking.step2_title")}</h2>
+          <p className={flowSubtitleClass}>{t(locale, "booking.step2_subtitle")}</p>
 
           {selectedClientPack ? (
             <div className="mb-4 rounded-xl border border-primary/15 bg-primary/8 p-3.5 sm:mb-6 sm:rounded-2xl sm:p-5">
@@ -751,7 +754,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             />
           )}
 
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:mt-8 sm:flex-row sm:justify-between">
+          <div className={flowActionsClass}>
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
@@ -765,14 +768,14 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       {/* Step 3: Select Time */}
       {step === "time" && (
         <Card className={flowCardClass}>
-          <h2 className="mb-1 text-[1.35rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step3_title")}</h2>
-          <p className="mb-4 text-sm leading-6 text-muted-foreground sm:mb-6 sm:text-base">{t(locale, "booking.step3_subtitle")}</p>
+          <h2 className={flowTitleClass}>{t(locale, "booking.step3_title")}</h2>
+          <p className={flowSubtitleClass}>{t(locale, "booking.step3_subtitle")}</p>
           <div className="space-y-5 sm:space-y-6">
             <div>
               {(!currentService?.required_staff_count || currentService.required_staff_count <= 1) ? (
-                <div className="mb-6">
-                  <Label className="font-semibold">{t(locale, "booking.select_therapist")}</Label>
-                  <p className="mt-2 text-xs text-muted-foreground">
+                <div className="mb-5 sm:mb-6">
+                  <Label className="text-sm font-semibold sm:text-base">{t(locale, "booking.select_therapist")}</Label>
+                  <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground sm:mt-2 sm:text-xs">
                     Choisissez votre praticien avant de voir les créneaux, ou laissez-nous choisir pour vous.
                   </p>
                   {staffLoading ? (
@@ -791,10 +794,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                       }
                       handleEmployeeChange(value)
                     }}>
-                      <div className="mt-3 space-y-3">
+                      <div className="mt-2.5 space-y-2 sm:mt-3 sm:space-y-3">
                         <div
                           onClick={handleRandomAssignment}
-                          className={`cursor-pointer rounded-xl border px-3.5 py-3 transition-all sm:rounded-2xl sm:p-4 ${
+                          className={`cursor-pointer rounded-xl border px-3 py-2.5 transition-all sm:rounded-2xl sm:p-4 ${
                             isRandomAssignment
                               ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
                               : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -803,8 +806,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                           <Label htmlFor="booking-random-employee" className="pointer-events-none flex cursor-pointer items-start gap-3">
                             <RadioGroupItem value="random" id="booking-random-employee" className="mt-1 shrink-0 pointer-events-none" />
                             <span className="min-w-0 flex-1">
-                              <span className="block text-base font-medium text-foreground">Aléatoire</span>
-                              <span className="mt-1 block text-sm leading-6 text-muted-foreground">
+                              <span className="block text-sm font-medium text-foreground sm:text-base">Aléatoire</span>
+                              <span className="mt-1 block text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">
                                 Nous attribuons automatiquement un praticien disponible sur le créneau choisi, avec priorité absolue aux femmes disponibles.
                               </span>
                             </span>
@@ -814,7 +817,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                           <div
                             key={emp.id}
                             onClick={() => handleEmployeeChange(emp.id)}
-                            className={`cursor-pointer rounded-xl border px-3.5 py-3 transition-all sm:rounded-2xl sm:p-4 ${
+                            className={`cursor-pointer rounded-xl border px-3 py-2.5 transition-all sm:rounded-2xl sm:p-4 ${
                               data.employee === emp.id && !isRandomAssignment
                                 ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
                                 : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -822,7 +825,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                           >
                             <Label htmlFor={emp.id} className="pointer-events-none flex cursor-pointer items-start gap-3">
                               <RadioGroupItem value={emp.id} id={emp.id} className="mt-1 shrink-0 pointer-events-none" />
-                              <span className="min-w-0 flex-1 text-base font-medium leading-6 text-foreground">
+                              <span className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground sm:text-base sm:leading-6">
                                 {renderStaffName(emp)}
                               </span>
                             </Label>
@@ -833,17 +836,17 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   )}
                 </div>
               ) : (
-                <div className="mb-6">
-                  <Label className="font-semibold">
+                <div className="mb-5 sm:mb-6">
+                  <Label className="text-sm font-semibold sm:text-base">
                     Sélectionnez {currentService.required_staff_count} praticiens
                     {data.employees.length > 0 && !isRandomAssignment && ` (${data.employees.length}/${currentService.required_staff_count})`}
                   </Label>
-                  <p className="mb-3 mt-2 text-xs text-muted-foreground">
+                  <p className="mb-2.5 mt-1.5 text-[11px] leading-5 text-muted-foreground sm:mb-3 sm:mt-2 sm:text-xs">
                     Choisissez d'abord vos praticiens, ou laissez-nous faire l'attribution automatique sur le créneau choisi.
                   </p>
                   <div
                     onClick={handleRandomAssignment}
-                    className={`mb-3 cursor-pointer rounded-xl border px-3.5 py-3 transition-all sm:rounded-2xl sm:p-4 ${
+                    className={`mb-2.5 cursor-pointer rounded-xl border px-3 py-2.5 transition-all sm:mb-3 sm:rounded-2xl sm:p-4 ${
                       isRandomAssignment
                         ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
                         : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -857,8 +860,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                         className="mt-1 pointer-events-none"
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-base font-medium text-foreground">Attribution automatique</span>
-                        <span className="mt-1 block text-sm leading-6 text-muted-foreground">
+                        <span className="block text-sm font-medium text-foreground sm:text-base">Attribution automatique</span>
+                        <span className="mt-1 block text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">
                           Nous choisirons les praticiens disponibles au moment du créneau, avec priorité absolue aux femmes disponibles.
                         </span>
                       </span>
@@ -873,7 +876,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                       ))}
                     </div>
                   ) : (
-                    <div className="mt-3 space-y-3">
+                    <div className="mt-2.5 space-y-2 sm:mt-3 sm:space-y-3">
                       {salonEmployees.map((emp) => {
                         const isSelected = data.employees.includes(emp.id)
                         const isFull = data.employees.length >= (currentService.required_staff_count || 2)
@@ -882,7 +885,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                         return (
                           <div
                             key={emp.id}
-                            className={`cursor-pointer rounded-xl border px-3.5 py-3 transition-colors sm:rounded-2xl sm:p-4 ${isSelected && !isRandomAssignment ? "border-primary bg-primary/12 shadow-[0_10px_24px_rgba(214,171,89,0.08)]" : "bg-card/65 hover:bg-muted"} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+                            className={`cursor-pointer rounded-xl border px-3 py-2.5 transition-colors sm:rounded-2xl sm:p-4 ${isSelected && !isRandomAssignment ? "border-primary bg-primary/12 shadow-[0_10px_24px_rgba(214,171,89,0.08)]" : "bg-card/65 hover:bg-muted"} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
                             onClick={() => {
                               setData((current) => ({ ...current, assignmentMode: "specific", time: "" }))
                               !disabled && toggleEmployeeSelection(emp.id, currentService.required_staff_count || 2)
@@ -895,7 +898,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                                 id={`staff-${emp.id}`}
                                 className="mt-1 pointer-events-none"
                               />
-                              <span className="min-w-0 flex-1 text-base font-medium leading-6 text-foreground">
+                              <span className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground sm:text-base sm:leading-6">
                                 {renderStaffName(emp)}
                               </span>
                             </Label>
@@ -907,7 +910,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 </div>
               )}
 
-              <Label htmlFor="date" className="font-semibold">
+              <Label htmlFor="date" className="text-sm font-semibold sm:text-base">
                 {t(locale, "booking.select_date")}
               </Label>
               <Input
@@ -916,23 +919,23 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 value={data.date}
                 onChange={(e) => handleDateChange(e.target.value)}
                 min={todayInParis}
-                className="mt-2 w-full min-w-0 max-w-full"
+                className="mt-2 h-10 w-full min-w-0 max-w-full text-sm sm:h-11"
                 disabled={!isTherapistSelectionComplete}
               />
               {!isTherapistSelectionComplete ? (
-                <p className="mt-2 text-xs text-muted-foreground">
+                <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground sm:mt-2 sm:text-xs">
                   Choisissez d'abord un praticien ou l'option aléatoire pour voir les créneaux.
                 </p>
               ) : null}
             </div>
             <div>
-              <Label className="font-semibold">{t(locale, "booking.select_time")}</Label>
-              <p className="text-xs text-muted-foreground mt-2">
+              <Label className="text-sm font-semibold sm:text-base">{t(locale, "booking.select_time")}</Label>
+              <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground sm:mt-2 sm:text-xs">
                 {!isTherapistSelectionComplete && "Choisissez d'abord un praticien ou l'option aléatoire."}
                 {isTherapistSelectionComplete && !data.date && "Sélectionnez d'abord la date pour voir les créneaux disponibles."}
                 {availabilityLoading && data.date && "Chargement des créneaux disponibles..."}
               </p>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+              <div className="mt-2.5 grid grid-cols-3 gap-1.5 sm:mt-3 sm:grid-cols-3 sm:gap-2 md:grid-cols-4">
                 {timeOptions.map((time) => {
                   const isAvailable = data.date ? availableTimesSet.has(time) : false
                   const isSelected = data.time === time
@@ -941,7 +944,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                       key={time}
                       variant={isSelected ? "default" : "outline"}
                       onClick={() => handleTimeChange(time)}
-                      className={`h-11 w-full rounded-xl text-sm font-medium sm:h-12 ${!isAvailable ? "bg-muted text-muted-foreground border-muted-foreground/10 opacity-100 cursor-not-allowed hover:bg-muted hover:text-muted-foreground" : ""}`}
+                      className={`h-9 w-full rounded-lg text-xs font-medium sm:h-12 sm:rounded-xl sm:text-sm ${!isAvailable ? "bg-muted text-muted-foreground border-muted-foreground/10 opacity-100 cursor-not-allowed hover:bg-muted hover:text-muted-foreground" : ""}`}
                       disabled={!isTherapistSelectionComplete || !isAvailable || availabilityLoading}
                     >
                       {time}
@@ -951,7 +954,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               </div>
             </div>
           </div>
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:mt-8 sm:flex-row sm:justify-between">
+          <div className={flowActionsClass}>
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
@@ -965,8 +968,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       {/* Step 4: Enter Info */}
       {step === "info" && (
         <Card className={flowCardClass}>
-          <h2 className="mb-1 text-[1.35rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step4_title")}</h2>
-          <p className="mb-4 text-sm leading-6 text-muted-foreground sm:mb-6 sm:text-base">{t(locale, "booking.step4_subtitle")}</p>
+          <h2 className={flowTitleClass}>{t(locale, "booking.step4_title")}</h2>
+          <p className={flowSubtitleClass}>{t(locale, "booking.step4_subtitle")}</p>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -1043,7 +1046,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               >
                 <div
                   onClick={() => updateData({ paymentOption: "stripe" })}
-                  className={`cursor-pointer rounded-xl border px-3.5 py-3 transition-all sm:rounded-2xl sm:p-4 ${
+                  className={`cursor-pointer rounded-xl border px-3 py-2.5 transition-all sm:rounded-2xl sm:p-4 ${
                     data.paymentOption === "stripe"
                       ? "border-primary bg-primary/10"
                       : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -1052,14 +1055,14 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   <Label htmlFor="payment-stripe" className="pointer-events-none flex cursor-pointer items-start gap-3">
                     <RadioGroupItem value="stripe" id="payment-stripe" className="mt-1 shrink-0 pointer-events-none" />
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium">Payer maintenant</div>
-                      <div className="text-sm leading-6 text-muted-foreground">Paiement en ligne sécurisé avec Stripe.</div>
+                      <div className="text-sm font-medium sm:text-base">Payer maintenant</div>
+                      <div className="text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">Paiement en ligne sécurisé avec Stripe.</div>
                     </div>
                   </Label>
                 </div>
                 <div
                   onClick={() => eligiblePacks.length > 0 && updateData({ paymentOption: "pack" })}
-                  className={`rounded-xl border px-3.5 py-3 transition-all sm:rounded-2xl sm:p-4 ${
+                  className={`rounded-xl border px-3 py-2.5 transition-all sm:rounded-2xl sm:p-4 ${
                     data.paymentOption === "pack"
                       ? "border-primary bg-primary/10"
                       : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -1068,8 +1071,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   <Label htmlFor="payment-pack" className="pointer-events-none flex cursor-pointer items-start gap-3">
                     <RadioGroupItem value="pack" id="payment-pack" className="mt-1 shrink-0 pointer-events-none" disabled={eligiblePacks.length === 0} />
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium">Utiliser un forfait</div>
-                      <div className="text-sm leading-6 text-muted-foreground">
+                      <div className="text-sm font-medium sm:text-base">Utiliser un forfait</div>
+                      <div className="text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">
                         {eligiblePacks.length > 0
                           ? `${eligiblePacks.length} forfait(s) compatible(s) disponible(s).`
                           : "Aucun forfait utilisable pour cette prestation. Les forfaits impayés ou bloqués ne sont pas proposés."}
@@ -1095,7 +1098,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 )}
                 <div
                   onClick={() => updateData({ paymentOption: "on_site" })}
-                  className={`cursor-pointer rounded-xl border px-3.5 py-3 transition-all sm:rounded-2xl sm:p-4 ${
+                  className={`cursor-pointer rounded-xl border px-3 py-2.5 transition-all sm:rounded-2xl sm:p-4 ${
                     data.paymentOption === "on_site"
                       ? "border-primary bg-primary/10"
                       : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -1104,15 +1107,15 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   <Label htmlFor="payment-on-site" className="pointer-events-none flex cursor-pointer items-start gap-3">
                     <RadioGroupItem value="on_site" id="payment-on-site" className="mt-1 shrink-0 pointer-events-none" />
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium">Payer sur place</div>
-                      <div className="text-sm leading-6 text-muted-foreground">Le rendez-vous est créé comme non payé.</div>
+                      <div className="text-sm font-medium sm:text-base">Payer sur place</div>
+                      <div className="text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">Le rendez-vous est créé comme non payé.</div>
                     </div>
                   </Label>
                 </div>
               </RadioGroup>
             </div>
           </div>
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:mt-8 sm:flex-row sm:justify-between">
+          <div className={flowActionsClass}>
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
@@ -1131,57 +1134,57 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       {/* Step 5: Confirmation */}
       {step === "confirm" && (
         <Card className={flowCardClass}>
-          <h2 className="mb-1 text-[1.35rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step5_title")}</h2>
-          <p className="mb-4 text-sm leading-6 text-muted-foreground sm:mb-6 sm:text-base">{t(locale, "booking.step5_subtitle")}</p>
+          <h2 className={flowTitleClass}>{t(locale, "booking.step5_title")}</h2>
+          <p className={flowSubtitleClass}>{t(locale, "booking.step5_subtitle")}</p>
 
           {/* Booking Summary */}
-          <div className="mb-6 space-y-4 rounded-2xl border border-border/80 bg-card/75 p-4 sm:p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="mb-4 space-y-3 rounded-xl border border-border/70 bg-card/55 p-3 sm:mb-6 sm:space-y-4 sm:rounded-2xl sm:p-6">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 sm:gap-4">
               <div>
-                <p className="text-sm text-muted-foreground">{t(locale, "booking.step1_title")}</p>
-                <p className="font-semibold text-lg">{currentSalon?.name}</p>
+                <p className="text-xs text-muted-foreground sm:text-sm">{t(locale, "booking.step1_title")}</p>
+                <p className="text-sm font-semibold sm:text-lg">{currentSalon?.name}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">{t(locale, "booking.step2_title")}</p>
-                <p className="font-semibold text-lg">{currentService?.name}</p>
+                <p className="text-xs text-muted-foreground sm:text-sm">{t(locale, "booking.step2_title")}</p>
+                <p className="text-sm font-semibold sm:text-lg">{currentService?.name}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">{t(locale, "booking.duration")}</p>
-                <p className="font-semibold text-lg">
+                <p className="text-xs text-muted-foreground sm:text-sm">{t(locale, "booking.duration")}</p>
+                <p className="text-sm font-semibold sm:text-lg">
                   {currentService?.duration_minutes} min
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">{t(locale, "booking.select_therapist")}</p>
+                <p className="text-xs text-muted-foreground sm:text-sm">{t(locale, "booking.select_therapist")}</p>
                 {selectedEmployees.length > 0 ? (
                   <div className="space-y-2">
                     {selectedEmployees.map((employee) => (
-                      <p key={employee.id} className="font-semibold text-lg break-words">
+                      <p key={employee.id} className="text-sm font-semibold break-words sm:text-lg">
                         {renderStaffName(employee)}
                       </p>
                     ))}
                   </div>
                 ) : currentEmployee ? (
-                  <p className="font-semibold text-lg break-words">{renderStaffName(currentEmployee)}</p>
+                  <p className="text-sm font-semibold break-words sm:text-lg">{renderStaffName(currentEmployee)}</p>
                 ) : (
-                  <p className="font-semibold text-lg break-words">Attribution automatique</p>
+                  <p className="text-sm font-semibold break-words sm:text-lg">Attribution automatique</p>
                 )}
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">{t(locale, "booking.step3_title")}</p>
-                <p className="font-semibold text-lg">
+                <p className="text-xs text-muted-foreground sm:text-sm">{t(locale, "booking.step3_title")}</p>
+                <p className="text-sm font-semibold sm:text-lg">
                   {new Date(data.date).toLocaleDateString("fr-FR")} à {data.time}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">{t(locale, "booking.step4_title")}</p>
-                <p className="font-semibold text-lg">
+                <p className="text-xs text-muted-foreground sm:text-sm">{t(locale, "booking.step4_title")}</p>
+                <p className="text-sm font-semibold sm:text-lg">
                   {data.firstName} {data.lastName}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Paiement</p>
-                <p className="font-semibold text-lg">
+                <p className="text-xs text-muted-foreground sm:text-sm">Paiement</p>
+                <p className="text-sm font-semibold sm:text-lg">
                   {data.paymentOption === "stripe" ? "Stripe" : data.paymentOption === "pack" ? "Forfait" : "Sur place"}
                 </p>
               </div>
@@ -1189,8 +1192,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
             {/* Price */}
             <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-lg font-semibold">{t(locale, "booking.price")}</span>
-              <span className="text-[1.75rem] font-bold text-primary sm:text-2xl">{currentService ? (currentService.price_cents / 100).toFixed(2) : '0.00'}€</span>
+              <span className="text-sm font-semibold sm:text-lg">{t(locale, "booking.price")}</span>
+              <span className="text-xl font-bold text-primary sm:text-2xl">{currentService ? (currentService.price_cents / 100).toFixed(2) : '0.00'}€</span>
             </div>
           </div>
 

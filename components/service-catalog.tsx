@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { ChevronDown, Check, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -82,27 +82,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
     return Array.from(groups.values())
   }, [services])
 
-  const [openCategories, setOpenCategories] = useState(() => new Set(groupedServices[0] ? [groupedServices[0].category] : []))
-
-  useEffect(() => {
-    setOpenCategories((current) => {
-      const availableCategories = new Set(groupedServices.map((group) => group.category))
-      const next = new Set(Array.from(current).filter((category) => availableCategories.has(category)))
-
-      if (next.size > 0 || !groupedServices[0]) return next
-      return new Set([groupedServices[0].category])
-    })
-  }, [groupedServices])
-
-  useEffect(() => {
-    if (!selectedServiceId) return
-    const selectedGroup = groupedServices.find((group) =>
-      group.items.some((service) => service.id === selectedServiceId)
-    )
-    if (!selectedGroup) return
-
-    setOpenCategories((current) => new Set(current).add(selectedGroup.category))
-  }, [groupedServices, selectedServiceId])
+  const [openCategories, setOpenCategories] = useState<Set<string>>(new Set())
 
   const toggleCategory = (category: string) => {
     setOpenCategories((current) => {
@@ -122,16 +102,16 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
   }
 
   return (
-    <div className={cn("space-y-3 sm:space-y-4", className)}>
+    <div className={cn("space-y-2.5 sm:space-y-4", className)}>
       {groupedServices.length > 1 ? (
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-1">
+        <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:gap-2 sm:px-1">
           {groupedServices.map((group) => (
             <button
               key={group.category}
               type="button"
               onClick={() => jumpToCategory(group.category)}
               className={cn(
-                "shrink-0 rounded-full border px-3.5 py-2 text-xs font-medium transition-colors",
+                "shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors sm:px-3.5 sm:py-2 sm:text-xs",
                 openCategories.has(group.category)
                   ? "border-primary/35 bg-primary/10 text-foreground"
                   : "border-primary/12 bg-background/25 text-muted-foreground hover:border-primary/35 hover:text-foreground"
@@ -144,7 +124,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-[1.1rem] border border-primary/10 bg-background/28 shadow-none backdrop-blur-sm sm:rounded-2xl sm:bg-[linear-gradient(180deg,rgba(31,25,20,0.78),rgba(17,14,12,0.9))] sm:shadow-[0_18px_50px_rgba(0,0,0,0.14)]">
+      <div className="overflow-hidden rounded-xl border border-primary/10 bg-background/22 shadow-none backdrop-blur-sm sm:rounded-2xl sm:bg-[linear-gradient(180deg,rgba(31,25,20,0.78),rgba(17,14,12,0.9))] sm:shadow-[0_18px_50px_rgba(0,0,0,0.14)]">
         {groupedServices.map((group) => {
           const isOpen = openCategories.has(group.category)
 
@@ -153,12 +133,12 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
               <button
                 type="button"
                 onClick={() => toggleCategory(group.category)}
-                className="flex w-full items-center justify-between gap-4 px-3.5 py-3.5 text-left transition-colors hover:bg-primary/5 sm:px-5 sm:py-4"
+                className="flex w-full items-center justify-between gap-4 px-3 py-3 text-left transition-colors hover:bg-primary/5 sm:px-5 sm:py-4"
                 aria-expanded={isOpen}
               >
                 <span>
-                  <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-primary sm:text-xs sm:tracking-[0.16em]">{group.category}</span>
-                  <span className="mt-1 block text-xs text-muted-foreground">{group.items.length} prestation{group.items.length > 1 ? "s" : ""}</span>
+                  <span className="block text-[10px] font-semibold uppercase tracking-[0.13em] text-primary sm:text-xs sm:tracking-[0.16em]">{group.category}</span>
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground sm:mt-1 sm:text-xs">{group.items.length} prestation{group.items.length > 1 ? "s" : ""}</span>
                 </span>
                 <ChevronDown className={cn("h-4 w-4 shrink-0 text-primary transition-transform sm:h-5 sm:w-5", isOpen ? "rotate-180" : "")} />
               </button>
@@ -176,29 +156,29 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
                         onClick={() => onSelectService?.(service.id)}
                         disabled={!selectable}
                         className={cn(
-                          "grid w-full grid-cols-[1fr_auto] gap-2.5 px-3 py-3 text-left transition-colors sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-3 sm:px-5 sm:py-4",
+                          "grid w-full grid-cols-[1fr_auto] gap-2 px-3 py-2.5 text-left transition-colors sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-3 sm:px-5 sm:py-4",
                           selectable ? "cursor-pointer hover:bg-primary/6" : "cursor-default",
                           isSelected && "bg-primary/8"
                         )}
                       >
                         <span className="min-w-0">
-                          <span className="flex items-start gap-3">
+                          <span className="flex items-start gap-2.5 sm:gap-3">
                             {selectable ? (
                               <span
                                 className={cn(
-                                  "mt-0.5 flex h-[1.125rem] w-[1.125rem] shrink-0 items-center justify-center rounded-full border sm:h-5 sm:w-5",
+                                  "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border sm:h-5 sm:w-5",
                                   isSelected ? "border-primary bg-primary text-primary-foreground" : "border-primary/25"
                                 )}
                               >
-                                {isSelected ? <Check className="h-3.5 w-3.5" /> : null}
+                                {isSelected ? <Check className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> : null}
                               </span>
                             ) : null}
                             <span className="min-w-0">
-                              <span className="block break-words text-[0.86rem] font-semibold leading-snug text-foreground sm:text-base">
+                              <span className="block break-words text-[0.82rem] font-semibold leading-snug text-foreground sm:text-base">
                                 {service.name}
                               </span>
                               {badge ? (
-                                <span className="mt-2 inline-flex rounded-full border border-primary/15 bg-primary/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+                                <span className="mt-1.5 inline-flex rounded-full border border-primary/15 bg-primary/8 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-primary sm:mt-2 sm:px-2.5 sm:py-1 sm:text-[10px]">
                                   {badge}
                                 </span>
                               ) : null}
@@ -216,9 +196,9 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
                           </span>
                         </span>
 
-                        <span className="flex min-w-[4.5rem] flex-col items-end justify-center gap-1 text-right sm:min-w-[5rem]">
-                          <span className="text-[0.84rem] font-semibold text-primary sm:text-[0.95rem]">{formatPrice(service)}</span>
-                          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground sm:text-xs">
+                        <span className="flex min-w-[4.15rem] flex-col items-end justify-center gap-0.5 text-right sm:min-w-[5rem] sm:gap-1">
+                          <span className="text-[0.8rem] font-semibold text-primary sm:text-[0.95rem]">{formatPrice(service)}</span>
+                          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground sm:text-xs">
                             <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                             {formatDuration(service)}
                           </span>

@@ -83,15 +83,15 @@ export function SalonTeam({ employees, serviceNames }: SalonTeamProps) {
   }
 
   return (
-    <section className="py-20 bg-muted/20">
+    <section className="py-10 bg-muted/12 sm:py-20">
       <div className="max-w-7xl mx-auto px-4">
         {/* Enhanced Section Header */}
-        <div className="mb-16 text-center">
-          <span className="text-sm font-semibold text-primary tracking-widest uppercase">Notre Équipe</span>
-          <h2 className="text-4xl md:text-5xl font-serif font-bold mt-3 mb-4">
+        <div className="mb-7 text-left sm:mb-16 sm:text-center">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary sm:text-sm sm:tracking-widest">Notre équipe</span>
+          <h2 className="mt-2 mb-2 text-2xl font-serif font-semibold leading-tight sm:mt-3 sm:mb-4 sm:text-4xl sm:font-bold md:text-5xl">
             Rencontrez Nos Experts
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:mx-auto sm:text-lg">
             Des thérapeutes passionnés et hautement qualifiés, dédiés à votre bien-être
           </p>
         </div>
@@ -105,11 +105,11 @@ export function SalonTeam({ employees, serviceNames }: SalonTeamProps) {
               {employees.map((emp, index) => (
                 <Card
                   key={emp.id}
-                  className={`group min-w-0 flex-[0_0_88%] gap-0 overflow-hidden rounded-[1.5rem] border-primary/20 bg-card/95 py-0 shadow-md transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl sm:flex-[0_0_68%] lg:flex-[0_0_38%] xl:flex-[0_0_32%] temple-frame ${
+                  className={`group min-w-0 flex-[0_0_82%] gap-0 overflow-hidden rounded-xl border-primary/15 bg-card/90 py-0 shadow-sm transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl sm:flex-[0_0_68%] sm:rounded-[1.5rem] lg:flex-[0_0_38%] xl:flex-[0_0_32%] temple-frame ${
                     index === 0 ? "home-reveal home-reveal-soft home-reveal-delay-1" : index === 1 ? "home-reveal home-reveal-soft home-reveal-delay-2" : "home-reveal home-reveal-soft home-reveal-delay-3"
                   }`}
                 >
-                  <div className="relative h-64 overflow-hidden bg-muted sm:h-72">
+                  <div className="relative h-52 overflow-hidden bg-muted sm:h-72">
                     {emp.photo ? (
                       <SalonImageFrame
                         src={emp.photo}
@@ -125,8 +125,8 @@ export function SalonTeam({ employees, serviceNames }: SalonTeamProps) {
                     )}
                   </div>
 
-                  <div className="p-5 sm:p-6">
-                    <h3 className="mb-3 font-serif text-xl font-semibold transition-colors group-hover:text-primary sm:text-2xl">
+                  <div className="p-4 sm:p-6">
+                    <h3 className="mb-3 font-serif text-lg font-semibold transition-colors group-hover:text-primary sm:text-2xl">
                       {renderGender(emp)}
                     </h3>
 
@@ -174,7 +174,7 @@ export function SalonTeam({ employees, serviceNames }: SalonTeamProps) {
               ))}
             </div>
 
-            <div className="flex items-center gap-3 self-end sm:self-auto">
+            <div className="flex items-center gap-2 self-end sm:self-auto sm:gap-3">
               <Button
                 variant="outline"
                 size="icon"

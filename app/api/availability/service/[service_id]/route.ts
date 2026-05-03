@@ -8,6 +8,7 @@ import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes, format, areIntervalsOverlapping } from "date-fns"
 import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
+import { BOOKABLE_STAFF_ROLES, resolveOpeningHoursForDate } from "@/lib/calendar/scheduling"
 
 const TIMEZONE = "Europe/Paris"
 
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const dayOfWeek = requestedDate.getDay()
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
     const dayName = dayNames[dayOfWeek]
-    const salonHours = salon?.opening_hours?.[dayName]
+    const salonHours = resolveOpeningHoursForDate(salon?.opening_hours, requestedDate)
 
     if (!salonHours) {
       return NextResponse.json({
@@ -119,10 +120,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // 3. Get staff in this salon, then filter by explicit service authorization if configured.
     let query = supabase
       .from("staff")
-      .select("id, first_name, last_name")
+      .select("id, first_name, last_name, role")
       .eq("salon_id", targetSalonId)
       .eq("is_active", true)
-      .in("role", ["therapist", "manager", "admin"])
+      .in("role", [...BOOKABLE_STAFF_ROLES])
 
     if (staffIdsParam) {
       const requestedIds = staffIdsParam.split(',').map(id => id.trim()).filter(Boolean)

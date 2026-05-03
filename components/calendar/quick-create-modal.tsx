@@ -15,7 +15,16 @@ import { useServices } from "@/lib/hooks/use-services"
 import { useStaff } from "@/lib/hooks/use-staff"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
 import { useClientSearch } from "@/lib/hooks/use-client-search"
-import { findOverlappingAppointment, snapMinuteToQuarter, toQuarterTimeOptions, type CalendarAppointmentLike } from "@/lib/calendar/scheduling"
+import {
+  findOverlappingAppointment,
+  getDefaultStartTimeForDate,
+  quarterOptionsBetween,
+  resolveOpeningHoursForDate,
+  snapMinuteToQuarter,
+  toQuarterTimeOptions,
+  type CalendarAppointmentLike,
+  type SalonOpeningHours,
+} from "@/lib/calendar/scheduling"
 import { toast } from "sonner"
 import type { Client } from "@/lib/types/database"
 import { ClientSuggestionList } from "@/components/client-suggestion-list"
@@ -33,6 +42,7 @@ interface QuickCreateModalProps {
     staffId?: string
   }
   existingAppointments?: CalendarAppointmentLike[]
+  openingHours?: SalonOpeningHours | null
   onSuccess?: () => void
 }
 
@@ -42,6 +52,7 @@ export function QuickCreateModal({
   salonId,
   prefillData,
   existingAppointments = [],
+  openingHours,
   onSuccess,
 }: QuickCreateModalProps) {
   const { data: services } = useServices(salonId)
@@ -53,7 +64,6 @@ export function QuickCreateModal({
     debouncedClientSearchTerm,
     8
   )
-  const timeOptions = useMemo(() => toQuarterTimeOptions(8, 20), [])
   const blockedDurationOptions = [15, 30, 45, 60, 90, 120, 180]
   const todayInParis = useMemo(() => formatInTimeZone(new Date(), "Europe/Paris", "yyyy-MM-dd"), [])
 
@@ -70,15 +80,27 @@ export function QuickCreateModal({
   const [blockedDurationMinutes, setBlockedDurationMinutes] = useState("60")
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [startTime, setStartTime] = useState("09:00")
+  const selectedOpeningHours = useMemo(
+    () => resolveOpeningHoursForDate(openingHours, selectedDate),
+    [openingHours, selectedDate]
+  )
+  const timeOptions = useMemo(
+    () => selectedOpeningHours
+      ? quarterOptionsBetween(selectedOpeningHours.open, selectedOpeningHours.close)
+      : toQuarterTimeOptions(8, 20),
+    [selectedOpeningHours]
+  )
 
   useEffect(() => {
     if (isOpen) {
       const date = prefillData?.date ? new Date(prefillData.date) : new Date()
-      const hour = prefillData?.hour ?? 9
+      const defaultTime = getDefaultStartTimeForDate(openingHours, date)
+      const [defaultHour, defaultMinute] = defaultTime.split(":").map((value) => Number.parseInt(value, 10))
+      const hour = prefillData?.hour ?? (Number.isNaN(defaultHour) ? 9 : defaultHour)
       const minute = snapMinuteToQuarter(prefillData?.minute ?? 0)
 
       setSelectedDate(date)
-      setStartTime(`${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`)
+      setStartTime(`${hour.toString().padStart(2, "0")}:${(prefillData ? minute : defaultMinute || 0).toString().padStart(2, "0")}`)
       setMode("appointment")
       setBlockedDurationMinutes("60")
       setForm((prev) => ({
@@ -102,7 +124,14 @@ export function QuickCreateModal({
       setClientSearchTerm("")
       setDebouncedClientSearchTerm("")
     }
-  }, [isOpen, prefillData])
+  }, [isOpen, openingHours, prefillData])
+
+  useEffect(() => {
+    if (!isOpen || timeOptions.length === 0 || timeOptions.includes(startTime)) {
+      return
+    }
+    setStartTime(timeOptions[0])
+  }, [isOpen, startTime, timeOptions])
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -210,6 +239,7 @@ export function QuickCreateModal({
 
   const hasRequiredFields = Boolean(
     selectedStart &&
+      timeOptions.length > 0 &&
       form.staff_ids.length > 0 &&
       (
         mode === "blocked"
@@ -338,11 +368,17 @@ export function QuickCreateModal({
                 <SelectValue placeholder="Choisir une heure" />
               </SelectTrigger>
               <SelectContent>
-                {timeOptions.map((timeValue) => (
-                  <SelectItem key={timeValue} value={timeValue}>
-                    {timeValue}
+                {timeOptions.length > 0 ? (
+                  timeOptions.map((timeValue) => (
+                    <SelectItem key={timeValue} value={timeValue}>
+                      {timeValue}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="closed" disabled>
+                    Salon fermé ce jour
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
           </div>

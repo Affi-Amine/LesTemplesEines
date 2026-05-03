@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, GripVertical, Plus } from "lucide-react"
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, subDays, startOfDay, endOfDay, eachHourOfInterval, addMinutes } from "date-fns"
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, subDays, addMinutes } from "date-fns"
 import { fr } from "date-fns/locale"
 import { formatInTimeZone, toZonedTime } from "date-fns-tz"
 import { getStatusColor, getStatusLabel, getStatusDescription } from "@/lib/utils"
@@ -18,12 +18,21 @@ import { Icon } from "@iconify/react"
 import { BookingDetailsModal } from "@/components/booking-details-modal"
 import { DndContext, PointerSensor, TouchSensor, useSensors, useSensor, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core"
 import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
-import { findOverlappingAppointment, getAppointmentDurationMinutes, getAppointmentStaffIds } from "@/lib/calendar/scheduling"
+import {
+  findOverlappingAppointment,
+  getAppointmentDurationMinutes,
+  getAppointmentStaffIds,
+  getDefaultStartTimeForDate,
+  getScheduleHourRange,
+  resolveOpeningHoursForDate,
+  type SalonOpeningHours,
+} from "@/lib/calendar/scheduling"
 
 interface Salon {
   id: string
   name: string
   city: string
+  opening_hours?: SalonOpeningHours | null
 }
 
 interface Appointment {
@@ -70,21 +79,25 @@ function WeekView({
   currentDate,
   appointments,
   activeAppointment,
+  openingHours,
   onAppointmentClick,
   onEmptySlotClick,
 }: {
   currentDate: Date
   appointments: Appointment[]
   activeAppointment: Appointment | null
+  openingHours?: SalonOpeningHours | null
   onAppointmentClick: (appointment: Appointment) => void
   onEmptySlotClick: (data: { hour: number; minute: number; date: Date }) => void
 }) {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 })
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
-  const hours = eachHourOfInterval({ start: startOfDay(new Date()), end: endOfDay(new Date()) })
+  const hours = Array.from(
+    new Set(weekDays.flatMap((day) => getScheduleHourRange(openingHours, day)))
+  ).sort((a, b) => a - b)
 
-  const getAppointmentsForDayAndHour = (day: Date, hour: Date) => {
+  const getAppointmentsForDayAndHour = (day: Date, hour: number) => {
     return appointments.filter(appointment => {
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const dayDateStr = format(day, "yyyy-MM-dd")
@@ -92,9 +105,7 @@ function WeekView({
       if (aptDateStr !== dayDateStr) return false
 
       const aptHour = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"), 10)
-      const targetHour = hour.getHours()
-
-      return aptHour === targetHour
+      return aptHour === hour
     })
   }
 
@@ -163,35 +174,41 @@ function WeekView({
 
         {/* Time slots */}
         <div className="space-y-1">
-          {hours.filter(hour => hour.getHours() >= 8 && hour.getHours() <= 20).map((hour) => (
-            <div key={hour.toISOString()} className="grid grid-cols-8 gap-1">
+          {hours.length === 0 ? (
+            <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+              Le salon est fermé sur cette semaine.
+            </div>
+          ) : hours.map((hourStart) => (
+            <div key={hourStart} className="grid grid-cols-8 gap-1">
               <div className="p-2 text-sm text-muted-foreground text-right">
-                {format(hour, "HH:mm")}
+                {`${hourStart.toString().padStart(2, "0")}:00`}
               </div>
               {weekDays.map((day) => {
-                const hourAppointments = getAppointmentsForDayAndHour(day, hour)
-                const hourStart = hour.getHours()
+                const isOpenHour = getScheduleHourRange(openingHours, day).includes(hourStart)
+                const hourAppointments = getAppointmentsForDayAndHour(day, hourStart)
                 const slotId = `slot-week-${format(day, "yyyy-MM-dd")}-${hourStart}`
 
                 return (
-                  <div className="h-[60px] border border-border bg-background rounded relative overflow-visible">
-                    <div className="absolute inset-0 grid grid-rows-4">
-                      {[0, 15, 30, 45].map((minute, idx) => (
-                        <DroppableSlot
-                          key={`${slotId}-${minute}`}
-                          id={`${slotId}-${minute}`}
-                          hour={hourStart}
-                          minute={minute}
-                          date={day}
-                          onEmptyClick={(data) => onEmptySlotClick({ ...data, date: day })}
-                          isInvalidDrop={isInvalidSlotForActive(day, hourStart, minute)}
-                          isDragActive={Boolean(activeAppointment)}
-                          className={`${idx < 3 ? "border-b border-border/30" : ""}`}
-                        >
-                          <div />
-                        </DroppableSlot>
-                      ))}
-                    </div>
+                  <div className={`h-[60px] border border-border rounded relative overflow-visible ${isOpenHour ? "bg-background" : "bg-muted/30"}`}>
+                    {isOpenHour ? (
+                      <div className="absolute inset-0 grid grid-rows-4">
+                        {[0, 15, 30, 45].map((minute, idx) => (
+                          <DroppableSlot
+                            key={`${slotId}-${minute}`}
+                            id={`${slotId}-${minute}`}
+                            hour={hourStart}
+                            minute={minute}
+                            date={day}
+                            onEmptyClick={(data) => onEmptySlotClick({ ...data, date: day })}
+                            isInvalidDrop={isInvalidSlotForActive(day, hourStart, minute)}
+                            isDragActive={Boolean(activeAppointment)}
+                            className={`${idx < 3 ? "border-b border-border/30" : ""}`}
+                          >
+                            <div />
+                          </DroppableSlot>
+                        ))}
+                      </div>
+                    ) : null}
 
                     {hourAppointments.map((appointment) => {
                       const position = getAppointmentPosition(appointment, hourStart)
@@ -254,18 +271,20 @@ function DayView({
   currentDate,
   appointments,
   activeAppointment,
+  openingHours,
   onAppointmentClick,
   onEmptySlotClick,
 }: {
   currentDate: Date
   appointments: Appointment[]
   activeAppointment: Appointment | null
+  openingHours?: SalonOpeningHours | null
   onAppointmentClick: (appointment: Appointment) => void
   onEmptySlotClick: (data: { hour: number; minute: number; date: Date }) => void
 }) {
-  const hours = eachHourOfInterval({ start: startOfDay(new Date()), end: endOfDay(new Date()) })
+  const hours = getScheduleHourRange(openingHours, currentDate)
 
-  const getAppointmentsForHour = (hour: Date) => {
+  const getAppointmentsForHour = (hour: number) => {
     return appointments.filter(appointment => {
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const currentDateStr = format(currentDate, "yyyy-MM-dd")
@@ -273,9 +292,7 @@ function DayView({
       if (aptDateStr !== currentDateStr) return false
 
       const aptHour = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"), 10)
-      const targetHour = hour.getHours()
-
-      return aptHour === targetHour
+      return aptHour === hour
     })
   }
 
@@ -327,15 +344,18 @@ function DayView({
   return (
     <div className="max-w-2xl mx-auto">
       <div className="space-y-1">
-        {hours.filter(hour => hour.getHours() >= 8 && hour.getHours() <= 20).map((hour) => {
-          const hourAppointments = getAppointmentsForHour(hour)
-          const hourStart = hour.getHours()
+        {hours.length === 0 ? (
+          <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+            Salon fermé ce jour.
+          </div>
+        ) : hours.map((hourStart) => {
+          const hourAppointments = getAppointmentsForHour(hourStart)
           const slotId = `slot-day-${format(currentDate, "yyyy-MM-dd")}-${hourStart}`
 
           return (
-            <div key={hour.toISOString()} className="flex gap-4">
+            <div key={hourStart} className="flex gap-4">
               <div className="w-20 p-2 text-sm text-muted-foreground text-right">
-                {format(hour, "HH:mm")}
+                {`${hourStart.toString().padStart(2, "0")}:00`}
               </div>
               <div className="flex-1 h-[60px] border border-border bg-background rounded relative overflow-visible">
                 <div className="absolute inset-0 grid grid-rows-4">
@@ -428,6 +448,12 @@ export default function CalendrierPage() {
   const [salons, setSalons] = useState<Salon[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
+  const selectedSalonData = useMemo(
+    () => salons.find((salon) => salon.id === selectedSalon) || null,
+    [salons, selectedSalon]
+  )
+  const selectedOpeningHours = selectedSalonData?.opening_hours || null
+  const selectedDayHours = resolveOpeningHoursForDate(selectedOpeningHours, currentDate)
 
   // Drag-and-drop state
   const [activeAppointment, setActiveAppointment] = useState<Appointment | null>(null)
@@ -518,10 +544,13 @@ export default function CalendrierPage() {
   }
 
   const handleOpenQuickCreate = () => {
+    const defaultTime = getDefaultStartTimeForDate(selectedOpeningHours, currentDate)
+    const [hour, minute] = defaultTime.split(":").map((value) => Number.parseInt(value, 10))
+
     handleEmptySlotClick({
       date: currentDate,
-      hour: 9,
-      minute: 0,
+      hour: Number.isNaN(hour) ? 9 : hour,
+      minute: Number.isNaN(minute) ? 0 : minute,
     })
   }
 
@@ -763,6 +792,19 @@ export default function CalendrierPage() {
           </Card>
         )}
 
+        {selectedSalonData && (
+          <Card>
+            <CardContent className="flex flex-col gap-2 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <div className="font-medium">Horaires du jour</div>
+              <div className="text-muted-foreground">
+                {selectedDayHours
+                  ? `${selectedDayHours.open} - ${selectedDayHours.close}`
+                  : "Salon fermé"}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Legend */}
         <Card className="border-l-4 border-l-primary">
           <CardHeader>
@@ -888,6 +930,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
                     currentDate={currentDate}
                     appointments={appointments}
                     activeAppointment={activeAppointment}
+                    openingHours={selectedOpeningHours}
                     onAppointmentClick={handleAppointmentClick}
                     onEmptySlotClick={handleEmptySlotClick}
                   />
@@ -898,6 +941,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
                     currentDate={currentDate}
                     appointments={appointments}
                     activeAppointment={activeAppointment}
+                    openingHours={selectedOpeningHours}
                     onAppointmentClick={handleAppointmentClick}
                     onEmptySlotClick={handleEmptySlotClick}
                   />
@@ -969,6 +1013,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
             salonId={selectedSalon}
             prefillData={quickCreateData || undefined}
             existingAppointments={appointments}
+            openingHours={selectedOpeningHours}
             onSuccess={fetchAppointments}
           />
         )}

@@ -5,6 +5,7 @@ import {
 } from "@/lib/appointments/create"
 import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { resolveOpeningHoursForDate } from "@/lib/calendar/scheduling"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes } from "date-fns"
 import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
@@ -110,7 +111,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const dayName = dayNames[dayOfWeek]
 
     // Get salon hours for this day
-    const salonHours = salon?.opening_hours?.[dayName]
+    const salonHours = resolveOpeningHoursForDate(salon?.opening_hours, requestedDate)
     if (!salonHours) {
       return NextResponse.json({
         staff_id,

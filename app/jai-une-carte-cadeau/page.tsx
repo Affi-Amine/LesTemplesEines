@@ -19,7 +19,7 @@ import { formatGiftCardCode } from "@/lib/gift-cards"
 import { CheckCircle2, Gift } from "lucide-react"
 import { Icon } from "@iconify/react"
 import { toast } from "sonner"
-import { quarterOptionsBetween } from "@/lib/calendar/scheduling"
+import { canStaffTakeBookings, quarterOptionsBetween } from "@/lib/calendar/scheduling"
 import type { Staff } from "@/lib/types/database"
 
 type GiftCardStep = "salon" | "therapist" | "date" | "time" | "info"
@@ -84,14 +84,13 @@ export default function RedeemGiftCardPage() {
       (staff || []).some((member) => (member.allowed_service_ids || []).includes(giftCard.service_id))
   )
   const bookableStaff = (staff || []).filter((member) => {
-    const canTakeBookings = member.is_active && ["therapist", "manager", "admin"].includes(member.role)
     const allowedServiceIds = member.allowed_service_ids || []
     const canProvideService =
       !giftCard?.service_id ||
       !serviceHasExplicitStaffAssignments ||
       allowedServiceIds.includes(giftCard.service_id)
 
-    return canTakeBookings && canProvideService
+    return canStaffTakeBookings(member) && canProvideService
   })
   const availabilitySelection = isMultiStaff
     ? (isRandomAssignment ? undefined : selectedEmployeeIds)

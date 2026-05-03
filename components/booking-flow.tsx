@@ -15,6 +15,7 @@ import { useServices } from "@/lib/hooks/use-services"
 import { useStaff } from "@/lib/hooks/use-staff"
 import { useAvailability } from "@/lib/hooks/use-availability"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
+import { canStaffTakeBookings } from "@/lib/calendar/scheduling"
 import { t } from "@/lib/i18n/get-translations"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
@@ -169,14 +170,13 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       (staff || []).some((employee) => (employee.allowed_service_ids || []).includes(currentService.id))
   )
   const salonEmployees = (staff || []).filter((employee) => {
-    const canTakeBookings = employee.is_active && ["therapist", "manager", "admin"].includes(employee.role)
     const allowedServiceIds = employee.allowed_service_ids || []
     const canProvideService =
       !currentService ||
       !serviceHasExplicitStaffAssignments ||
       allowedServiceIds.includes(currentService.id)
 
-    return canTakeBookings && canProvideService
+    return canStaffTakeBookings(employee) && canProvideService
   })
   const currentEmployee = salonEmployees.find((e) => e.id === data.employee)
   const selectedEmployees = salonEmployees.filter((employee) => data.employees.includes(employee.id))

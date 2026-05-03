@@ -28,7 +28,16 @@ import { useClientSearch } from "@/lib/hooks/use-client-search"
 import { DndContext, PointerSensor, TouchSensor, useSensors, useSensor, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core"
 import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
 import { ClientSuggestionList } from "@/components/client-suggestion-list"
-import { findOverlappingAppointment, getAppointmentDurationMinutes, getAppointmentStaffIds } from "@/lib/calendar/scheduling"
+import {
+  findOverlappingAppointment,
+  getAppointmentDurationMinutes,
+  getAppointmentStaffIds,
+  getDefaultStartTimeForDate,
+  getScheduleHourRange,
+  minutesToTimeLabel,
+  resolveOpeningHoursForDate,
+  timeToMinutes,
+} from "@/lib/calendar/scheduling"
 import type { Client } from "@/lib/types/database"
 
 import { useRouter } from "next/navigation"
@@ -108,6 +117,9 @@ export default function SalonDashboardPage() {
   const createAppointment = useCreateAppointment()
 
   const salon = salons?.find(s => s.id === salonId)
+  const selectedOpeningHours = salon?.opening_hours || null
+  const selectedDayHours = date ? resolveOpeningHoursForDate(selectedOpeningHours, date) : null
+  const scheduleHours = date ? getScheduleHourRange(selectedOpeningHours, date) : []
 
   const [paymentLines, setPaymentLines] = useState<{method: string, amount: number}[]>([{ method: "card", amount: 0 }])
 
@@ -279,11 +291,22 @@ export default function SalonDashboardPage() {
   }
 
   const handleBlockSlot = () => {
+    const defaultTime = getDefaultStartTimeForDate(selectedOpeningHours, date || new Date())
     setIsBlockingOpen(true)
+    setBlockingForm((current) => ({
+      ...current,
+      startTime: defaultTime,
+      endTime: selectedDayHours?.close || current.endTime,
+    }))
   }
 
   const handleOpenCreate = () => {
+    const defaultTime = getDefaultStartTimeForDate(selectedOpeningHours, date || new Date())
     setIsCreateOpen(true)
+    setCreateForm((current) => ({
+      ...current,
+      startTime: defaultTime,
+    }))
   }
 
   const toggleStaffSelection = (staffId: string, formType: 'blocking' | 'create') => {
@@ -548,10 +571,11 @@ export default function SalonDashboardPage() {
   const AvailabilityVisualizer = ({ staffIds, appointments }: { staffIds: string[], appointments: any[] }) => {
     if (!staffIds || staffIds.length === 0) return null;
 
-    // Define day start/end (e.g. 9h - 19h)
-    const startHour = 9;
-    const endHour = 19;
-    const totalMinutes = (endHour - startHour) * 60;
+    const openMinutes = selectedDayHours ? timeToMinutes(selectedDayHours.open) : null
+    const closeMinutes = selectedDayHours ? timeToMinutes(selectedDayHours.close) : null
+    const startMinutes = openMinutes ?? 9 * 60
+    const endMinutes = closeMinutes ?? 19 * 60
+    const totalMinutes = Math.max(15, endMinutes - startMinutes)
 
     // Collect all busy ranges for selected staff
     const busyRanges = appointments
@@ -563,15 +587,17 @@ export default function SalonDashboardPage() {
         const start = new Date(apt.start_time);
         const end = new Date(apt.end_time);
         return {
-          start: Math.max(0, (start.getHours() * 60 + start.getMinutes()) - (startHour * 60)),
-          end: Math.min(totalMinutes, (end.getHours() * 60 + end.getMinutes()) - (startHour * 60))
+          start: Math.max(0, (start.getHours() * 60 + start.getMinutes()) - startMinutes),
+          end: Math.min(totalMinutes, (end.getHours() * 60 + end.getMinutes()) - startMinutes)
         };
       })
       .filter(range => range.end > range.start);
 
     return (
       <div className="mt-4 pt-4 border-t">
-        <Label className="mb-2 block">Disponibilité commune (09:00 - 19:00)</Label>
+        <Label className="mb-2 block">
+          Disponibilité commune ({minutesToTimeLabel(startMinutes)} - {minutesToTimeLabel(endMinutes)})
+        </Label>
         <div className="h-8 bg-green-100 rounded-md relative overflow-hidden border">
           {busyRanges.map((range, i) => (
             <div
@@ -585,13 +611,13 @@ export default function SalonDashboardPage() {
             />
           ))}
           {/* Hour markers */}
-          {Array.from({ length: endHour - startHour + 1 }).map((_, i) => (
+          {Array.from({ length: Math.floor(totalMinutes / 60) + 1 }).map((_, i) => (
             <div
               key={i}
               className="absolute top-0 bottom-0 border-l border-gray-300 text-[10px] text-gray-500 pl-1 select-none pointer-events-none"
-              style={{ left: `${(i / (endHour - startHour)) * 100}%` }}
+              style={{ left: `${((i * 60) / totalMinutes) * 100}%` }}
             >
-              {startHour + i}h
+              {Math.floor((startMinutes + i * 60) / 60)}h
             </div>
           ))}
         </div>
@@ -651,6 +677,9 @@ export default function SalonDashboardPage() {
                   <Badge variant="outline" className="px-3 py-1">
                     {appointments?.length || 0} rendez-vous
                   </Badge>
+                  <Badge variant="secondary" className="px-3 py-1">
+                    {selectedDayHours ? `${selectedDayHours.open} - ${selectedDayHours.close}` : "Salon fermé"}
+                  </Badge>
                   <Button size="sm" variant="outline" onClick={handleBlockSlot} className="cursor-pointer">
                     <Ban className="mr-2 h-4 w-4" />
                     Bloquer
@@ -695,12 +724,15 @@ export default function SalonDashboardPage() {
 
                       {/* Time slots */}
                       <div className="space-y-2">
-                        {Array.from({ length: 11 }).map((_, i) => {
-                          const hour = i + 9 // 9:00 to 19:00
+                        {scheduleHours.length === 0 ? (
+                          <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+                            Salon fermé ce jour. Modifiez les horaires du salon pour ouvrir des créneaux.
+                          </div>
+                        ) : scheduleHours.map((hour) => {
                           return (
                             <div key={hour} className="flex h-[60px] border-t relative">
                               <div className="w-20 shrink-0 text-sm text-muted-foreground -mt-3 bg-background pr-2 text-right">
-                                {hour}:00
+                                {hour.toString().padStart(2, "0")}:00
                               </div>
                               {staff?.map(s => {
                                 // Find appointments for this staff in this hour
@@ -1295,6 +1327,7 @@ export default function SalonDashboardPage() {
           salonId={salonId}
           prefillData={quickCreateData || undefined}
           existingAppointments={appointments || []}
+          openingHours={selectedOpeningHours}
           onSuccess={() => refetchAppointments()}
         />
 

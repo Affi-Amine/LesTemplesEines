@@ -21,10 +21,31 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MultiImageUpload } from "@/components/ui/multi-image-upload"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 import { SalonImageFrame } from "@/components/salon-image-frame"
+
+const DAY_OPTIONS = [
+  { key: "monday", label: "Lundi" },
+  { key: "tuesday", label: "Mardi" },
+  { key: "wednesday", label: "Mercredi" },
+  { key: "thursday", label: "Jeudi" },
+  { key: "friday", label: "Vendredi" },
+  { key: "saturday", label: "Samedi" },
+  { key: "sunday", label: "Dimanche" },
+] as const
+
+const DEFAULT_OPENING_HOURS = {
+  monday: { open: "10:00", close: "20:00" },
+  tuesday: { open: "10:00", close: "20:00" },
+  wednesday: { open: "10:00", close: "20:00" },
+  thursday: { open: "10:00", close: "20:00" },
+  friday: { open: "10:00", close: "20:00" },
+  saturday: { open: "09:00", close: "21:00" },
+  sunday: { open: "10:00", close: "19:00" },
+}
 
 type Salon = {
   id: string
@@ -58,6 +79,7 @@ export default function SalonsPage() {
     email: "",
     image_url: "",
     images: [] as string[],
+    opening_hours: DEFAULT_OPENING_HOURS as Record<string, { open: string; close: string }>,
     is_active: true,
   })
 
@@ -72,6 +94,7 @@ export default function SalonsPage() {
       email: salon.email || "",
       image_url: salon.image_url || "",
       images: salon.images || [],
+      opening_hours: salon.opening_hours || DEFAULT_OPENING_HOURS,
       is_active: salon.is_active,
     })
     setIsDialogOpen(true)
@@ -88,12 +111,53 @@ export default function SalonsPage() {
       email: "",
       image_url: "",
       images: [],
+      opening_hours: DEFAULT_OPENING_HOURS,
       is_active: true,
     })
     setIsDialogOpen(true)
   }
 
+  const updateOpeningHour = (day: string, field: "open" | "close", value: string) => {
+    setFormData((current) => ({
+      ...current,
+      opening_hours: {
+        ...current.opening_hours,
+        [day]: {
+          ...(current.opening_hours?.[day] || { open: "10:00", close: "20:00" }),
+          [field]: value,
+        },
+      },
+    }))
+  }
+
+  const toggleOpeningDay = (day: string, enabled: boolean) => {
+    setFormData((current) => {
+      const nextOpeningHours = { ...current.opening_hours }
+      if (enabled) {
+        nextOpeningHours[day] = nextOpeningHours[day] || { open: "10:00", close: "20:00" }
+      } else {
+        delete nextOpeningHours[day]
+      }
+
+      return {
+        ...current,
+        opening_hours: nextOpeningHours,
+      }
+    })
+  }
+
   const handleSave = async () => {
+    for (const day of DAY_OPTIONS) {
+      const hours = formData.opening_hours?.[day.key]
+      if (hours && hours.close <= hours.open) {
+        toast.error("Horaires invalides", {
+          description: `${day.label}: l'heure de fermeture doit être après l'ouverture`,
+          icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+        })
+        return
+      }
+    }
+
     setIsSaving(true)
     try {
       const endpoint = editingSalon ? `/api/salons/${editingSalon.id}` : "/api/salons"
@@ -296,93 +360,160 @@ export default function SalonsPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+          <Tabs defaultValue="infos" className="py-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="infos">Informations</TabsTrigger>
+              <TabsTrigger value="horaires">Horaires</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="infos" className="mt-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nom du salon *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Les Temples Paris"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="slug">Slug *</Label>
+                  <Input
+                    id="slug"
+                    value={formData.slug}
+                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                    placeholder="temple-paris"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="city">Ville *</Label>
+                  <Input
+                    id="city"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    placeholder="Paris"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Téléphone *</Label>
+                  <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="+33 1 23 45 67 89"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="name">Nom du salon *</Label>
+                <Label htmlFor="address">Adresse *</Label>
                 <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Les Temples Paris"
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="123 Rue de la Paix, 75001 Paris"
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="slug">Slug *</Label>
+                <Label htmlFor="email">Email</Label>
                 <Input
-                  id="slug"
-                  value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                  placeholder="temple-paris"
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="paris@lestemples.fr"
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="city">Ville *</Label>
-                <Input
-                  id="city"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  placeholder="Paris"
+                <Label>Images du salon</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Ajoutez plusieurs images pour créer un carousel sur la page du salon. Les visuels sont maintenant affichés en entier, sans coupe brutale.
+                </p>
+                <MultiImageUpload
+                  value={formData.images}
+                  onChange={(urls) => setFormData({ ...formData, images: urls, image_url: urls[0] || "" })}
+                  maxImages={10}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Téléphone *</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+33 1 23 45 67 89"
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="is_active"
+                  checked={formData.is_active}
+                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
                 />
+                <Label htmlFor="is_active" className="cursor-pointer">
+                  Salon actif
+                </Label>
               </div>
-            </div>
+            </TabsContent>
 
-            <div className="space-y-2">
-              <Label htmlFor="address">Adresse *</Label>
-              <Input
-                id="address"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                placeholder="123 Rue de la Paix, 75001 Paris"
-              />
-            </div>
+            <TabsContent value="horaires" className="mt-4">
+              <div className="space-y-3 rounded-md border p-4">
+                <div>
+                  <Label>Horaires d'ouverture</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Ces horaires pilotent les disponibilités client et les vues calendrier admin.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {DAY_OPTIONS.map((day) => {
+                    const dayHours = formData.opening_hours?.[day.key]
+                    const isOpen = Boolean(dayHours)
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="paris@lestemples.fr"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Images du salon</Label>
-              <p className="text-xs text-muted-foreground mb-2">
-                Ajoutez plusieurs images pour créer un carousel sur la page du salon. Les visuels sont maintenant affichés en entier, sans coupe brutale.
-              </p>
-              <MultiImageUpload
-                value={formData.images}
-                onChange={(urls) => setFormData({ ...formData, images: urls, image_url: urls[0] || "" })}
-                maxImages={10}
-              />
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="is_active"
-                checked={formData.is_active}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-              />
-              <Label htmlFor="is_active" className="cursor-pointer">
-                Salon actif
-              </Label>
-            </div>
-          </div>
+                    return (
+                      <div key={day.key} className="grid grid-cols-1 gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-[120px_1fr] sm:items-center">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id={`open-${day.key}`}
+                            checked={isOpen}
+                            onCheckedChange={(checked) => toggleOpeningDay(day.key, checked)}
+                          />
+                          <Label htmlFor={`open-${day.key}`} className="cursor-pointer">
+                            {day.label}
+                          </Label>
+                        </div>
+                        {isOpen ? (
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label htmlFor={`${day.key}-open`} className="text-xs text-muted-foreground">
+                                Ouverture
+                              </Label>
+                              <Input
+                                id={`${day.key}-open`}
+                                type="time"
+                                value={dayHours.open}
+                                onChange={(event) => updateOpeningHour(day.key, "open", event.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor={`${day.key}-close`} className="text-xs text-muted-foreground">
+                                Fermeture
+                              </Label>
+                              <Input
+                                id={`${day.key}-close`}
+                                type="time"
+                                value={dayHours.close}
+                                onChange={(event) => updateOpeningHour(day.key, "close", event.target.value)}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground">Fermé</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="cursor-pointer">

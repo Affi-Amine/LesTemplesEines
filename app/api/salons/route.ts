@@ -3,6 +3,14 @@ import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
+const timeSchema = z.string().regex(/^\d{2}:\d{2}$/)
+const openingHoursSchema = z.record(
+  z.string(),
+  z.object({ open: timeSchema, close: timeSchema }).refine((hours) => hours.close > hours.open, {
+    message: "Closing time must be after opening time",
+  })
+)
+
 const SalonSchema = z.object({
   name: z.string().min(1),
   slug: z.string().min(1),
@@ -13,7 +21,7 @@ const SalonSchema = z.object({
   siret: z.string().optional(),
   image_url: z.string().optional(),
   images: z.array(z.string()).optional(), // Array of image URLs for carousel
-  opening_hours: z.record(z.string(), z.object({ open: z.string(), close: z.string() })).optional(),
+  opening_hours: openingHoursSchema.optional(),
 })
 
 export async function GET(request: NextRequest) {

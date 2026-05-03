@@ -12,7 +12,7 @@ import { useSalons } from "@/lib/hooks/use-salons"
 import { useParams } from "next/navigation"
 import { format, addMinutes } from "date-fns"
 import { fr } from "date-fns/locale"
-import { toZonedTime, formatInTimeZone } from "date-fns-tz"
+import { toZonedTime, formatInTimeZone, fromZonedTime } from "date-fns-tz"
 import { Clock, CheckCircle, Ban, Calendar as CalendarIcon, User, Plus, X, GripVertical } from "lucide-react"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
 import { useServices } from "@/lib/hooks/use-services"
+import { useAvailability } from "@/lib/hooks/use-availability"
 import { useClientSearch } from "@/lib/hooks/use-client-search"
 import { DndContext, PointerSensor, TouchSensor, useSensors, useSensor, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core"
 import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
@@ -120,8 +121,71 @@ export default function SalonDashboardPage() {
   const selectedOpeningHours = salon?.opening_hours || null
   const selectedDayHours = date ? resolveOpeningHoursForDate(selectedOpeningHours, date) : null
   const scheduleHours = date ? getScheduleHourRange(selectedOpeningHours, date) : []
+  const dayAppointments = appointments || []
+  const confirmedAppointments = dayAppointments.filter((apt: any) => apt.status === "confirmed" || apt.status === "pending")
+  const inProgressAppointments = dayAppointments.filter((apt: any) => apt.status === "in_progress")
+  const completedAppointments = dayAppointments.filter((apt: any) => apt.status === "completed")
+  const blockedAppointments = dayAppointments.filter((apt: any) => apt.status === "blocked")
+  const nextAppointment = confirmedAppointments
+    .filter((apt: any) => new Date(apt.end_time).getTime() >= Date.now())
+    .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0]
 
   const [paymentLines, setPaymentLines] = useState<{method: string, amount: number}[]>([{ method: "card", amount: 0 }])
+
+  const getDashboardStatusLabel = (status: string) => {
+    switch (status) {
+      case "confirmed":
+        return "Confirmé"
+      case "pending":
+        return "À confirmer"
+      case "in_progress":
+        return "En cours"
+      case "completed":
+        return "Terminé"
+      case "cancelled":
+        return "Annulé"
+      case "no_show":
+        return "Absent"
+      case "blocked":
+        return "Bloqué"
+      default:
+        return status
+    }
+  }
+
+  const getDashboardStatusClass = (status: string) => {
+    switch (status) {
+      case "confirmed":
+        return "border-sky-200 bg-sky-50 text-sky-900"
+      case "pending":
+        return "border-amber-200 bg-amber-50 text-amber-900"
+      case "in_progress":
+        return "border-violet-200 bg-violet-50 text-violet-900"
+      case "completed":
+        return "border-emerald-200 bg-emerald-50 text-emerald-900"
+      case "cancelled":
+      case "no_show":
+        return "border-rose-200 bg-rose-50 text-rose-900"
+      case "blocked":
+        return "border-stone-300 bg-stone-100 text-stone-800"
+      default:
+        return "border-border bg-muted text-muted-foreground"
+    }
+  }
+
+  const getAppointmentStaffLabel = (appointment: any) => {
+    const names = new Map<string, string>()
+    if (appointment.staff?.id) {
+      names.set(appointment.staff.id, `${appointment.staff.first_name} ${appointment.staff.last_name || ""}`.trim())
+    }
+    appointment.assignments?.forEach((assignment: any) => {
+      if (assignment.staff?.id) {
+        names.set(assignment.staff.id, `${assignment.staff.first_name} ${assignment.staff.last_name || ""}`.trim())
+      }
+    })
+
+    return Array.from(names.values()).filter(Boolean).join(", ") || "Prestataire"
+  }
 
   const handleValidate = async (appointment: any) => {
     setSelectedSlot(appointment)
@@ -247,14 +311,32 @@ export default function SalonDashboardPage() {
   }
 
   const handleCreateAppointment = async () => {
-    if (!date || createForm.staff_ids.length === 0 || !createForm.startTime || !createForm.service_id || !createForm.first_name || !createForm.last_name || !createForm.phone) {
+    if (!createForm.date || !createForm.startTime || !createForm.service_id || !createForm.first_name || !createForm.last_name || !createForm.phone) {
       toast.error("Veuillez remplir tous les champs obligatoires")
       return
     }
 
-    const startDateTime = new Date(date)
-    const [startHour, startMinute] = createForm.startTime.split(':')
-    startDateTime.setHours(parseInt(startHour), parseInt(startMinute))
+    if (createForm.staff_ids.length !== selectedCreateRequiredStaffCount) {
+      toast.error("Prestataires incomplets", {
+        description: `Cette prestation nécessite ${selectedCreateRequiredStaffCount} prestataire${selectedCreateRequiredStaffCount > 1 ? "s" : ""}.`,
+      })
+      return
+    }
+
+    const availableTimes = new Set(
+      (createAvailability?.available_slots || []).map((slot) =>
+        formatInTimeZone(slot.start, "Europe/Paris", "HH:mm")
+      )
+    )
+
+    if (availableTimes.size > 0 && !availableTimes.has(createForm.startTime)) {
+      toast.error("Créneau indisponible", {
+        description: "Choisissez une heure dans les disponibilités proposées.",
+      })
+      return
+    }
+
+    const startDateTime = fromZonedTime(`${createForm.date} ${createForm.startTime}:00`, "Europe/Paris")
 
     createAppointment.mutate({
       salon_id: salonId,
@@ -276,6 +358,7 @@ export default function SalonDashboardPage() {
         setCreateForm({
           service_id: "",
           staff_ids: [],
+          date: date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
           startTime: "09:00",
           first_name: "",
           last_name: "",
@@ -305,6 +388,7 @@ export default function SalonDashboardPage() {
     setIsCreateOpen(true)
     setCreateForm((current) => ({
       ...current,
+      date: date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
       startTime: defaultTime,
     }))
   }
@@ -322,6 +406,12 @@ export default function SalonDashboardPage() {
       if (current.includes(staffId)) {
         setCreateForm({...createForm, staff_ids: current.filter(id => id !== staffId)})
       } else {
+        if (current.length >= selectedCreateRequiredStaffCount) {
+          toast.error("Nombre de prestataires atteint", {
+            description: `Cette prestation nécessite ${selectedCreateRequiredStaffCount} prestataire${selectedCreateRequiredStaffCount > 1 ? "s" : ""}.`,
+          })
+          return
+        }
         setCreateForm({...createForm, staff_ids: [...current, staffId]})
       }
     }
@@ -337,6 +427,7 @@ export default function SalonDashboardPage() {
   const [createForm, setCreateForm] = useState({
     service_id: "",
     staff_ids: [] as string[],
+    date: date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
     startTime: "09:00",
     first_name: "",
     last_name: "",
@@ -349,6 +440,30 @@ export default function SalonDashboardPage() {
   const { data: createClientSuggestions, isFetching: isFetchingCreateClientSuggestions } = useClientSearch(
     debouncedCreateClientSearchTerm,
     8
+  )
+  const selectedCreateService = services?.find((service) => service.id === createForm.service_id)
+  const selectedCreateRequiredStaffCount = selectedCreateService?.required_staff_count || 1
+  const hasExplicitCreateServiceAssignments = Boolean(
+    selectedCreateService &&
+      (staff || []).some((member) => (member.allowed_service_ids || []).includes(selectedCreateService.id))
+  )
+  const availableCreateStaff = (staff || []).filter((member) => {
+    if (!selectedCreateService || !hasExplicitCreateServiceAssignments) return true
+    return (member.allowed_service_ids || []).includes(selectedCreateService.id)
+  })
+  const createAvailabilityStaffSelection =
+    createForm.staff_ids.length >= selectedCreateRequiredStaffCount
+      ? createForm.staff_ids
+      : undefined
+  const {
+    data: createAvailability,
+    isFetching: isFetchingCreateAvailability,
+    isError: createAvailabilityHasError,
+  } = useAvailability(
+    createAvailabilityStaffSelection,
+    createForm.date || undefined,
+    createForm.service_id || undefined,
+    salonId
   )
 
   useEffect(() => {
@@ -581,7 +696,7 @@ export default function SalonDashboardPage() {
     const busyRanges = appointments
       .filter(apt =>
         (staffIds.includes(apt.staff_id) || apt.assignments?.some((a: any) => staffIds.includes(a.staff?.id))) &&
-        ['confirmed', 'pending', 'blocked'].includes(apt.status)
+        ['confirmed', 'pending', 'blocked', 'in_progress'].includes(apt.status)
       )
       .map(apt => {
         const start = new Date(apt.start_time);
@@ -629,109 +744,244 @@ export default function SalonDashboardPage() {
     )
   }
 
+  const CreateAvailabilityPanel = ({
+    requiredStaffCount,
+    selectedStaffCount,
+    selectedTime,
+    availability,
+    isFetching,
+    hasError,
+    onSelectTime,
+  }: {
+    requiredStaffCount: number
+    selectedStaffCount: number
+    selectedTime: string
+    availability?: { available_slots?: Array<{ start: string; end: string; available_staff?: string[] }>; salon_hours?: { open: string; close: string } }
+    isFetching: boolean
+    hasError: boolean
+    onSelectTime: (time: string) => void
+  }) => {
+    if (!createForm.service_id || !createForm.date) {
+      return null
+    }
+
+    const slots = availability?.available_slots || []
+    const slotTimes = slots.map((slot) => ({
+      time: formatInTimeZone(slot.start, "Europe/Paris", "HH:mm"),
+      availableStaffCount: slot.available_staff?.length || 0,
+    }))
+    const isSpecificSelectionComplete = selectedStaffCount === requiredStaffCount
+    const availabilityModeLabel = isSpecificSelectionComplete
+      ? `Disponibilités communes pour les ${requiredStaffCount} prestataire${requiredStaffCount > 1 ? "s" : ""} sélectionné${requiredStaffCount > 1 ? "s" : ""}`
+      : `Créneaux avec au moins ${requiredStaffCount} prestataire${requiredStaffCount > 1 ? "s" : ""} disponible${requiredStaffCount > 1 ? "s" : ""}`
+
+    return (
+      <div className="mt-4 space-y-3 border-t pt-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <Label>{availabilityModeLabel}</Label>
+          <Badge variant={isSpecificSelectionComplete ? "default" : "outline"}>
+            {selectedStaffCount}/{requiredStaffCount} sélectionné{selectedStaffCount > 1 ? "s" : ""}
+          </Badge>
+        </div>
+
+        {!isSpecificSelectionComplete ? (
+          <p className="text-xs text-muted-foreground">
+            Sélectionnez {requiredStaffCount} prestataire{requiredStaffCount > 1 ? "s" : ""} pour vérifier leur disponibilité commune exacte.
+          </p>
+        ) : null}
+
+        {isFetching ? (
+          <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+            Chargement des disponibilités...
+          </div>
+        ) : hasError ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            Impossible de charger les disponibilités pour cette date.
+          </div>
+        ) : slotTimes.length === 0 ? (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            Aucun créneau disponible pour cette sélection. Changez la date, l'heure ou les prestataires.
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-green-50 p-3">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {slotTimes.slice(0, 25).map((slot) => (
+                <Button
+                  key={slot.time}
+                  type="button"
+                  variant={selectedTime === slot.time ? "default" : "outline"}
+                  className="h-10 bg-white text-sm font-semibold data-[selected=true]:bg-primary"
+                  data-selected={selectedTime === slot.time}
+                  onClick={() => onSelectTime(slot.time)}
+                >
+                  {slot.time}
+                </Button>
+              ))}
+            </div>
+            {slotTimes.length > 25 ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {slotTimes.length - 25} autres créneaux disponibles plus tard.
+              </p>
+            ) : null}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <DndContext
       sensors={sensors}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-muted/20">
         <AdminHeader
           title={`Tableau de bord - ${salon?.name || "Chargement..."}`}
           description="Gestion opérationnelle du salon"
         />
 
-        <div className="container mx-auto p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="container mx-auto space-y-5 p-4 md:p-6">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Card className="gap-2 rounded-lg border-l-4 border-l-sky-500 p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">Rendez-vous</span>
+                <CalendarIcon className="h-4 w-4 text-sky-700" />
+              </div>
+              <div className="text-3xl font-bold">{dayAppointments.length}</div>
+              <p className="text-xs text-muted-foreground">
+                {selectedDayHours ? `${selectedDayHours.open} - ${selectedDayHours.close}` : "Salon fermé"}
+              </p>
+            </Card>
+            <Card className="gap-2 rounded-lg border-l-4 border-l-violet-500 p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">En cours</span>
+                <Clock className="h-4 w-4 text-violet-700" />
+              </div>
+              <div className="text-3xl font-bold">{inProgressAppointments.length}</div>
+              <p className="truncate text-xs text-muted-foreground">
+                {nextAppointment ? `Prochain: ${formatInTimeZone(nextAppointment.start_time, "Europe/Paris", "HH:mm")}` : "Aucun prochain rendez-vous"}
+              </p>
+            </Card>
+            <Card className="gap-2 rounded-lg border-l-4 border-l-emerald-500 p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">Terminés</span>
+                <CheckCircle className="h-4 w-4 text-emerald-700" />
+              </div>
+              <div className="text-3xl font-bold">{completedAppointments.length}</div>
+              <p className="text-xs text-muted-foreground">{confirmedAppointments.length} à traiter</p>
+            </Card>
+            <Card className="gap-2 rounded-lg border-l-4 border-l-stone-500 p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">Bloqués</span>
+                <Ban className="h-4 w-4 text-stone-700" />
+              </div>
+              <div className="text-3xl font-bold">{blockedAppointments.length}</div>
+              <p className="text-xs text-muted-foreground">Créneaux indisponibles</p>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
             {/* Left Sidebar - Calendar & Quick Actions */}
-            <div className="space-y-6">
-              <Card className="p-4">
+            <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+              <Card className="gap-4 rounded-lg p-4 shadow-sm">
+                <div>
+                  <h2 className="text-lg font-semibold">Date de travail</h2>
+                  <p className="text-sm text-muted-foreground">Changer de jour recharge le planning.</p>
+                </div>
                 <Calendar
                   mode="single"
                   selected={date}
                   onSelect={setDate}
-                  className="rounded-md border shadow-sm w-full"
+                  className="w-full rounded-md border shadow-sm"
                 />
               </Card>
 
-              <Card className="p-4 space-y-4">
-                <h3 className="font-semibold text-lg">Actions Rapides</h3>
-                <Button className="w-full justify-start cursor-pointer" variant="outline" onClick={handleBlockSlot}>
-                  <Ban className="mr-2 h-4 w-4" />
-                  Bloquer un créneau
-                </Button>
-                <Button className="w-full justify-start cursor-pointer" variant="default" onClick={handleOpenCreate}>
+              <Card className="gap-3 rounded-lg p-4 shadow-sm">
+                <div>
+                  <h3 className="text-lg font-semibold">Actions rapides</h3>
+                  <p className="text-sm text-muted-foreground">Créer, bloquer, puis ajuster au planning.</p>
+                </div>
+                <Button className="h-11 w-full justify-start cursor-pointer" variant="default" onClick={handleOpenCreate}>
                   <Plus className="mr-2 h-4 w-4" />
                   Ajouter un rendez-vous
+                </Button>
+                <Button className="h-11 w-full justify-start cursor-pointer" variant="outline" onClick={handleBlockSlot}>
+                  <Ban className="mr-2 h-4 w-4" />
+                  Bloquer un créneau
                 </Button>
               </Card>
             </div>
 
             {/* Main Content - Schedule & Appointments */}
-            <div className="lg:col-span-3 space-y-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-2xl font-bold">
-                  {date ? format(date, "EEEE d MMMM yyyy", { locale: fr }) : "Sélectionnez une date"}
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline" className="px-3 py-1">
-                    {appointments?.length || 0} rendez-vous
-                  </Badge>
-                  <Badge variant="secondary" className="px-3 py-1">
-                    {selectedDayHours ? `${selectedDayHours.open} - ${selectedDayHours.close}` : "Salon fermé"}
-                  </Badge>
-                  <Button size="sm" variant="outline" onClick={handleBlockSlot} className="cursor-pointer">
-                    <Ban className="mr-2 h-4 w-4" />
-                    Bloquer
-                  </Button>
-                  <Button size="sm" onClick={handleOpenCreate} className="cursor-pointer">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Ajouter
-                  </Button>
+            <div className="min-w-0 space-y-4">
+              <Card className="rounded-lg p-4 shadow-sm">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Planning du jour</p>
+                    <h2 className="mt-1 text-2xl font-bold capitalize">
+                      {date ? format(date, "EEEE d MMMM yyyy", { locale: fr }) : "Sélectionnez une date"}
+                    </h2>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="px-3 py-1">
+                      {dayAppointments.length} rendez-vous
+                    </Badge>
+                    <Badge variant="secondary" className="px-3 py-1">
+                      {selectedDayHours ? `${selectedDayHours.open} - ${selectedDayHours.close}` : "Salon fermé"}
+                    </Badge>
+                    <Button size="sm" variant="outline" onClick={handleBlockSlot} className="cursor-pointer">
+                      <Ban className="mr-2 h-4 w-4" />
+                      Bloquer
+                    </Button>
+                    <Button size="sm" onClick={handleOpenCreate} className="cursor-pointer">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Ajouter
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
-              {/* Drag-and-Drop Instructions */}
-              <Card className="border-l-4 border-l-blue-500 bg-blue-50/50">
-                <div className="p-3">
-                  <div className="flex items-center gap-2 text-sm text-blue-800">
-                    <GripVertical className="w-4 h-4" />
-                    <span>
-                      <strong>Glisser-déposer:</strong> déplace un rendez-vous mono-praticien entre créneaux ou prestataires. Pour un rendez-vous multi-praticiens, le déplacement change le créneau pour tout le groupe.
-                    </span>
+                <div className="mt-4 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                  <div className="flex items-start gap-2">
+                    <GripVertical className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p>
+                      Glissez un rendez-vous pour le déplacer. Les rendez-vous multi-prestataires gardent tout le groupe ensemble.
+                    </p>
                   </div>
                 </div>
               </Card>
 
               <Tabs defaultValue="timeline" className="w-full">
-                <TabsList>
-                  <TabsTrigger value="timeline">Vue Chronologique</TabsTrigger>
+                <TabsList className="grid w-full max-w-md grid-cols-2">
+                  <TabsTrigger value="timeline">Planning</TabsTrigger>
                   <TabsTrigger value="list">Liste</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="timeline" className="mt-4">
-                  <Card className="p-6 min-h-[600px] overflow-x-auto">
-                    <div className="min-w-[800px]">
+                  <Card className="min-h-[600px] overflow-hidden rounded-lg shadow-sm">
+                    <div className="overflow-x-auto p-4">
+                    <div className="min-w-[860px]">
                       {/* Header: Staff names */}
-                      <div className="flex border-b pb-4 mb-4">
+                      <div className="sticky top-0 z-20 mb-4 flex border-b bg-card/95 pb-3 backdrop-blur">
                         <div className="w-20 shrink-0"></div>
                         {staff?.map(s => (
-                          <div key={s.id} className="flex-1 text-center font-semibold border-l">
-                            {s.first_name}
+                          <div key={s.id} className="flex-1 border-l px-2 text-center">
+                            <div className="truncate font-semibold">{s.first_name}</div>
+                            <div className="text-[11px] text-muted-foreground">{s.role}</div>
                           </div>
                         ))}
                       </div>
 
                       {/* Time slots */}
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {scheduleHours.length === 0 ? (
                           <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
                             Salon fermé ce jour. Modifiez les horaires du salon pour ouvrir des créneaux.
                           </div>
                         ) : scheduleHours.map((hour) => {
                           return (
-                            <div key={hour} className="flex h-[60px] border-t relative">
-                              <div className="w-20 shrink-0 text-sm text-muted-foreground -mt-3 bg-background pr-2 text-right">
+                            <div key={hour} className="relative flex h-[64px] border-t">
+                              <div className="w-20 shrink-0 bg-card pr-3 pt-1 text-right text-sm font-medium text-muted-foreground">
                                 {hour.toString().padStart(2, "0")}:00
                               </div>
                               {staff?.map(s => {
@@ -745,7 +995,7 @@ export default function SalonDashboardPage() {
                                 const slotId = `slot-dashboard-${s.id}-${hour}`
 
                                 return (
-                                  <div className="flex-1 border-l relative overflow-visible">
+                                  <div key={`${s.id}-${hour}`} className="relative flex-1 border-l bg-background/60">
                                     <div className="absolute inset-0 grid grid-rows-4">
                                       {[0, 15, 30, 45].map((minute, idx) => (
                                         <DroppableSlot
@@ -758,7 +1008,7 @@ export default function SalonDashboardPage() {
                                           onEmptyClick={(data) => handleEmptySlotClick({ ...data, date: date || new Date() })}
                                           isInvalidDrop={isInvalidSlotForActive(date || new Date(), s.id, hour, minute)}
                                           isDragActive={Boolean(activeAppointment)}
-                                          className={`${idx < 3 ? "border-b border-border/30" : ""}`}
+                                          className={`${idx < 3 ? "border-b border-border/30" : ""} min-h-0`}
                                         >
                                           <div />
                                         </DroppableSlot>
@@ -771,6 +1021,8 @@ export default function SalonDashboardPage() {
                                       const topOffset = startHour === hour ? startMinute : 0
                                       const heightPx = Math.max(getAppointmentDurationMinutes(apt), 15)
                                       const isDraggable = apt.status !== 'blocked' && apt.status !== 'completed' && apt.status !== 'cancelled'
+                                      const appointmentStaffIds = getAppointmentStaffIds(apt)
+                                      const isMultiStaffAppointment = appointmentStaffIds.length > 1
 
                                       return (
                                         <DraggableAppointment
@@ -785,12 +1037,7 @@ export default function SalonDashboardPage() {
                                             top: `${topOffset}px`,
                                             height: `${heightPx}px`,
                                           }}
-                                          className={`text-xs p-1 rounded hover:shadow-md transition-shadow ${
-                                            apt.status === 'blocked' ? 'bg-red-100 text-red-800 border border-red-300' :
-                                            apt.status === 'confirmed' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
-                                            apt.status === 'completed' ? 'bg-green-100 text-green-800 border border-green-300' :
-                                            'bg-gray-100 border border-gray-300'
-                                          }`}
+                                          className={`overflow-hidden rounded-md border p-1 text-xs shadow-sm transition-shadow hover:shadow-md ${getDashboardStatusClass(apt.status)}`}
                                         >
                                           <div
                                             className="w-full h-full"
@@ -808,8 +1055,13 @@ export default function SalonDashboardPage() {
                                               <div className="font-semibold text-[10px]">BLOQUÉ</div>
                                             ) : (
                                               <>
-                                                <div className="font-semibold text-[10px]">{formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")}</div>
-                                                <div className="truncate text-[9px]">{apt.client?.first_name} {apt.client?.last_name?.[0]}.</div>
+                                                <div className="flex items-center gap-1 font-semibold text-[10px]">
+                                                  <span>{formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")}</span>
+                                                  {isMultiStaffAppointment ? (
+                                                    <span className="rounded bg-background/70 px-1 text-[9px]">x{appointmentStaffIds.length}</span>
+                                                  ) : null}
+                                                </div>
+                                                <div className="truncate text-[9px] font-medium">{apt.client?.first_name} {apt.client?.last_name?.[0]}.</div>
                                                 {heightPx >= 30 && (
                                                   <div className="truncate text-[8px]">{apt.service?.name}</div>
                                                 )}
@@ -827,49 +1079,67 @@ export default function SalonDashboardPage() {
                         })}
                       </div>
                     </div>
+                    </div>
                   </Card>
                 </TabsContent>
 
                 <TabsContent value="list" className="mt-4">
-                  <div className="space-y-4">
-                    {appointments?.map((apt: any) => (
-                      <Card key={apt.id} className="p-4 flex justify-between items-center hover:bg-muted/50 transition-colors">
-                        <div className="flex gap-4 items-center">
-                          <div className="bg-primary/10 p-3 rounded-full">
-                            <User className="h-6 w-6 text-primary" />
+                  <div className="space-y-3">
+                    {dayAppointments.map((apt: any) => (
+                      <Card key={apt.id} className="rounded-lg p-4 shadow-sm transition-colors hover:bg-muted/40">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex min-w-0 gap-4">
+                            <div className="flex h-14 w-16 shrink-0 flex-col items-center justify-center rounded-lg bg-primary/10 text-primary">
+                              <span className="text-lg font-bold tabular-nums">{formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")}</span>
+                              <span className="text-[10px] text-primary/70">{formatInTimeZone(apt.end_time, "Europe/Paris", "HH:mm")}</span>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-semibold">
+                                  {apt.client?.first_name || "Client"} {apt.client?.last_name || ""}
+                                </p>
+                                <Badge className={`border ${getDashboardStatusClass(apt.status)}`}>
+                                  {getDashboardStatusLabel(apt.status)}
+                                </Badge>
+                              </div>
+                              <p className="mt-1 truncate text-sm text-muted-foreground">
+                                {apt.service?.name || "Service"}
+                              </p>
+                              <p className="mt-1 truncate text-xs text-muted-foreground">
+                                {getAppointmentStaffLabel(apt)}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-semibold">
-                              {format(new Date(apt.start_time), "HH:mm")} - {apt.client?.first_name} {apt.client?.last_name}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {apt.service?.name} avec {apt.staff?.first_name}
-                            </p>
-                          </div>
-                        </div>
 
-                        <div className="flex items-center gap-3">
-                          <Badge variant={apt.status === "confirmed" ? "default" : "secondary"}>
-                            {apt.status}
-                          </Badge>
-                          {apt.status === "confirmed" && (
-                            <Button size="sm" onClick={() => handleValidate(apt)} className="cursor-pointer">
-                              <CheckCircle className="mr-2 h-4 w-4" />
-                              Valider
-                            </Button>
-                          )}
+                          <div className="flex items-center gap-2 sm:justify-end">
+                            {apt.status === "confirmed" && (
+                              <Button size="sm" onClick={() => handleValidate(apt)} className="cursor-pointer">
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                Valider
+                              </Button>
+                            )}
+                            {apt.status !== "blocked" && (
+                              <Button size="sm" variant="outline" onClick={() => handleValidate(apt)} className="cursor-pointer">
+                                Détails
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </Card>
                     ))}
 
-                    {(!appointments || appointments.length === 0) && (
-                      <div className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
-                        <p>Aucun rendez-vous pour cette date</p>
+                    {dayAppointments.length === 0 && (
+                      <Card className="rounded-lg border-dashed p-8 text-center shadow-sm">
+                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                          <CalendarIcon className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                        <p className="font-medium">Aucun rendez-vous pour cette date</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Ajoutez un rendez-vous ou bloquez un créneau.</p>
                         <Button onClick={handleOpenCreate} className="cursor-pointer">
                           <Plus className="mr-2 h-4 w-4" />
                           Ajouter un rendez-vous
                         </Button>
-                      </div>
+                      </Card>
                     )}
                   </div>
                 </TabsContent>
@@ -1192,7 +1462,7 @@ export default function SalonDashboardPage() {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label>Service</Label>
-                <Select value={createForm.service_id} onValueChange={(val) => setCreateForm({...createForm, service_id: val})}>
+                <Select value={createForm.service_id} onValueChange={(val) => setCreateForm({...createForm, service_id: val, staff_ids: [], startTime: ""})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choisir un service" />
                   </SelectTrigger>
@@ -1207,7 +1477,19 @@ export default function SalonDashboardPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Prestataires</Label>
+                <div className="flex items-center justify-between gap-3">
+                  <Label>Prestataires</Label>
+                  {createForm.service_id ? (
+                    <Badge variant={createForm.staff_ids.length === selectedCreateRequiredStaffCount ? "default" : "outline"}>
+                      {createForm.staff_ids.length}/{selectedCreateRequiredStaffCount} requis
+                    </Badge>
+                  ) : null}
+                </div>
+                {createForm.service_id ? (
+                  <p className="text-xs text-muted-foreground">
+                    Cette prestation nécessite exactement {selectedCreateRequiredStaffCount} prestataire{selectedCreateRequiredStaffCount > 1 ? "s" : ""}. Sélectionnez uniquement le nombre requis.
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2 mb-2">
                   {createForm.staff_ids.map(id => {
                     const member = staff?.find(s => s.id === id)
@@ -1219,12 +1501,21 @@ export default function SalonDashboardPage() {
                     )
                   })}
                 </div>
-                <Select onValueChange={(val) => toggleStaffSelection(val, 'create')}>
+                <Select
+                  onValueChange={(val) => toggleStaffSelection(val, 'create')}
+                  disabled={!createForm.service_id || createForm.staff_ids.length >= selectedCreateRequiredStaffCount}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Ajouter un prestataire" />
+                    <SelectValue placeholder={
+                      !createForm.service_id
+                        ? "Choisir une prestation d'abord"
+                        : createForm.staff_ids.length >= selectedCreateRequiredStaffCount
+                          ? "Nombre requis atteint"
+                          : "Ajouter un prestataire"
+                    } />
                   </SelectTrigger>
                   <SelectContent>
-                    {staff?.filter(s => !createForm.staff_ids.includes(s.id)).map((member) => (
+                    {availableCreateStaff.filter(s => !createForm.staff_ids.includes(s.id)).map((member) => (
                       <SelectItem key={member.id} value={member.id}>
                         {member.first_name} {member.last_name}
                       </SelectItem>
@@ -1244,9 +1535,11 @@ export default function SalonDashboardPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Date</Label>
-                  <div className="p-2 border rounded bg-muted text-sm">
-                    {date ? format(date, "EEEE d MMMM yyyy", { locale: fr }) : "Aucune date sélectionnée"}
-                  </div>
+                  <Input
+                    type="date"
+                    value={createForm.date}
+                    onChange={(e) => setCreateForm({...createForm, date: e.target.value, startTime: ""})}
+                  />
                 </div>
               </div>
 
@@ -1305,7 +1598,15 @@ export default function SalonDashboardPage() {
                 />
               </div>
 
-              <AvailabilityVisualizer staffIds={createForm.staff_ids} appointments={appointments || []} />
+              <CreateAvailabilityPanel
+                requiredStaffCount={selectedCreateRequiredStaffCount}
+                selectedStaffCount={createForm.staff_ids.length}
+                selectedTime={createForm.startTime}
+                availability={createAvailability}
+                isFetching={isFetchingCreateAvailability}
+                hasError={createAvailabilityHasError}
+                onSelectTime={(time) => setCreateForm({...createForm, startTime: time})}
+              />
             </div>
 
             <DialogFooter>

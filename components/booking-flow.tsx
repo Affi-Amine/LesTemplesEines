@@ -7,7 +7,6 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { StepIndicator } from "@/components/step-indicator"
 import { ServiceCatalog } from "@/components/service-catalog"
@@ -22,7 +21,6 @@ import { Icon } from "@iconify/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
 import type { Locale } from "@/i18n.config"
-import { quarterOptionsBetween } from "@/lib/calendar/scheduling"
 import { fetchAPI } from "@/lib/api/client"
 import { createClient } from "@/lib/supabase/client"
 import type { ClientPack, Staff } from "@/lib/types/database"
@@ -271,11 +269,16 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           ? [data.employee]
           : undefined
 
-  // Availability based on selected therapist and date
-  const selectedDateObj = data.date ? new Date(data.date) : undefined
-  const { data: availabilityData, isLoading: availabilityLoading } = useAvailability(
+  // Availability based on selected therapist/date. Use the raw YYYY-MM-DD string to avoid timezone shifts.
+  const {
+    data: availabilityData,
+    isLoading: availabilityLoading,
+    isFetching: availabilityFetching,
+    isError: availabilityHasError,
+    error: availabilityError,
+  } = useAvailability(
     availabilitySelection,
-    selectedDateObj,
+    data.date || undefined,
     data.service || undefined,
     data.salon || undefined,
   )
@@ -320,26 +323,11 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       .map((employee) => employee.id)
   }
 
-  // Generate time options from salon hours with 15-min steps if available, otherwise fallback
-  const defaultTimes = [
-    "09:00",
-    "09:15",
-    "09:30",
-    "09:45",
-    "10:00",
-    "10:15",
-    "10:30",
-    "10:45",
-    "11:00",
-  ]
-  const timeOptions = useMemo(() => {
-    const open = availabilityData?.salon_hours?.open
-    const close = availabilityData?.salon_hours?.close
-    if (open && close) {
-      return quarterOptionsBetween(open, close)
-    }
-    return defaultTimes
-  }, [availabilityData?.salon_hours?.close, availabilityData?.salon_hours?.open])
+  const availableTimeOptions = useMemo(() => (
+    (availabilityData?.available_slots || []).map((slot) =>
+      new Date(slot.start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    )
+  ), [availabilityData?.available_slots])
 
   useEffect(() => {
     if (data.time && !availableTimesSet.has(data.time)) {
@@ -405,7 +393,13 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
          if (newSelection.length >= requiredCount) return
       }
     }
-    setData((current) => ({ ...current, employees: newSelection }))
+    setData((current) => ({
+      ...current,
+      assignmentMode: "specific",
+      employee: "",
+      employees: newSelection,
+      time: "",
+    }))
   }
 
   const handleTimeChange = (time: string) => {
@@ -638,6 +632,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     isRandomAssignment ||
     (!isMultiStaff && !!currentEmployee) ||
     (isMultiStaff && selectedEmployees.length === (currentService?.required_staff_count || 1))
+  const isAvailabilityPending = Boolean(data.date && isTherapistSelectionComplete && (availabilityLoading || availabilityFetching))
   const flowCardClass = "animate-in fade-in duration-300 gap-3 border-0 bg-transparent px-0 py-0 shadow-none sm:gap-6 sm:rounded-xl sm:border sm:border-primary/10 sm:bg-card/70 sm:p-6 md:p-8"
   const flowTitleClass = "mb-1 text-[1.12rem] font-semibold leading-tight sm:text-2xl"
   const flowSubtitleClass = "mb-3 text-[0.82rem] leading-5 text-muted-foreground sm:mb-6 sm:text-base sm:leading-6"
@@ -789,52 +784,56 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                       ))}
                     </div>
                   ) : (
-                    <RadioGroup value={isRandomAssignment ? "random" : data.employee} onValueChange={(value) => {
-                      if (value === "random") {
-                        handleRandomAssignment()
-                        return
-                      }
-                      handleEmployeeChange(value)
-                    }}>
-                      <div className="mt-2.5 space-y-2 sm:mt-3 sm:space-y-3">
-                        <div
-                          onClick={handleRandomAssignment}
-                          className={`cursor-pointer rounded-xl border px-3 py-2.5 transition-all sm:rounded-2xl sm:p-4 ${
-                            isRandomAssignment
-                              ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
-                              : "bg-card/65 hover:bg-muted hover:border-primary"
-                          }`}
-                        >
-                          <Label htmlFor="booking-random-employee" className="pointer-events-none flex cursor-pointer items-start gap-3">
-                            <RadioGroupItem value="random" id="booking-random-employee" className="mt-1 shrink-0 pointer-events-none" />
-                            <span className="min-w-0 flex-1">
-                              <span className="block text-sm font-medium text-foreground sm:text-base">Aléatoire</span>
-                              <span className="mt-1 block text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">
-                                Nous attribuons automatiquement un praticien disponible sur le créneau choisi, avec priorité absolue aux femmes disponibles.
-                              </span>
+                    <div className="mt-2.5 space-y-2 sm:mt-3 sm:space-y-3">
+                      <button
+                        type="button"
+                        onClick={handleRandomAssignment}
+                        aria-pressed={isRandomAssignment}
+                        className={`w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-all sm:rounded-2xl sm:p-4 ${
+                          isRandomAssignment
+                            ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
+                            : "bg-card/65 hover:bg-muted hover:border-primary"
+                        }`}
+                      >
+                        <span className="flex items-start gap-3">
+                          <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${isRandomAssignment ? "border-primary" : "border-primary/30"}`}>
+                            {isRandomAssignment ? <span className="h-2 w-2 rounded-full bg-primary" /> : null}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-medium text-foreground sm:text-base">Aléatoire</span>
+                            <span className="mt-1 block text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">
+                              Nous attribuons automatiquement un praticien disponible sur le créneau choisi.
                             </span>
-                          </Label>
-                        </div>
-                        {salonEmployees.map((emp) => (
-                          <div
+                          </span>
+                        </span>
+                      </button>
+                      {salonEmployees.map((emp) => {
+                        const isSelected = data.employee === emp.id && !isRandomAssignment
+
+                        return (
+                          <button
                             key={emp.id}
+                            type="button"
                             onClick={() => handleEmployeeChange(emp.id)}
-                            className={`cursor-pointer rounded-xl border px-3 py-2.5 transition-all sm:rounded-2xl sm:p-4 ${
-                              data.employee === emp.id && !isRandomAssignment
+                            aria-pressed={isSelected}
+                            className={`w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-all sm:rounded-2xl sm:p-4 ${
+                              isSelected
                                 ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
                                 : "bg-card/65 hover:bg-muted hover:border-primary"
                             }`}
                           >
-                            <Label htmlFor={emp.id} className="pointer-events-none flex cursor-pointer items-start gap-3">
-                              <RadioGroupItem value={emp.id} id={emp.id} className="mt-1 shrink-0 pointer-events-none" />
+                            <span className="flex items-start gap-3">
+                              <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${isSelected ? "border-primary" : "border-primary/30"}`}>
+                                {isSelected ? <span className="h-2 w-2 rounded-full bg-primary" /> : null}
+                              </span>
                               <span className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground sm:text-base sm:leading-6">
                                 {renderStaffName(emp)}
                               </span>
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </RadioGroup>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
               ) : (
@@ -846,29 +845,28 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   <p className="mb-2.5 mt-1.5 text-[11px] leading-5 text-muted-foreground sm:mb-3 sm:mt-2 sm:text-xs">
                     Choisissez d'abord vos praticiens, ou laissez-nous faire l'attribution automatique sur le créneau choisi.
                   </p>
-                  <div
+                  <button
+                    type="button"
                     onClick={handleRandomAssignment}
-                    className={`mb-2.5 cursor-pointer rounded-xl border px-3 py-2.5 transition-all sm:mb-3 sm:rounded-2xl sm:p-4 ${
+                    aria-pressed={isRandomAssignment}
+                    className={`mb-2.5 w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-all sm:mb-3 sm:rounded-2xl sm:p-4 ${
                       isRandomAssignment
                         ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
                         : "bg-card/65 hover:bg-muted hover:border-primary"
                     }`}
                   >
-                    <Label htmlFor="booking-random-employees" className="pointer-events-none flex cursor-pointer items-start gap-3">
-                      <Checkbox
-                        checked={isRandomAssignment}
-                        onCheckedChange={() => {}}
-                        id="booking-random-employees"
-                        className="mt-1 pointer-events-none"
-                      />
+                    <span className="flex items-start gap-3">
+                      <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${isRandomAssignment ? "border-primary bg-primary" : "border-primary/30"}`}>
+                        {isRandomAssignment ? <Icon icon="solar:check-bold" className="h-3 w-3 text-primary-foreground" /> : null}
+                      </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-medium text-foreground sm:text-base">Attribution automatique</span>
                         <span className="mt-1 block text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">
-                          Nous choisirons les praticiens disponibles au moment du créneau, avec priorité absolue aux femmes disponibles.
+                          Nous choisirons les praticiens disponibles au moment du créneau.
                         </span>
                       </span>
-                    </Label>
-                  </div>
+                    </span>
+                  </button>
                   {staffLoading ? (
                     <div className="mt-3 space-y-2">
                       {[1, 2].map((i) => (
@@ -885,26 +883,25 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                         const disabled = !isSelected && isFull
 
                         return (
-                          <div
+                          <button
                             key={emp.id}
-                            className={`cursor-pointer rounded-xl border px-3 py-2.5 transition-colors sm:rounded-2xl sm:p-4 ${isSelected && !isRandomAssignment ? "border-primary bg-primary/12 shadow-[0_10px_24px_rgba(214,171,89,0.08)]" : "bg-card/65 hover:bg-muted"} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+                            type="button"
+                            disabled={disabled}
+                            aria-pressed={isSelected && !isRandomAssignment}
+                            className={`w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-colors sm:rounded-2xl sm:p-4 ${isSelected && !isRandomAssignment ? "border-primary bg-primary/12 shadow-[0_10px_24px_rgba(214,171,89,0.08)]" : "bg-card/65 hover:bg-muted"} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
                             onClick={() => {
-                              setData((current) => ({ ...current, assignmentMode: "specific", time: "" }))
                               !disabled && toggleEmployeeSelection(emp.id, currentService.required_staff_count || 2)
                             }}
                           >
-                            <Label htmlFor={`staff-${emp.id}`} className="pointer-events-none flex cursor-pointer items-start gap-3">
-                              <Checkbox
-                                checked={isSelected && !isRandomAssignment}
-                                onCheckedChange={() => {}}
-                                id={`staff-${emp.id}`}
-                                className="mt-1 pointer-events-none"
-                              />
+                            <span className="flex items-start gap-3">
+                              <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${isSelected && !isRandomAssignment ? "border-primary bg-primary" : "border-primary/30"}`}>
+                                {isSelected && !isRandomAssignment ? <Icon icon="solar:check-bold" className="h-3 w-3 text-primary-foreground" /> : null}
+                              </span>
                               <span className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground sm:text-base sm:leading-6">
                                 {renderStaffName(emp)}
                               </span>
-                            </Label>
-                          </div>
+                            </span>
+                          </button>
                         )
                       })}
                     </div>
@@ -935,25 +932,36 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground sm:mt-2 sm:text-xs">
                 {!isTherapistSelectionComplete && "Choisissez d'abord un praticien ou l'option aléatoire."}
                 {isTherapistSelectionComplete && !data.date && "Sélectionnez d'abord la date pour voir les créneaux disponibles."}
-                {availabilityLoading && data.date && "Chargement des créneaux disponibles..."}
+                {isAvailabilityPending && "Chargement des créneaux disponibles..."}
               </p>
-              <div className="mt-2.5 grid grid-cols-3 gap-1.5 sm:mt-3 sm:grid-cols-3 sm:gap-2 md:grid-cols-4">
-                {timeOptions.map((time) => {
-                  const isAvailable = data.date ? availableTimesSet.has(time) : false
+              {availabilityHasError && data.date ? (
+                <div className="mt-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs leading-5 text-destructive">
+                  Impossible de charger les créneaux. {availabilityError instanceof Error ? availabilityError.message : "Réessayez dans quelques instants."}
+                </div>
+              ) : null}
+              {data.date && isTherapistSelectionComplete && !isAvailabilityPending && !availabilityHasError && availableTimeOptions.length === 0 ? (
+                <div className="mt-2.5 rounded-xl border border-primary/15 bg-card/45 p-3 text-xs leading-5 text-muted-foreground">
+                  Aucun créneau libre pour ce choix. Essayez une autre date ou un autre praticien.
+                </div>
+              ) : null}
+              {availableTimeOptions.length > 0 ? (
+                <div className="mt-2.5 grid grid-cols-3 gap-1.5 sm:mt-3 sm:grid-cols-3 sm:gap-2 md:grid-cols-4">
+                  {availableTimeOptions.map((time) => {
                   const isSelected = data.time === time
                   return (
                     <Button
                       key={time}
                       variant={isSelected ? "default" : "outline"}
                       onClick={() => handleTimeChange(time)}
-                      className={`h-9 w-full rounded-lg text-xs font-medium sm:h-12 sm:rounded-xl sm:text-sm ${!isAvailable ? "bg-muted text-muted-foreground border-muted-foreground/10 opacity-100 cursor-not-allowed hover:bg-muted hover:text-muted-foreground" : ""}`}
-                      disabled={!isTherapistSelectionComplete || !isAvailable || availabilityLoading}
+                      className="h-9 w-full rounded-lg text-xs font-medium sm:h-12 sm:rounded-xl sm:text-sm"
+                      disabled={!isTherapistSelectionComplete || isAvailabilityPending}
                     >
                       {time}
                     </Button>
                   )
-                })}
-              </div>
+                  })}
+                </div>
+              ) : null}
             </div>
           </div>
           <div className={flowActionsClass}>

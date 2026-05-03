@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { fetchAPI } from "@/lib/api/client"
-import { format } from "date-fns"
+import { format, isValid } from "date-fns"
 
 interface AvailabilitySlot {
   start: string
@@ -21,15 +21,27 @@ interface AvailabilityResponse {
   required_staff?: number
 }
 
-export function useAvailability(staffId?: string | string[], date?: Date, serviceId?: string, salonId?: string) {
+function formatAvailabilityDate(date?: Date | string) {
+  if (!date) return null
+  if (typeof date === "string") return date
+  return isValid(date) ? format(date, "yyyy-MM-dd") : null
+}
+
+function normalizeStaffKey(staffId?: string | string[]) {
+  if (!staffId) return null
+  return Array.isArray(staffId) ? [...staffId].sort().join(",") : staffId
+}
+
+export function useAvailability(staffId?: string | string[], date?: Date | string, serviceId?: string, salonId?: string) {
+  const formattedDate = formatAvailabilityDate(date)
+  const staffKey = normalizeStaffKey(staffId)
+
   return useQuery({
-    queryKey: ["availability", staffId, date ? format(date, "yyyy-MM-dd") : null, serviceId, salonId],
+    queryKey: ["availability", staffKey, formattedDate, serviceId, salonId],
     queryFn: () => {
-      if (!date) {
+      if (!formattedDate) {
         throw new Error("Date is required")
       }
-
-      const formattedDate = format(date, "yyyy-MM-dd")
 
       // If no staff ID but service ID is present, use service-centric availability
       if ((!staffId || (Array.isArray(staffId) && staffId.length === 0)) && serviceId) {
@@ -65,7 +77,7 @@ export function useAvailability(staffId?: string | string[], date?: Date, servic
 
       return fetchAPI<AvailabilityResponse>(`/availability/${staffId}?${params.toString()}`)
     },
-    enabled: !!date && (!!staffId || !!serviceId),
+    enabled: !!formattedDate && !!serviceId && !!salonId && (!!staffId || !!serviceId),
     staleTime: 10 * 1000, // Consider stale after 10 seconds (overrides default 60s)
     refetchInterval: 30 * 1000, // Refetch every 30 seconds to catch newly booked slots
   })

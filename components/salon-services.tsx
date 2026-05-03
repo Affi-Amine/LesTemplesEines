@@ -8,7 +8,7 @@ interface Service {
   description: string
   duration: number
   price: number
-  category: string
+  category: string | null
   image: string
 }
 

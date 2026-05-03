@@ -10,7 +10,7 @@ const UpdateServiceSchema = z.object({
   description: z.string().optional(),
   duration_minutes: z.number().min(1).optional(),
   price_cents: z.number().min(0).optional(),
-  category: z.string().optional(),
+  category: z.string().nullable().optional(),
   image_url: z.string().optional(),
   is_active: z.boolean().optional(),
   required_staff_count: z.number().min(1).optional(),
@@ -90,6 +90,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     // Update service
     const updatePayload: Record<string, unknown> = { ...serviceData }
     delete updatePayload.salon_ids
+    if ("category" in serviceData) {
+      updatePayload.category = serviceData.category?.trim() || null
+    }
     if (salonIds) {
       updatePayload.salon_id = salonIds[0] ?? null
     }

@@ -26,23 +26,22 @@ interface ServiceCatalogProps<T extends ServiceCatalogItem> {
   className?: string
 }
 
-function normalize(value: string | null | undefined) {
+function normalizeCategoryKey(value: string | null | undefined) {
   return (value || "")
+    .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
 }
 
-function inferCategory(service: ServiceCatalogItem) {
-  const explicitCategory = service.category?.trim()
-  if (explicitCategory) return explicitCategory
+function formatCategoryLabel(value: string | null | undefined) {
+  const category = (value || "").trim().replace(/\s+/g, " ")
+  if (!category) return "Autres prestations"
 
-  const name = normalize(service.name)
-  if (name.includes("duo") || name.includes("personnes")) return "Duo & groupes"
-  if (name.includes("hammam") || name.includes("privatif")) return "Hammam"
-  if (name.includes("reflex") || name.includes("plantaire") || name.includes("pied")) return "Reflexologie"
-  if (name.includes("cranien") || name.includes("visage") || name.includes("tete")) return "Cibles"
-  return "Massages"
+  return category
+    .toLocaleLowerCase("fr-FR")
+    .replace(/(^|\s|-|')([\p{L}])/gu, (match, prefix, letter) => `${prefix}${letter.toLocaleUpperCase("fr-FR")}`)
 }
 
 function formatPrice(service: ServiceCatalogItem) {
@@ -66,17 +65,21 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
   className,
 }: ServiceCatalogProps<T>) {
   const groupedServices = useMemo(() => {
-    const groups = new Map<string, T[]>()
+    const groups = new Map<string, { category: string; items: T[] }>()
 
     services.forEach((service) => {
-      const category = inferCategory(service)
-      groups.set(category, [...(groups.get(category) || []), service])
+      const category = formatCategoryLabel(service.category)
+      const key = normalizeCategoryKey(category) || "autres prestations"
+      const existingGroup = groups.get(key)
+
+      if (existingGroup) {
+        existingGroup.items.push(service)
+      } else {
+        groups.set(key, { category, items: [service] })
+      }
     })
 
-    return Array.from(groups.entries()).map(([category, items]) => ({
-      category,
-      items,
-    }))
+    return Array.from(groups.values())
   }, [services])
 
   const [openCategories, setOpenCategories] = useState(() => new Set(groupedServices[0] ? [groupedServices[0].category] : []))
@@ -115,7 +118,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
 
   const jumpToCategory = (category: string) => {
     setOpenCategories((current) => new Set(current).add(category))
-    document.getElementById(`service-category-${category}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
+    document.getElementById(`service-category-${normalizeCategoryKey(category)}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
   }
 
   return (
@@ -146,7 +149,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
           const isOpen = openCategories.has(group.category)
 
           return (
-            <section key={group.category} id={`service-category-${group.category}`} className="scroll-mt-28 border-b border-primary/10 last:border-b-0">
+            <section key={group.category} id={`service-category-${normalizeCategoryKey(group.category)}`} className="scroll-mt-28 border-b border-primary/10 last:border-b-0">
               <button
                 type="button"
                 onClick={() => toggleCategory(group.category)}
@@ -154,7 +157,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
                 aria-expanded={isOpen}
               >
                 <span>
-                  <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-primary sm:text-sm sm:tracking-[0.18em]">{group.category}</span>
+                  <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-primary sm:text-xs sm:tracking-[0.16em]">{group.category}</span>
                   <span className="mt-1 block text-xs text-muted-foreground">{group.items.length} prestation{group.items.length > 1 ? "s" : ""}</span>
                 </span>
                 <ChevronDown className={cn("h-4 w-4 shrink-0 text-primary transition-transform sm:h-5 sm:w-5", isOpen ? "rotate-180" : "")} />
@@ -173,7 +176,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
                         onClick={() => onSelectService?.(service.id)}
                         disabled={!selectable}
                         className={cn(
-                          "grid w-full grid-cols-[1fr_auto] gap-3 px-3.5 py-3.5 text-left transition-colors sm:grid-cols-[1fr_auto_auto] sm:items-center sm:px-5 sm:py-4",
+                          "grid w-full grid-cols-[1fr_auto] gap-2.5 px-3 py-3 text-left transition-colors sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-3 sm:px-5 sm:py-4",
                           selectable ? "cursor-pointer hover:bg-primary/6" : "cursor-default",
                           isSelected && "bg-primary/8"
                         )}
@@ -191,7 +194,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
                               </span>
                             ) : null}
                             <span className="min-w-0">
-                              <span className="block break-words text-[0.94rem] font-semibold leading-snug text-foreground sm:text-base">
+                              <span className="block break-words text-[0.86rem] font-semibold leading-snug text-foreground sm:text-base">
                                 {service.name}
                               </span>
                               {badge ? (
@@ -202,7 +205,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
                               {showDescriptions && service.description ? (
                                 <span
                                   className={cn(
-                                    "mt-2 block text-sm leading-6 text-muted-foreground",
+                                    "mt-1.5 block text-xs leading-5 text-muted-foreground sm:mt-2 sm:text-sm sm:leading-6",
                                     compact ? "line-clamp-1" : "line-clamp-2"
                                   )}
                                 >
@@ -213,10 +216,10 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
                           </span>
                         </span>
 
-                        <span className="flex min-w-[5rem] flex-col items-end justify-center gap-1 text-right">
-                          <span className="text-[0.92rem] font-semibold text-primary sm:text-[0.95rem]">{formatPrice(service)}</span>
-                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="h-3.5 w-3.5" />
+                        <span className="flex min-w-[4.5rem] flex-col items-end justify-center gap-1 text-right sm:min-w-[5rem]">
+                          <span className="text-[0.84rem] font-semibold text-primary sm:text-[0.95rem]">{formatPrice(service)}</span>
+                          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground sm:text-xs">
+                            <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                             {formatDuration(service)}
                           </span>
                         </span>

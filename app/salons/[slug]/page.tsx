@@ -92,7 +92,7 @@ export default async function SalonPage({ params }: SalonPageProps) {
     description: service.description || "",
     duration: service.duration_minutes,
     price: service.price_cents / 100,
-    category: service.category || "Services",
+    category: service.category || null,
     image: service.image_url || "/placeholder.svg?height=160&width=300&query=massage therapy",
   }))
 

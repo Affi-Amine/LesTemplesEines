@@ -5,10 +5,10 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useServices } from "@/lib/hooks/use-services"
 import { useSalons } from "@/lib/hooks/use-salons"
-import { Plus, Edit, Trash2, Clock } from "lucide-react"
+import { Plus, Edit, Trash2, Clock, Tags } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useTranslations } from "@/lib/i18n/use-translations"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,18 @@ export default function ServicesPage() {
   const filteredServices = selectedSalonId === "all"
     ? services
     : services?.filter(service => (service.salon_ids?.length ? service.salon_ids : (service.salon_id ? [service.salon_id] : [])).includes(selectedSalonId))
+  const serviceCategories = useMemo(() => {
+    const categories = new Map<string, string>()
+
+    services?.forEach((service) => {
+      const category = service.category?.trim().replace(/\s+/g, " ")
+      if (!category) return
+
+      categories.set(category.toLocaleLowerCase("fr-FR"), category)
+    })
+
+    return Array.from(categories.values()).sort((a, b) => a.localeCompare(b, "fr"))
+  }, [services])
 
   const [editingService, setEditingService] = useState<Service | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -114,7 +126,7 @@ export default function ServicesPage() {
         description: formData.description || undefined,
         duration_minutes: parseInt(formData.duration_minutes),
         price_cents: parseInt(formData.price_cents),
-        category: formData.category || undefined,
+        category: formData.category.trim() || null,
         image_url: formData.image_url || undefined,
         is_active: formData.is_active,
         required_staff_count: parseInt(formData.required_staff_count) || 1,
@@ -195,9 +207,14 @@ export default function ServicesPage() {
       <AdminHeader title="Gestion des services" description="Gérez les prestations de vos salons" />
 
       <div className="p-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Services</h2>
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Services</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              La catégorie affichée sur le site vient directement du champ catégorie de chaque prestation.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <SalonFilter selectedSalonId={selectedSalonId} onSelectSalon={setSelectedSalonId} />
             <Button onClick={handleCreate} className="gap-2 cursor-pointer">
               <Plus className="w-4 h-4" />
@@ -314,6 +331,42 @@ export default function ServicesPage() {
               />
             </div>
 
+            <div className="space-y-2 rounded-xl border border-primary/15 bg-primary/5 p-4">
+              <Label htmlFor="category" className="flex items-center gap-2">
+                <Tags className="h-4 w-4 text-primary" />
+                Catégorie d&apos;affichage
+              </Label>
+              <Input
+                id="category"
+                list="service-category-options"
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                placeholder="Ex: Massages, Duo, Hammam, Réflexologie"
+              />
+              <datalist id="service-category-options">
+                {serviceCategories.map((category) => (
+                  <option key={category} value={category} />
+                ))}
+              </datalist>
+              {serviceCategories.length > 0 ? (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {serviceCategories.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, category })}
+                      className="rounded-full border border-primary/15 bg-background/40 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                Les prestations avec exactement la même catégorie sont regroupées ensemble sur mobile, carte cadeau, pages salons et page nos prestations.
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label>
                 Salons <span className="text-red-500">*</span>
@@ -397,16 +450,6 @@ export default function ServicesPage() {
                   Nombre de prestataires nécessaires pour ce service (ex: 2 pour duo)
                 </p>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="category">Catégorie</Label>
-              <Input
-                id="category"
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                placeholder="Massage, Soin visage, etc."
-              />
             </div>
 
             <div className="space-y-2">

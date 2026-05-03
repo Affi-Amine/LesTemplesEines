@@ -1,5 +1,10 @@
-import { getTodayInParis, isDateBeforeTodayInParis } from "@/lib/appointments/create"
-import { createClient } from "@/lib/supabase/server"
+import {
+  getTodayInParis,
+  isDateBeforeTodayInParis,
+  resolveStaffIdsThatCanProvideService,
+} from "@/lib/appointments/create"
+import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes } from "date-fns"
 import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
@@ -44,7 +49,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       })
     }
 
-    const supabase = await createClient()
+    const supabase = await createAdminClient()
 
     // Get staff member
     const { data: staff, error: staffError } = await supabase
@@ -71,16 +76,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
         serviceDuration = service.duration_minutes
       }
 
-      const { data: staffAssignments, error: staffAssignmentsError } = await supabase
-        .from("staff_services")
-        .select("service_id")
-        .eq("staff_id", staff_id)
+      const qualifiedStaffIds = await resolveStaffIdsThatCanProvideService(supabase, [staff_id], serviceId)
 
-      if (staffAssignmentsError) {
-        throw staffAssignmentsError
-      }
-
-      if ((staffAssignments || []).length > 0 && !(staffAssignments || []).some((assignment) => assignment.service_id === serviceId)) {
+      if (!qualifiedStaffIds.includes(staff_id)) {
         return NextResponse.json({
           staff_id,
           staff_name: `${staff.first_name} ${staff.last_name}`,
@@ -95,11 +93,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // Get salon opening hours
-    const { data: salon } = await supabase
+    const { data: salon, error: salonError } = await supabase
       .from("salons")
       .select("opening_hours")
       .eq("id", staff.salon_id)
       .single()
+
+    if (salonError) {
+      throw salonError
+    }
 
     // Parse date
     const requestedDate = fromZonedTime(`${dateParam} 12:00:00`, TIMEZONE)
@@ -120,11 +122,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     // Get staff availability for this date
     // Check both recurring (day_of_week) and specific dates
-    const { data: staffAvailability } = await supabase
+    const { data: staffAvailability, error: staffAvailabilityError } = await supabase
       .from("staff_availability")
       .select("*")
       .eq("staff_id", staff_id)
       .or(`and(is_recurring.eq.true,day_of_week.eq.${dayOfWeek}),and(is_recurring.eq.false,specific_date.eq.${dateParam})`)
+
+    if (staffAvailabilityError) {
+      throw staffAvailabilityError
+    }
 
     // If no availability set, assume available during salon hours
     let availabilityPeriods: Array<{ start: string; end: string }> = []
@@ -151,24 +157,30 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const dayEnd = fromZonedTime(`${dateParam} 23:59:59.999`, TIMEZONE).toISOString()
 
     // Query both legacy staff_id and assignments table
-    const { data: primaryAppointments } = await supabase
+    const { data: primaryAppointments, error: primaryAppointmentsError } = await supabase
       .from("appointments")
       .select("start_time, end_time, status")
       .eq("staff_id", staff_id)
       .gte("start_time", dayStart)
       .lte("start_time", dayEnd)
-      .neq("status", "cancelled")
-      .neq("status", "no_show")
+      .in("status", BLOCKING_APPOINTMENT_STATUSES)
+
+    if (primaryAppointmentsError) {
+      throw primaryAppointmentsError
+    }
 
     // Get assignments
-    const { data: assignments } = await supabase
+    const { data: assignments, error: assignmentsError } = await supabase
       .from("appointment_assignments")
       .select("appointment:appointments!inner(start_time, end_time, status)")
       .eq("staff_id", staff_id)
       .gte("appointment.start_time", dayStart)
       .lte("appointment.start_time", dayEnd)
-      .neq("appointment.status", "cancelled")
-      .neq("appointment.status", "no_show")
+      .filter("appointment.status", "in", `(${BLOCKING_APPOINTMENT_STATUSES.map((status) => `"${status}"`).join(",")})`)
+
+    if (assignmentsError) {
+      throw assignmentsError
+    }
 
     // Combine
     const existingAppointments = [

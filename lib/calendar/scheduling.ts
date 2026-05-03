@@ -1,3 +1,5 @@
+import { blocksAppointmentSchedule } from "@/lib/appointments/status"
+
 export const QUARTER_MINUTES = 15
 
 export interface CalendarAppointmentLike {
@@ -85,10 +87,6 @@ export function rangesOverlap(startA: Date, endA: Date, startB: Date, endB: Date
   return startA < endB && startB < endA
 }
 
-function blocksSchedule(status?: string | null): boolean {
-  return status !== "cancelled" && status !== "completed"
-}
-
 export function findOverlappingAppointment({
   appointments,
   staffId,
@@ -100,7 +98,7 @@ export function findOverlappingAppointment({
     if (ignoreAppointmentId && appointment.id === ignoreAppointmentId) {
       continue
     }
-    if (!blocksSchedule(appointment.status)) {
+    if (!blocksAppointmentSchedule(appointment.status)) {
       continue
     }
     const staffIds = getAppointmentStaffIds(appointment)

@@ -43,22 +43,20 @@ export function useAvailability(staffId?: string | string[], date?: Date | strin
         throw new Error("Date is required")
       }
 
-      // If no staff ID but service ID is present, use service-centric availability
-      if ((!staffId || (Array.isArray(staffId) && staffId.length === 0)) && serviceId) {
+      // Booking availability is service-centric. When a staff member is selected,
+      // pass it as a filter so the API keeps one scheduling algorithm.
+      if (serviceId && salonId) {
         const params = new URLSearchParams({
           date: formattedDate,
         })
-        if (salonId) params.append("salon_id", salonId)
-        return fetchAPI<AvailabilityResponse>(`/availability/service/${serviceId}?${params.toString()}`)
-      }
 
-      // If staffId is an array (multi-selection for multi-staff service)
-      if (Array.isArray(staffId) && serviceId) {
-        const params = new URLSearchParams({
-          date: formattedDate,
-          staff_ids: staffId.join(',')
-        })
-        if (salonId) params.append("salon_id", salonId)
+        params.append("salon_id", salonId)
+        if (Array.isArray(staffId) && staffId.length > 0) {
+          params.append("staff_ids", staffId.join(","))
+        } else if (typeof staffId === "string" && staffId) {
+          params.append("staff_ids", staffId)
+        }
+
         return fetchAPI<AvailabilityResponse>(`/availability/service/${serviceId}?${params.toString()}`)
       }
 

@@ -3,6 +3,7 @@ import { z } from "zod"
 import { canUseClientPackStatus } from "@/lib/packs"
 import { findClientByEmail, findClientByPhone } from "@/lib/client-auth"
 import { formatInTimeZone, toZonedTime } from "date-fns-tz"
+import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 
 const APPOINTMENT_TIMEZONE = "Europe/Paris"
 
@@ -151,7 +152,7 @@ export async function validateAppointmentScheduling(
       .from("appointments")
       .select("id")
       .eq("staff_id", staffId)
-      .in("status", ["confirmed", "pending", "blocked"])
+      .in("status", BLOCKING_APPOINTMENT_STATUSES)
       .lt("start_time", endTime)
       .gt("end_time", input.start_time)
 
@@ -173,7 +174,7 @@ export async function validateAppointmentScheduling(
       .from("appointment_assignments")
       .select("appointment_id, appointment:appointments!inner(id, start_time, end_time, status)")
       .eq("staff_id", staffId)
-      .filter("appointment.status", "in", '("confirmed","pending","blocked")')
+      .filter("appointment.status", "in", `(${BLOCKING_APPOINTMENT_STATUSES.map((status) => `"${status}"`).join(",")})`)
       .filter("appointment.start_time", "lt", endTime)
       .filter("appointment.end_time", "gt", input.start_time)
 
@@ -204,36 +205,40 @@ export async function assertStaffCanProvideService(
     return
   }
 
-  const { data: allAssignments, error: assignmentsError } = await supabase
-    .from("staff_services")
-    .select("staff_id, service_id")
-    .in("staff_id", staffIds)
-
-  if (assignmentsError) {
-    throw new Error(assignmentsError.message)
-  }
-
-  const assignmentMap = new Map<string, Set<string>>()
-  for (const assignment of allAssignments || []) {
-    const currentAssignments = assignmentMap.get(assignment.staff_id) || new Set<string>()
-    currentAssignments.add(assignment.service_id)
-    assignmentMap.set(assignment.staff_id, currentAssignments)
-  }
-
-  const unavailableStaffIds = staffIds.filter((staffId) => {
-    const allowedServices = assignmentMap.get(staffId)
-
-    // Backward compatibility: no explicit assignment means the therapist can still perform all services.
-    if (!allowedServices || allowedServices.size === 0) {
-      return false
-    }
-
-    return !allowedServices.has(serviceId)
-  })
+  const qualifiedStaffIds = await resolveStaffIdsThatCanProvideService(supabase, staffIds, serviceId)
+  const unavailableStaffIds = staffIds.filter((staffId) => !qualifiedStaffIds.includes(staffId))
 
   if (unavailableStaffIds.length > 0) {
     throw new Error("Un ou plusieurs praticiens ne peuvent pas realiser ce soin")
   }
+}
+
+export async function resolveStaffIdsThatCanProvideService(
+  supabase: SupabaseClient,
+  staffIds: string[],
+  serviceId: string
+) {
+  if (staffIds.length === 0) {
+    return []
+  }
+
+  const { data: serviceAssignments, error: serviceAssignmentsError } = await supabase
+    .from("staff_services")
+    .select("staff_id")
+    .eq("service_id", serviceId)
+
+  if (serviceAssignmentsError) {
+    throw new Error(serviceAssignmentsError.message)
+  }
+
+  // New services often start without explicit staff assignments. In that case,
+  // keep them bookable by every eligible staff member in the selected salon.
+  if (!serviceAssignments || serviceAssignments.length === 0) {
+    return staffIds
+  }
+
+  const allowedStaffIds = new Set(serviceAssignments.map((assignment) => assignment.staff_id))
+  return staffIds.filter((staffId) => allowedStaffIds.has(staffId))
 }
 
 async function resolveClientId(supabase: SupabaseClient, input: BookableAppointmentInput) {

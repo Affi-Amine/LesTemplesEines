@@ -28,7 +28,7 @@ import { useClientSearch } from "@/lib/hooks/use-client-search"
 import { DndContext, PointerSensor, TouchSensor, useSensors, useSensor, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core"
 import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
 import { ClientSuggestionList } from "@/components/client-suggestion-list"
-import { findOverlappingAppointment, getAppointmentDurationMinutes } from "@/lib/calendar/scheduling"
+import { findOverlappingAppointment, getAppointmentDurationMinutes, getAppointmentStaffIds } from "@/lib/calendar/scheduling"
 import type { Client } from "@/lib/types/database"
 
 import { useRouter } from "next/navigation"
@@ -66,6 +66,13 @@ export default function SalonDashboardPage() {
 
   // Drag-and-drop state
   const [activeAppointment, setActiveAppointment] = useState<any>(null)
+  const [pendingMove, setPendingMove] = useState<{
+    appointment: any
+    start: Date
+    end: Date
+    staffIds: string[]
+  } | null>(null)
+  const [isMovingAppointment, setIsMovingAppointment] = useState(false)
 
   // Quick create modal state
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
@@ -364,6 +371,41 @@ export default function SalonDashboardPage() {
     }
   }
 
+  const moveAppointment = async (move: { appointment: any; start: Date; end: Date }) => {
+    setIsMovingAppointment(true)
+
+    try {
+      const response = await fetch(`/api/appointments/${move.appointment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          start_time: move.start.toISOString(),
+          end_time: move.end.toISOString(),
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Erreur lors du déplacement")
+      }
+
+      toast.success("Rendez-vous déplacé", {
+        description: `Nouveau créneau: ${format(move.start, "HH:mm")} - ${format(move.end, "HH:mm")}`,
+        icon: <Icon icon="solar:calendar-bold" className="w-5 h-5 text-green-500" />,
+      })
+
+      refetchAppointments()
+    } catch (error: any) {
+      toast.error("Impossible de déplacer le rendez-vous", {
+        description: error.message || "Le créneau est peut-être déjà occupé",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+    } finally {
+      setIsMovingAppointment(false)
+      setPendingMove(null)
+    }
+  }
+
   // Handle drag end - update appointment time and/or staff
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
@@ -388,7 +430,13 @@ export default function SalonDashboardPage() {
     // Calculate duration to determine new end time
     const durationMinutes = getAppointmentDurationMinutes(appointment)
     const newEndTime = addMinutes(newStartTime, durationMinutes)
+    const assignedStaffIds = getAppointmentStaffIds(appointment)
     const targetStaffId = dropData.staffId || appointment.staff_id || appointment.staff?.id
+    const targetStaffIds = assignedStaffIds.length > 1
+      ? assignedStaffIds
+      : targetStaffId
+        ? [targetStaffId]
+        : assignedStaffIds
 
     // Check if anything actually changed
     const oldStart = new Date(appointment.start_time)
@@ -399,22 +447,40 @@ export default function SalonDashboardPage() {
       return
     }
 
-    if (targetStaffId) {
-      const overlap = findOverlappingAppointment({
+    if (assignedStaffIds.length > 1 && staffChanged) {
+      toast.error("Déplacement multi-praticiens bloqué", {
+        description: "Pour remplacer un seul praticien sur un rendez-vous multi-praticiens, ouvrez le rendez-vous puis utilisez Modifier.",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+      return
+    }
+
+    const overlap = targetStaffIds.find((staffId) =>
+      findOverlappingAppointment({
         appointments: appointments || [],
-        staffId: targetStaffId,
+        staffId,
         start: newStartTime,
         end: newEndTime,
         ignoreAppointmentId: appointment.id,
       })
+    )
 
-      if (overlap) {
-        toast.error("Créneau indisponible", {
-          description: "Ce déplacement chevauche un autre rendez-vous pour ce prestataire.",
-          icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-        })
-        return
-      }
+    if (overlap) {
+      toast.error("Créneau indisponible", {
+        description: "Ce déplacement chevauche un autre rendez-vous pour au moins un praticien concerné.",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+      return
+    }
+
+    if (assignedStaffIds.length > 1) {
+      setPendingMove({
+        appointment,
+        start: newStartTime,
+        end: newEndTime,
+        staffIds: assignedStaffIds,
+      })
+      return
     }
 
     try {
@@ -464,13 +530,18 @@ export default function SalonDashboardPage() {
     targetStart.setHours(hour, minute, 0, 0)
     const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
 
-    return Boolean(findOverlappingAppointment({
-      appointments: appointments || [],
-      staffId: slotStaffId,
-      start: targetStart,
-      end: targetEnd,
-      ignoreAppointmentId: activeAppointment.id,
-    }))
+    const activeStaffIds = getAppointmentStaffIds(activeAppointment)
+    const targetStaffIds = activeStaffIds.length > 1 ? activeStaffIds : [slotStaffId]
+
+    return targetStaffIds.some((staffId) =>
+      Boolean(findOverlappingAppointment({
+        appointments: appointments || [],
+        staffId,
+        start: targetStart,
+        end: targetEnd,
+        ignoreAppointmentId: activeAppointment.id,
+      }))
+    )
   }
 
   // Visualizer Component
@@ -572,14 +643,22 @@ export default function SalonDashboardPage() {
 
             {/* Main Content - Schedule & Appointments */}
             <div className="lg:col-span-3 space-y-6">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="text-2xl font-bold">
                   {date ? format(date, "EEEE d MMMM yyyy", { locale: fr }) : "Sélectionnez une date"}
                 </h2>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="px-3 py-1">
                     {appointments?.length || 0} rendez-vous
                   </Badge>
+                  <Button size="sm" variant="outline" onClick={handleBlockSlot} className="cursor-pointer">
+                    <Ban className="mr-2 h-4 w-4" />
+                    Bloquer
+                  </Button>
+                  <Button size="sm" onClick={handleOpenCreate} className="cursor-pointer">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Ajouter
+                  </Button>
                 </div>
               </div>
 
@@ -589,7 +668,7 @@ export default function SalonDashboardPage() {
                   <div className="flex items-center gap-2 text-sm text-blue-800">
                     <GripVertical className="w-4 h-4" />
                     <span>
-                      <strong>Glisser-déposer:</strong> Déplacez les rendez-vous entre les créneaux ou les prestataires. Cliquez sur un créneau vide pour créer un nouveau rendez-vous.
+                      <strong>Glisser-déposer:</strong> déplace un rendez-vous mono-praticien entre créneaux ou prestataires. Pour un rendez-vous multi-praticiens, le déplacement change le créneau pour tout le groupe.
                     </span>
                   </div>
                 </div>
@@ -752,8 +831,12 @@ export default function SalonDashboardPage() {
                     ))}
 
                     {(!appointments || appointments.length === 0) && (
-                      <div className="text-center py-12 text-muted-foreground">
-                        Aucun rendez-vous pour cette date
+                      <div className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
+                        <p>Aucun rendez-vous pour cette date</p>
+                        <Button onClick={handleOpenCreate} className="cursor-pointer">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Ajouter un rendez-vous
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -1214,7 +1297,39 @@ export default function SalonDashboardPage() {
           existingAppointments={appointments || []}
           onSuccess={() => refetchAppointments()}
         />
-      </div>
+
+        <Dialog open={Boolean(pendingMove)} onOpenChange={(open) => !open && setPendingMove(null)}>
+          <DialogContent className="sm:max-w-[460px]">
+            <DialogHeader>
+              <DialogTitle>Déplacer tout le rendez-vous ?</DialogTitle>
+              <DialogDescription>
+                Ce rendez-vous mobilise {pendingMove?.staffIds.length || 0} praticiens. Le déplacement changera le créneau pour tous les praticiens assignés.
+              </DialogDescription>
+            </DialogHeader>
+            {pendingMove ? (
+              <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                <div className="font-medium">
+                  {pendingMove.appointment.client?.first_name || "Client"} {pendingMove.appointment.client?.last_name || ""}
+                </div>
+                <div className="mt-1 text-muted-foreground">
+                  {format(pendingMove.start, "dd/MM/yyyy HH:mm")} - {format(pendingMove.end, "HH:mm")}
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Pour changer seulement un praticien, annulez puis ouvrez Modifier.
+                </div>
+              </div>
+            ) : null}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPendingMove(null)} disabled={isMovingAppointment}>
+                Annuler
+              </Button>
+              <Button onClick={() => pendingMove && moveAppointment(pendingMove)} disabled={isMovingAppointment}>
+                {isMovingAppointment ? "Déplacement..." : "Déplacer tout le rendez-vous"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        </div>
 
       {/* Drag Overlay for visual feedback */}
       <DragOverlay>

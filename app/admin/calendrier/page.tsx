@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, GripVertical } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, GripVertical, Plus } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, subDays, startOfDay, endOfDay, eachHourOfInterval, addMinutes } from "date-fns"
 import { fr } from "date-fns/locale"
 import { formatInTimeZone, toZonedTime } from "date-fns-tz"
@@ -17,7 +18,7 @@ import { Icon } from "@iconify/react"
 import { BookingDetailsModal } from "@/components/booking-details-modal"
 import { DndContext, PointerSensor, TouchSensor, useSensors, useSensor, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core"
 import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
-import { findOverlappingAppointment, getAppointmentDurationMinutes } from "@/lib/calendar/scheduling"
+import { findOverlappingAppointment, getAppointmentDurationMinutes, getAppointmentStaffIds } from "@/lib/calendar/scheduling"
 
 interface Salon {
   id: string
@@ -41,6 +42,13 @@ interface Appointment {
     first_name: string
     last_name: string
   }
+  assignments?: Array<{
+    staff?: {
+      id: string
+      first_name?: string
+      last_name?: string
+    } | null
+  }>
   service?: {
     name: string
     duration_minutes: number
@@ -48,6 +56,13 @@ interface Appointment {
   salon?: {
     name: string
   }
+}
+
+interface PendingMove {
+  appointment: Appointment
+  start: Date
+  end: Date
+  staffIds: string[]
 }
 
 // Week View Component with Drag-and-Drop
@@ -110,20 +125,22 @@ function WeekView({
   const isInvalidSlotForActive = (day: Date, hour: number, minute: number) => {
     if (!activeAppointment) return false
 
-    const targetStaffId = activeAppointment.staff_id || activeAppointment.staff?.id
-    if (!targetStaffId) return false
+    const targetStaffIds = getAppointmentStaffIds(activeAppointment)
+    if (targetStaffIds.length === 0) return false
 
     const targetStart = new Date(day)
     targetStart.setHours(hour, minute, 0, 0)
     const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
 
-    return Boolean(findOverlappingAppointment({
-      appointments,
-      staffId: targetStaffId,
-      start: targetStart,
-      end: targetEnd,
-      ignoreAppointmentId: activeAppointment.id,
-    }))
+    return targetStaffIds.some((staffId) =>
+      Boolean(findOverlappingAppointment({
+        appointments,
+        staffId,
+        start: targetStart,
+        end: targetEnd,
+        ignoreAppointmentId: activeAppointment.id,
+      }))
+    )
   }
 
   return (
@@ -289,20 +306,22 @@ function DayView({
   const isInvalidSlotForActive = (hour: number, minute: number) => {
     if (!activeAppointment) return false
 
-    const targetStaffId = activeAppointment.staff_id || activeAppointment.staff?.id
-    if (!targetStaffId) return false
+    const targetStaffIds = getAppointmentStaffIds(activeAppointment)
+    if (targetStaffIds.length === 0) return false
 
     const targetStart = new Date(currentDate)
     targetStart.setHours(hour, minute, 0, 0)
     const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
 
-    return Boolean(findOverlappingAppointment({
-      appointments,
-      staffId: targetStaffId,
-      start: targetStart,
-      end: targetEnd,
-      ignoreAppointmentId: activeAppointment.id,
-    }))
+    return targetStaffIds.some((staffId) =>
+      Boolean(findOverlappingAppointment({
+        appointments,
+        staffId,
+        start: targetStart,
+        end: targetEnd,
+        ignoreAppointmentId: activeAppointment.id,
+      }))
+    )
   }
 
   return (
@@ -412,6 +431,8 @@ export default function CalendrierPage() {
 
   // Drag-and-drop state
   const [activeAppointment, setActiveAppointment] = useState<Appointment | null>(null)
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
+  const [isMovingAppointment, setIsMovingAppointment] = useState(false)
 
   // Quick create modal state
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
@@ -496,12 +517,56 @@ export default function CalendrierPage() {
     setIsQuickCreateOpen(true)
   }
 
+  const handleOpenQuickCreate = () => {
+    handleEmptySlotClick({
+      date: currentDate,
+      hour: 9,
+      minute: 0,
+    })
+  }
+
   // Handle drag start
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event
     const appointment = active.data.current?.appointment as Appointment
     if (appointment) {
       setActiveAppointment(appointment)
+    }
+  }
+
+  const moveAppointment = async (move: PendingMove) => {
+    setIsMovingAppointment(true)
+
+    try {
+      const response = await fetch(`/api/appointments/${move.appointment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          start_time: move.start.toISOString(),
+          end_time: move.end.toISOString(),
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Erreur lors du déplacement")
+      }
+
+      toast.success("Rendez-vous déplacé", {
+        description: `Nouveau créneau: ${format(move.start, "HH:mm")} - ${format(move.end, "HH:mm")}`,
+        icon: <Icon icon="solar:calendar-bold" className="w-5 h-5 text-green-500" />,
+      })
+
+      // Refresh appointments
+      fetchAppointments()
+    } catch (error: any) {
+      toast.error("Impossible de déplacer le rendez-vous", {
+        description: error.message || "Le créneau est peut-être déjà occupé",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+    } finally {
+      setIsMovingAppointment(false)
+      setPendingMove(null)
     }
   }
 
@@ -513,7 +578,7 @@ export default function CalendrierPage() {
     if (!over) return
 
     const appointment = active.data.current?.appointment as Appointment
-    const dropData = over.data.current as { hour: number; minute?: number; date: Date; staffId?: string }
+    const dropData = over.data.current as { hour: number; minute?: number; date: Date }
 
     if (!appointment || !dropData) return
 
@@ -529,7 +594,7 @@ export default function CalendrierPage() {
     // Calculate duration to determine new end time
     const duration = getAppointmentDurationMinutes(appointment)
     const newEndTime = addMinutes(newStartTime, duration)
-    const targetStaffId = dropData.staffId || appointment.staff_id || appointment.staff?.id
+    const targetStaffIds = getAppointmentStaffIds(appointment)
 
     // Don't update if dropped in the same position
     const oldStart = new Date(appointment.start_time)
@@ -541,53 +606,37 @@ export default function CalendrierPage() {
       return
     }
 
-    if (targetStaffId) {
-      const overlap = findOverlappingAppointment({
+    const overlap = targetStaffIds.find((staffId) =>
+      findOverlappingAppointment({
         appointments,
-        staffId: targetStaffId,
+        staffId,
         start: newStartTime,
         end: newEndTime,
         ignoreAppointmentId: appointment.id,
       })
+    )
 
-      if (overlap) {
-        toast.error("Créneau indisponible", {
-          description: "Ce déplacement chevauche un autre rendez-vous pour ce prestataire.",
-          icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-        })
-        return
-      }
-    }
-
-    try {
-      const response = await fetch(`/api/appointments/${appointment.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          start_time: newStartTime.toISOString(),
-          end_time: newEndTime.toISOString(),
-          ...(dropData.staffId && { staff_id: dropData.staffId }),
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || "Erreur lors du déplacement")
-      }
-
-      toast.success("Rendez-vous déplacé", {
-        description: `Nouveau créneau: ${format(newStartTime, "HH:mm")} - ${format(newEndTime, "HH:mm")}`,
-        icon: <Icon icon="solar:calendar-bold" className="w-5 h-5 text-green-500" />,
-      })
-
-      // Refresh appointments
-      fetchAppointments()
-    } catch (error: any) {
-      toast.error("Impossible de déplacer le rendez-vous", {
-        description: error.message || "Le créneau est peut-être déjà occupé",
+    if (overlap) {
+      toast.error("Créneau indisponible", {
+        description: "Ce déplacement chevauche un autre rendez-vous pour au moins un praticien assigné.",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
       })
+      return
     }
+
+    const move = {
+      appointment,
+      start: newStartTime,
+      end: newEndTime,
+      staffIds: targetStaffIds,
+    }
+
+    if (targetStaffIds.length > 1) {
+      setPendingMove(move)
+      return
+    }
+
+    await moveAppointment(move)
   }
 
   // Fetch appointments function (extracted for reuse)
@@ -675,7 +724,7 @@ export default function CalendrierPage() {
         {/* View Selector */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "month" | "week" | "day")}>
                 <TabsList>
                   <TabsTrigger value="month">Mois</TabsTrigger>
@@ -683,13 +732,19 @@ export default function CalendrierPage() {
                   <TabsTrigger value="day">Jour</TabsTrigger>
                 </TabsList>
               </Tabs>
-              <Button
-                variant="outline"
-                onClick={() => setCurrentDate(new Date())}
-                className="cursor-pointer"
-              >
-                Aujourd'hui
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentDate(new Date())}
+                  className="cursor-pointer"
+                >
+                  Aujourd'hui
+                </Button>
+                <Button onClick={handleOpenQuickCreate} className="cursor-pointer">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Ajouter
+                </Button>
+              </div>
             </div>
           </CardHeader>
         </Card>
@@ -701,7 +756,7 @@ export default function CalendrierPage() {
               <div className="flex items-center gap-2 text-sm text-blue-800">
                 <GripVertical className="w-4 h-4" />
                 <span>
-                  <strong>Glisser-déposer:</strong> Maintenez et déplacez un rendez-vous pour le reprogrammer. Cliquez sur un créneau vide pour créer un nouveau rendez-vous.
+                  <strong>Glisser-déposer:</strong> déplace tout le rendez-vous et tous ses praticiens. Pour remplacer un seul praticien, ouvrez le rendez-vous puis utilisez Modifier.
                 </span>
               </div>
             </CardContent>
@@ -917,6 +972,38 @@ Statut: ${getStatusLabel(appointment.status)}`}
             onSuccess={fetchAppointments}
           />
         )}
+
+        <Dialog open={Boolean(pendingMove)} onOpenChange={(open) => !open && setPendingMove(null)}>
+          <DialogContent className="sm:max-w-[460px]">
+            <DialogHeader>
+              <DialogTitle>Déplacer un rendez-vous multi-praticiens ?</DialogTitle>
+              <DialogDescription>
+                Ce rendez-vous mobilise {pendingMove?.staffIds.length || 0} praticiens. Le déplacement changera le créneau pour tous les praticiens assignés.
+              </DialogDescription>
+            </DialogHeader>
+            {pendingMove ? (
+              <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                <div className="font-medium">
+                  {pendingMove.appointment.client?.first_name || "Client"} {pendingMove.appointment.client?.last_name || ""}
+                </div>
+                <div className="mt-1 text-muted-foreground">
+                  {format(pendingMove.start, "dd/MM/yyyy HH:mm")} - {format(pendingMove.end, "HH:mm")}
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Pour changer seulement un praticien sans déplacer le rendez-vous, annulez puis ouvrez Modifier.
+                </div>
+              </div>
+            ) : null}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPendingMove(null)} disabled={isMovingAppointment}>
+                Annuler
+              </Button>
+              <Button onClick={() => pendingMove && moveAppointment(pendingMove)} disabled={isMovingAppointment}>
+                {isMovingAppointment ? "Déplacement..." : "Déplacer tout le rendez-vous"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Drag Overlay for visual feedback */}

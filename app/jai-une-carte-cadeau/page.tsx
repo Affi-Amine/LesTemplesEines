@@ -79,10 +79,17 @@ export default function RedeemGiftCardPage() {
   const requiredStaffCount = giftCard?.service?.required_staff_count || 1
   const isMultiStaff = requiredStaffCount > 1
   const isRandomAssignment = assignmentMode === "random"
+  const serviceHasExplicitStaffAssignments = Boolean(
+    giftCard?.service_id &&
+      (staff || []).some((member) => (member.allowed_service_ids || []).includes(giftCard.service_id))
+  )
   const bookableStaff = (staff || []).filter((member) => {
     const canTakeBookings = member.is_active && ["therapist", "manager", "admin"].includes(member.role)
     const allowedServiceIds = member.allowed_service_ids || []
-    const canProvideService = !giftCard?.service_id || allowedServiceIds.length === 0 || allowedServiceIds.includes(giftCard.service_id)
+    const canProvideService =
+      !giftCard?.service_id ||
+      !serviceHasExplicitStaffAssignments ||
+      allowedServiceIds.includes(giftCard.service_id)
 
     return canTakeBookings && canProvideService
   })

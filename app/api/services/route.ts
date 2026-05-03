@@ -65,8 +65,9 @@ export async function GET(request: NextRequest) {
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonIdOrSlug)
       
       if (isUUID) {
-        // It's already a UUID, use it directly
-        query = query.eq("salon_id", salonIdOrSlug)
+        // It's already a UUID; filter through service_salons so multi-salon
+        // services are visible outside their legacy primary salon_id.
+        query = query.eq("service_salons.salon_id", salonIdOrSlug)
       } else {
         // It's a slug, need to convert to UUID first
         const { data: salon, error: salonError } = await supabase
@@ -82,9 +83,6 @@ export async function GET(request: NextRequest) {
         query = query.eq("service_salons.salon_id", salon.id)
       }
 
-      if (isUUID) {
-        query = query.eq("service_salons.salon_id", salonIdOrSlug)
-      }
     }
 
     const { data: services, error } = await query

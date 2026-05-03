@@ -6,6 +6,7 @@ import {
   ClientDataSchema,
   createBookableAppointment,
 } from "@/lib/appointments/create"
+import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { findClientByPhone } from "@/lib/client-auth"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { after, type NextRequest, NextResponse } from "next/server"
@@ -300,7 +301,7 @@ export async function POST(request: NextRequest) {
         .from("appointments")
         .select("id")
         .eq("staff_id", staffId) // Check legacy single staff column
-        .in("status", ["confirmed", "pending", "blocked"]) // Include blocked status in conflict check
+        .in("status", BLOCKING_APPOINTMENT_STATUSES)
         .lt("start_time", endTime) // Overlap check: StartA < EndB AND EndA > StartB
         .gt("end_time", appointmentData.start_time)
 
@@ -329,7 +330,7 @@ export async function POST(request: NextRequest) {
            .from("appointment_assignments")
            .select("appointment:appointments!inner(start_time, end_time, status)")
            .eq("staff_id", staffId)
-           .filter("appointment.status", "in", '("confirmed","pending","blocked")')
+           .filter("appointment.status", "in", `(${BLOCKING_APPOINTMENT_STATUSES.map((status) => `"${status}"`).join(",")})`)
            .filter("appointment.start_time", "lt", endTime)
            .filter("appointment.end_time", "gt", appointmentData.start_time)
            

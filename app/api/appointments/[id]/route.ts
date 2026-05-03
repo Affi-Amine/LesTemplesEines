@@ -48,7 +48,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     // Ensure appointment exists and get current data for calculations
     const { data: existing, error: existingError } = await supabase
       .from("appointments")
-      .select("id, status, start_time, service_id, staff_id, salon_id")
+      .select(`
+        id,
+        status,
+        start_time,
+        service_id,
+        staff_id,
+        salon_id,
+        assignments:appointment_assignments(staff_id)
+      `)
       .eq("id", id)
       .single()
 
@@ -86,16 +94,27 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const targetSalonId = updates.salon_id || existing.salon_id
     const targetServiceId = updates.service_id || existing.service_id
     const targetStartTime = updates.start_time || existing.start_time
-    const targetStaffIds = staffIdsToUpdate && staffIdsToUpdate.length > 0
-      ? staffIdsToUpdate
+    const existingStaffIds = existing.assignments?.length
+      ? existing.assignments.map((assignment: any) => assignment.staff_id)
       : existing.staff_id
         ? [existing.staff_id]
         : []
+    const targetStaffIds = staffIdsToUpdate && staffIdsToUpdate.length > 0
+      ? staffIdsToUpdate
+      : existingStaffIds
 
     if (updates.service_id) updateData.service_id = updates.service_id
     if (updates.start_time) updateData.start_time = updates.start_time
 
-    if (targetSalonId && targetServiceId && targetStaffIds.length > 0) {
+    const schedulingChanged = Boolean(
+      updates.salon_id ||
+      updates.service_id ||
+      updates.start_time ||
+      updates.staff_id ||
+      updates.staff_ids
+    )
+
+    if (schedulingChanged && targetSalonId && targetServiceId && targetStaffIds.length > 0) {
       const { endTime } = await validateAppointmentScheduling(
         supabase,
         {

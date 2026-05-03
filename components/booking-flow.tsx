@@ -164,10 +164,17 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   // Find current selections
   const currentSalon = salons?.find((s) => s.id === data.salon || s.slug === data.salon)
   const currentService = services?.find((s) => s.id === data.service)
+  const serviceHasExplicitStaffAssignments = Boolean(
+    currentService &&
+      (staff || []).some((employee) => (employee.allowed_service_ids || []).includes(currentService.id))
+  )
   const salonEmployees = (staff || []).filter((employee) => {
     const canTakeBookings = employee.is_active && ["therapist", "manager", "admin"].includes(employee.role)
     const allowedServiceIds = employee.allowed_service_ids || []
-    const canProvideService = !currentService || allowedServiceIds.length === 0 || allowedServiceIds.includes(currentService.id)
+    const canProvideService =
+      !currentService ||
+      !serviceHasExplicitStaffAssignments ||
+      allowedServiceIds.includes(currentService.id)
 
     return canTakeBookings && canProvideService
   })
@@ -265,9 +272,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       ? undefined
       : isMultiStaff
         ? data.employees
-        : data.employee
-          ? [data.employee]
-          : undefined
+        : data.employee || undefined
 
   // Availability based on selected therapist/date. Use the raw YYYY-MM-DD string to avoid timezone shifts.
   const {

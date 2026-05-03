@@ -1,5 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin"
-import { getTodayInParis, isDateBeforeTodayInParis } from "@/lib/appointments/create"
+import {
+  getTodayInParis,
+  isDateBeforeTodayInParis,
+  resolveStaffIdsThatCanProvideService,
+} from "@/lib/appointments/create"
+import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes, format, areIntervalsOverlapping } from "date-fns"
 import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
@@ -86,11 +91,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // 2. Get salon hours
-    const { data: salon } = await supabase
+    const { data: salon, error: salonError } = await supabase
       .from("salons")
       .select("opening_hours")
       .eq("id", targetSalonId)
       .single()
+
+    if (salonError) {
+      throw salonError
+    }
 
     const requestedDate = fromZonedTime(`${dateParam} 12:00:00`, TIMEZONE)
     const dayOfWeek = requestedDate.getDay()
@@ -131,26 +140,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
       })
     }
 
-    const { data: serviceAssignments, error: serviceAssignmentsError } = await supabase
-      .from("staff_services")
-      .select("staff_id, service_id")
-      .in("staff_id", staffInSalon.map((member) => member.id))
-
-    if (serviceAssignmentsError) {
-      throw serviceAssignmentsError
-    }
-
-    const assignmentMap = new Map<string, Set<string>>()
-    for (const assignment of serviceAssignments || []) {
-      const currentAssignments = assignmentMap.get(assignment.staff_id) || new Set<string>()
-      currentAssignments.add(assignment.service_id)
-      assignmentMap.set(assignment.staff_id, currentAssignments)
-    }
-
-    const allStaff = staffInSalon.filter((member) => {
-      const allowedServices = assignmentMap.get(member.id)
-      return !allowedServices || allowedServices.size === 0 || allowedServices.has(service_id)
-    })
+    const qualifiedStaffIds = await resolveStaffIdsThatCanProvideService(
+      supabase,
+      staffInSalon.map((member) => member.id),
+      service_id
+    )
+    const allStaff = staffInSalon.filter((member) => qualifiedStaffIds.includes(member.id))
 
     if (!allStaff || allStaff.length < requiredStaffCount) {
       return NextResponse.json({
@@ -178,11 +173,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     for (const staff of allStaff) {
       // Get shift/availability for this staff
-      const { data: shifts } = await supabase
+      const { data: shifts, error: shiftsError } = await supabase
         .from("staff_availability")
         .select("*")
         .eq("staff_id", staff.id)
         .or(`and(is_recurring.eq.true,day_of_week.eq.${dayOfWeek}),and(is_recurring.eq.false,specific_date.eq.${dateParam})`)
+
+      if (shiftsError) {
+        throw shiftsError
+      }
 
       let shiftStart = dayStart
       let shiftEnd = dayEnd
@@ -206,22 +205,30 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
       // Get existing appointments (assignments + primary staff_id legacy)
       // Check legacy column
-      const { data: legacyApts } = await supabase
+      const { data: legacyApts, error: legacyAptsError } = await supabase
         .from("appointments")
         .select("start_time, end_time")
         .eq("staff_id", staff.id)
-        .in("status", ["confirmed", "pending", "blocked"])
+        .in("status", BLOCKING_APPOINTMENT_STATUSES)
         .gte("start_time", dayRangeStart)
         .lte("start_time", dayRangeEnd)
 
+      if (legacyAptsError) {
+        throw legacyAptsError
+      }
+
       // Check assignments table
-      const { data: assignments } = await supabase
+      const { data: assignments, error: assignmentsError } = await supabase
         .from("appointment_assignments")
         .select("appointment:appointments!inner(start_time, end_time, status)")
         .eq("staff_id", staff.id)
-        .in("appointment.status", ["confirmed", "pending", "blocked"])
+        .filter("appointment.status", "in", `(${BLOCKING_APPOINTMENT_STATUSES.map((status) => `"${status}"`).join(",")})`)
         .gte("appointment.start_time", dayRangeStart)
         .lte("appointment.start_time", dayRangeEnd)
+
+      if (assignmentsError) {
+        throw assignmentsError
+      }
 
       const busyRanges: Array<{start: Date, end: Date}> = []
       

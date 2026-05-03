@@ -38,11 +38,16 @@ export default async function SalonBookingPage({ params }: SalonBookingPageProps
 
   return (
     <main className="min-h-screen bg-background">
-      <div className="py-8">
-        <div className="max-w-2xl mx-auto px-4">
-          <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold mb-2">Réserver chez {salon.name}</h1>
-            <p className="text-muted-foreground">Terminez votre réservation en 5 étapes simples</p>
+      <div className="px-4 pb-10 pt-5 sm:py-8">
+        <div className="mx-auto max-w-2xl">
+          <div className="mb-5 text-left sm:mb-8 sm:text-center">
+            <span className="mb-3 inline-flex rounded-full border border-primary/15 bg-primary/8 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+              {salon.city}
+            </span>
+            <h1 className="mb-2 text-2xl font-serif font-semibold leading-tight sm:text-3xl sm:font-bold">Réserver chez {salon.name}</h1>
+            <p className="max-w-lg text-sm leading-6 text-muted-foreground sm:mx-auto sm:text-base">
+              Choisissez votre soin et le créneau qui vous convient.
+            </p>
           </div>
           <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Chargement...</div>}>
             <BookingFlow initialSalon={salon.id} />

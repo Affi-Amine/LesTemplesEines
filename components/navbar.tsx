@@ -26,6 +26,9 @@ export function Navbar() {
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
+          <Link href="/nos-prestations" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            Prestations
+          </Link>
           <Link href="/gift" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             Cartes cadeaux
           </Link>
@@ -67,6 +70,9 @@ export function Navbar() {
       {isOpen && (
         <div className="md:hidden border-t border-primary/15 bg-background/95 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-4">
+            <Link href="/nos-prestations" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Prestations
+            </Link>
             <Link href="/gift" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Cartes cadeaux
             </Link>

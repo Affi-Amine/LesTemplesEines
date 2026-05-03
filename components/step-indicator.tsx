@@ -6,28 +6,27 @@ interface StepIndicatorProps {
 
 export function StepIndicator({ currentStep, totalSteps, stepLabels }: StepIndicatorProps) {
   return (
-    <div className="mb-6 sm:mb-8">
+    <div className="mb-5 sm:mb-8">
       {/* Progress percentage */}
-      <div className="mb-3 flex items-center justify-between sm:mb-4">
-        <span className="text-sm font-medium text-muted-foreground">
-          Étape {currentStep} sur {totalSteps}
+      <div className="mb-2 flex items-center justify-between sm:mb-4">
+        <span className="text-xs font-medium uppercase tracking-[0.16em] text-primary/80 sm:text-sm sm:normal-case sm:tracking-normal sm:text-muted-foreground">
+          Étape {currentStep}/{totalSteps}
         </span>
-        <span className="text-sm font-medium text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground sm:text-sm">
           {Math.round((currentStep / totalSteps) * 100)}%
         </span>
       </div>
 
       {/* Progress bar */}
-      <div className="mb-3 h-2 w-full rounded-full bg-muted sm:mb-6">
+      <div className="mb-3 h-1.5 w-full rounded-full bg-muted/70 sm:mb-6 sm:h-2">
         <div
-          className="bg-primary h-2 rounded-full transition-all duration-300"
+          className="h-full rounded-full bg-primary transition-all duration-300"
           style={{ width: `${(currentStep / totalSteps) * 100}%` }}
         />
       </div>
 
-      <div className="rounded-xl border border-primary/15 bg-card/50 px-4 py-3 sm:hidden">
-        <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80">En cours</p>
-        <p className="mt-1 text-sm font-medium text-foreground">{stepLabels[currentStep - 1]}</p>
+      <div className="rounded-xl border border-primary/10 bg-background/28 px-3.5 py-3 sm:hidden">
+        <p className="text-sm font-medium leading-snug text-foreground">{stepLabels[currentStep - 1]}</p>
       </div>
 
       {/* Step labels */}

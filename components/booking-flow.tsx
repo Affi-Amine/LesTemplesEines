@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { StepIndicator } from "@/components/step-indicator"
+import { ServiceCatalog } from "@/components/service-catalog"
 import { useSalons } from "@/lib/hooks/use-salons"
 import { useServices } from "@/lib/hooks/use-services"
 import { useStaff } from "@/lib/hooks/use-staff"
@@ -635,16 +636,17 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     isRandomAssignment ||
     (!isMultiStaff && !!currentEmployee) ||
     (isMultiStaff && selectedEmployees.length === (currentService?.required_staff_count || 1))
+  const flowCardClass = "animate-in fade-in duration-300 gap-4 rounded-[1.1rem] border-primary/10 bg-card/70 px-4 py-5 shadow-none sm:gap-6 sm:rounded-xl sm:p-6 md:p-8"
 
   return (
-    <div ref={containerRef} className="mx-auto w-full max-w-2xl px-3 pb-2 pt-4 sm:p-4 scroll-mt-28">
+    <div ref={containerRef} className="mx-auto w-full max-w-2xl px-0 pb-2 pt-2 sm:p-4 scroll-mt-28">
       <StepIndicator currentStep={stepIndex} totalSteps={5} stepLabels={stepLabels} />
 
       {/* Step 1: Select Salon */}
       {step === "salon" && (
-        <Card className="animate-in fade-in duration-300 p-5 sm:p-6 md:p-8">
-          <h2 className="mb-2 text-[1.65rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step1_title")}</h2>
-          <p className="text-muted-foreground mb-6">{t(locale, "booking.step1_subtitle")}</p>
+        <Card className={flowCardClass}>
+          <h2 className="mb-1 text-[1.35rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step1_title")}</h2>
+          <p className="mb-4 text-sm leading-6 text-muted-foreground sm:mb-6 sm:text-base">{t(locale, "booking.step1_subtitle")}</p>
 
           {salonsLoading ? (
             <div className="space-y-3">
@@ -662,7 +664,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   <div
                     key={salon.id}
                     onClick={() => handleSalonChange(salon.id)}
-                    className={`rounded-[1.35rem] border p-4 transition-all cursor-pointer sm:p-5 ${
+                    className={`rounded-xl border px-3.5 py-3 transition-all cursor-pointer sm:rounded-[1.35rem] sm:p-5 ${
                       data.salon === salon.id
                         ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
                         : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -672,10 +674,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                       <div className="flex items-start gap-3">
                         <RadioGroupItem value={salon.id} id={salon.id} className="mt-1 shrink-0 pointer-events-none" />
                         <div className="min-w-0 flex-1">
-                          <div className="text-xl font-semibold leading-tight break-words text-foreground sm:text-[1.35rem]">
+                          <div className="text-base font-semibold leading-tight break-words text-foreground sm:text-[1.35rem]">
                             {salon.name}
                           </div>
-                          <div className="mt-3 space-y-2">
+                          <div className="mt-2 space-y-1.5 sm:mt-3 sm:space-y-2">
                             <p className="text-sm leading-6 break-words text-muted-foreground sm:text-[0.95rem]">
                               {salon.address}
                             </p>
@@ -699,7 +701,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             </RadioGroup>
           )}
 
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 mt-8">
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:mt-8 sm:flex-row sm:justify-end">
             <Button onClick={handleNext} disabled={!data.salon || salonsLoading} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.next")}
             </Button>
@@ -709,12 +711,12 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
       {/* Step 2: Select Service */}
       {step === "service" && (
-        <Card className="animate-in fade-in duration-300 p-5 sm:p-6 md:p-8">
-          <h2 className="mb-2 text-[1.65rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step2_title")}</h2>
-          <p className="text-muted-foreground mb-6">{t(locale, "booking.step2_subtitle")}</p>
+        <Card className={flowCardClass}>
+          <h2 className="mb-1 text-[1.35rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step2_title")}</h2>
+          <p className="mb-4 text-sm leading-6 text-muted-foreground sm:mb-6 sm:text-base">{t(locale, "booking.step2_subtitle")}</p>
 
           {selectedClientPack ? (
-            <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/8 p-4 sm:p-5">
+            <div className="mb-4 rounded-xl border border-primary/15 bg-primary/8 p-3.5 sm:mb-6 sm:rounded-2xl sm:p-5">
               <p className="text-sm font-semibold text-primary">Forfait sélectionné</p>
               <p className="mt-1 font-medium">{selectedClientPack.pack?.name}</p>
               <p className="mt-2 text-sm text-muted-foreground">
@@ -737,69 +739,19 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               ))}
             </div>
           ) : (
-            <RadioGroup value={data.service} onValueChange={handleServiceChange}>
-              <div className="space-y-3">
-                {servicesWithPackInfo.map((service) => {
-                  const isIncludedInSelectedPack = selectedClientPack ? selectedPackAllowedServiceIds.has(service.id) : false
-
-                  return (
-                    <div
-                      key={service.id}
-                      onClick={() => handleServiceChange(service.id)}
-                      className={`rounded-[1.4rem] border p-4 transition-all cursor-pointer sm:p-5 ${
-                        data.service === service.id
-                          ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
-                          : "bg-card/65 hover:bg-muted hover:border-primary"
-                      } ${selectedClientPack && !isIncludedInSelectedPack ? "border-dashed border-border/80" : ""}`}
-                    >
-                      <Label htmlFor={service.id} className="cursor-pointer pointer-events-none">
-                        <div className="grid gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-start">
-                          <div className="flex items-start gap-3">
-                            <RadioGroupItem value={service.id} id={service.id} className="mt-1 shrink-0 pointer-events-none" />
-                            <div className="min-w-0">
-                              <div className="text-lg font-semibold leading-tight break-words text-foreground sm:text-[1.35rem]">
-                                {service.name}
-                              </div>
-                              {selectedClientPack ? (
-                                <div className="mt-3">
-                              <span
-                                    className={`inline-flex w-fit max-w-full rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] ${
-                                      isIncludedInSelectedPack
-                                        ? "border border-emerald-400/25 bg-emerald-500/10 text-emerald-300"
-                                        : "border border-amber-300/20 bg-amber-500/10 text-amber-200"
-                                    }`}
-                                  >
-                                    {isIncludedInSelectedPack ? "Inclus dans votre forfait" : "Hors forfait"}
-                                  </span>
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-
-                          <div className="pl-9 sm:pl-0">
-                            <div className="line-clamp-3 text-sm leading-6 text-muted-foreground">
-                              {service.description}
-                            </div>
-                          </div>
-
-                          <div className="pl-9 sm:pl-0 sm:text-right">
-                            <div className="text-sm text-muted-foreground">
-                              {service.duration_minutes} min
-                            </div>
-                            <div className="mt-1 text-lg font-semibold text-primary sm:text-xl">
-                              {(service.price_cents / 100).toFixed(2)}€
-                            </div>
-                          </div>
-                        </div>
-                      </Label>
-                    </div>
-                  )
-                })}
-              </div>
-            </RadioGroup>
+            <ServiceCatalog
+              services={servicesWithPackInfo}
+              selectedServiceId={data.service}
+              onSelectService={handleServiceChange}
+              compact
+              getBadge={(service) => {
+                if (!selectedClientPack) return null
+                return selectedPackAllowedServiceIds.has(service.id) ? "Inclus dans votre forfait" : "Hors forfait"
+              }}
+            />
           )}
 
-          <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 mt-8">
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:mt-8 sm:flex-row sm:justify-between">
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
@@ -812,10 +764,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
       {/* Step 3: Select Time */}
       {step === "time" && (
-        <Card className="animate-in fade-in duration-300 p-5 sm:p-6 md:p-8">
-          <h2 className="mb-2 text-[1.65rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step3_title")}</h2>
-          <p className="text-muted-foreground mb-6">{t(locale, "booking.step3_subtitle")}</p>
-          <div className="space-y-6">
+        <Card className={flowCardClass}>
+          <h2 className="mb-1 text-[1.35rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step3_title")}</h2>
+          <p className="mb-4 text-sm leading-6 text-muted-foreground sm:mb-6 sm:text-base">{t(locale, "booking.step3_subtitle")}</p>
+          <div className="space-y-5 sm:space-y-6">
             <div>
               {(!currentService?.required_staff_count || currentService.required_staff_count <= 1) ? (
                 <div className="mb-6">
@@ -842,7 +794,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                       <div className="mt-3 space-y-3">
                         <div
                           onClick={handleRandomAssignment}
-                          className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+                          className={`cursor-pointer rounded-xl border px-3.5 py-3 transition-all sm:rounded-2xl sm:p-4 ${
                             isRandomAssignment
                               ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
                               : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -862,7 +814,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                           <div
                             key={emp.id}
                             onClick={() => handleEmployeeChange(emp.id)}
-                            className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+                            className={`cursor-pointer rounded-xl border px-3.5 py-3 transition-all sm:rounded-2xl sm:p-4 ${
                               data.employee === emp.id && !isRandomAssignment
                                 ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
                                 : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -891,7 +843,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                   </p>
                   <div
                     onClick={handleRandomAssignment}
-                    className={`mb-3 cursor-pointer rounded-2xl border p-4 transition-all ${
+                    className={`mb-3 cursor-pointer rounded-xl border px-3.5 py-3 transition-all sm:rounded-2xl sm:p-4 ${
                       isRandomAssignment
                         ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
                         : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -930,7 +882,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                         return (
                           <div
                             key={emp.id}
-                            className={`cursor-pointer rounded-2xl border p-4 transition-colors ${isSelected && !isRandomAssignment ? "border-primary bg-primary/12 shadow-[0_10px_24px_rgba(214,171,89,0.08)]" : "bg-card/65 hover:bg-muted"} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+                            className={`cursor-pointer rounded-xl border px-3.5 py-3 transition-colors sm:rounded-2xl sm:p-4 ${isSelected && !isRandomAssignment ? "border-primary bg-primary/12 shadow-[0_10px_24px_rgba(214,171,89,0.08)]" : "bg-card/65 hover:bg-muted"} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
                             onClick={() => {
                               setData((current) => ({ ...current, assignmentMode: "specific", time: "" }))
                               !disabled && toggleEmployeeSelection(emp.id, currentService.required_staff_count || 2)
@@ -989,7 +941,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                       key={time}
                       variant={isSelected ? "default" : "outline"}
                       onClick={() => handleTimeChange(time)}
-                      className={`h-12 w-full rounded-xl text-sm font-medium ${!isAvailable ? "bg-muted text-muted-foreground border-muted-foreground/10 opacity-100 cursor-not-allowed hover:bg-muted hover:text-muted-foreground" : ""}`}
+                      className={`h-11 w-full rounded-xl text-sm font-medium sm:h-12 ${!isAvailable ? "bg-muted text-muted-foreground border-muted-foreground/10 opacity-100 cursor-not-allowed hover:bg-muted hover:text-muted-foreground" : ""}`}
                       disabled={!isTherapistSelectionComplete || !isAvailable || availabilityLoading}
                     >
                       {time}
@@ -999,7 +951,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               </div>
             </div>
           </div>
-          <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 mt-8">
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:mt-8 sm:flex-row sm:justify-between">
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
@@ -1012,9 +964,9 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
       {/* Step 4: Enter Info */}
       {step === "info" && (
-        <Card className="animate-in fade-in duration-300 p-5 sm:p-6 md:p-8">
-          <h2 className="mb-2 text-[1.65rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step4_title")}</h2>
-          <p className="text-muted-foreground mb-6">{t(locale, "booking.step4_subtitle")}</p>
+        <Card className={flowCardClass}>
+          <h2 className="mb-1 text-[1.35rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step4_title")}</h2>
+          <p className="mb-4 text-sm leading-6 text-muted-foreground sm:mb-6 sm:text-base">{t(locale, "booking.step4_subtitle")}</p>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -1091,7 +1043,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               >
                 <div
                   onClick={() => updateData({ paymentOption: "stripe" })}
-                  className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+                  className={`cursor-pointer rounded-xl border px-3.5 py-3 transition-all sm:rounded-2xl sm:p-4 ${
                     data.paymentOption === "stripe"
                       ? "border-primary bg-primary/10"
                       : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -1107,7 +1059,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 </div>
                 <div
                   onClick={() => eligiblePacks.length > 0 && updateData({ paymentOption: "pack" })}
-                  className={`rounded-2xl border p-4 transition-all ${
+                  className={`rounded-xl border px-3.5 py-3 transition-all sm:rounded-2xl sm:p-4 ${
                     data.paymentOption === "pack"
                       ? "border-primary bg-primary/10"
                       : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -1143,7 +1095,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 )}
                 <div
                   onClick={() => updateData({ paymentOption: "on_site" })}
-                  className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+                  className={`cursor-pointer rounded-xl border px-3.5 py-3 transition-all sm:rounded-2xl sm:p-4 ${
                     data.paymentOption === "on_site"
                       ? "border-primary bg-primary/10"
                       : "bg-card/65 hover:bg-muted hover:border-primary"
@@ -1160,7 +1112,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               </RadioGroup>
             </div>
           </div>
-          <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 mt-8">
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:mt-8 sm:flex-row sm:justify-between">
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
@@ -1178,9 +1130,9 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
       {/* Step 5: Confirmation */}
       {step === "confirm" && (
-        <Card className="animate-in fade-in duration-300 p-5 sm:p-6 md:p-8">
-          <h2 className="mb-2 text-[1.65rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step5_title")}</h2>
-          <p className="text-muted-foreground mb-6">{t(locale, "booking.step5_subtitle")}</p>
+        <Card className={flowCardClass}>
+          <h2 className="mb-1 text-[1.35rem] font-semibold leading-tight sm:text-2xl">{t(locale, "booking.step5_title")}</h2>
+          <p className="mb-4 text-sm leading-6 text-muted-foreground sm:mb-6 sm:text-base">{t(locale, "booking.step5_subtitle")}</p>
 
           {/* Booking Summary */}
           <div className="mb-6 space-y-4 rounded-2xl border border-border/80 bg-card/75 p-4 sm:p-6">

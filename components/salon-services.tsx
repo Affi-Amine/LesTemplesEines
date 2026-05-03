@@ -1,7 +1,6 @@
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Icon } from "@iconify/react"
-import { Clock, Euro } from "lucide-react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { ServiceCatalog } from "@/components/service-catalog"
 
 interface Service {
   id: string
@@ -18,93 +17,27 @@ interface SalonServicesProps {
 }
 
 export function SalonServices({ services }: SalonServicesProps) {
-  const categories = Array.from(new Set(services.map((s) => s.category)))
-
   return (
-    <section className="py-20 bg-gradient-to-b from-muted/30 to-background">
+    <section className="py-16 bg-gradient-to-b from-muted/20 to-background sm:py-20">
       <div className="max-w-7xl mx-auto px-4">
-        {/* Enhanced Section Header */}
-        <div className="mb-16 text-center">
+        <div className="mb-10 text-center sm:mb-12">
           <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos Prestations</span>
           <h2 className="text-4xl md:text-5xl font-serif font-bold mt-3 mb-4">
-            Services & Soins
+            Une carte claire, des soins précis
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Découvrez notre gamme complète de soins thérapeutiques et relaxants,
-            conçus pour votre bien-être absolu
+          <p className="text-base leading-8 text-muted-foreground max-w-2xl mx-auto">
+            Les prestations sont organisées par familles pour comparer rapidement la durée, le prix et l&apos;intention du soin.
           </p>
         </div>
 
-        {categories.map((category, categoryIndex) => (
-          <div key={category} className="mb-16 last:mb-0">
-            {/* Category Header */}
-            <div className="flex items-center gap-4 mb-8">
-              <div className="h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent flex-1" />
-              <h3 className="text-2xl font-serif font-semibold text-primary px-4 rounded-full border border-primary/15 bg-primary/6 py-2">
-                {category}
-              </h3>
-              <div className="h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent flex-1" />
-            </div>
-
-            {/* Services Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {services
-                .filter((s) => s.category === category)
-                .map((service) => (
-                  <Card
-                    key={service.id}
-                    className="group overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 bg-card shadow-md temple-frame rounded-[1.5rem]"
-                  >
-                    {/* Service Image with Overlay */}
-                    <div className="relative h-48 bg-muted overflow-hidden">
-                      {service.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={service.image}
-                          alt={service.name}
-                          className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className="flex items-center justify-center h-full bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 group-hover:from-primary/30 group-hover:via-primary/15 group-hover:to-accent/15 transition-colors duration-500">
-                          <Icon icon="solar:spa-bold" className="w-16 h-16 text-primary/40" />
-                        </div>
-                      )}
-                      {/* Gradient Overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-                      {/* Price Badge Overlay */}
-                      <div className="absolute top-3 right-3">
-                        <Badge className="bg-background/88 backdrop-blur-sm text-primary border border-primary/20 shadow-lg px-3 py-1 font-bold">
-                          <Euro className="w-3 h-3 mr-1" />
-                          {service.price}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {/* Service Details */}
-                    <div className="p-5">
-                      <h4 className="font-serif font-semibold text-lg mb-2 group-hover:text-primary transition-colors">
-                        {service.name}
-                      </h4>
-                      <p className="text-sm text-muted-foreground leading-relaxed mb-4 line-clamp-2">
-                        {service.description}
-                      </p>
-
-                      {/* Duration Badge */}
-                      <div className="flex items-center gap-2 pt-3 border-t">
-                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <Clock className="w-4 h-4 text-primary" />
-                          </div>
-                          <span className="font-medium">{service.duration} minutes</span>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-            </div>
+        <div className="mx-auto max-w-4xl">
+          <ServiceCatalog services={services} selectable={false} compact={false} />
+          <div className="mt-6 flex justify-center">
+            <Button asChild className="bg-primary hover:bg-primary/90">
+              <Link href="/book">Choisir une prestation</Link>
+            </Button>
           </div>
-        ))}
+        </div>
       </div>
     </section>
   )

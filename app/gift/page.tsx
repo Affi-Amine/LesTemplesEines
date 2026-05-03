@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { ServiceCatalog } from "@/components/service-catalog"
 import { useServices } from "@/lib/hooks/use-services"
 import { fetchAPI } from "@/lib/api/client"
 import { formatGiftCardCode } from "@/lib/gift-cards"
@@ -94,73 +95,54 @@ function GiftPageContent() {
   return (
     <main className="min-h-screen bg-background">
       <Navbar />
-      <section className="pt-28 pb-16 px-4">
-        <div className="max-w-6xl mx-auto space-y-8">
-          <div className="text-center space-y-4">
-            <span className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm text-muted-foreground">
+      <section className="px-4 pb-14 pt-24 sm:pb-16 sm:pt-28">
+        <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8">
+          <div className="space-y-4 text-left sm:text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/8 px-3 py-1.5 text-xs font-medium text-primary sm:px-4 sm:py-2 sm:text-sm">
               <Gift className="w-4 h-4" />
               Cartes cadeaux
             </span>
-            <h1 className="text-4xl md:text-5xl font-serif font-bold">Offrir une expérience Les Temples</h1>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Choisissez une prestation, renseignez les informations de l&apos;acheteur et du destinataire, puis nous générons une carte cadeau avec envoi par email.
+            <h1 className="text-3xl font-serif font-semibold leading-tight sm:text-4xl md:text-5xl md:font-bold">Offrir une expérience Les Temples</h1>
+            <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:mx-auto sm:text-base">
+              Choisissez une prestation, ajoutez un message, puis finalisez la carte cadeau en ligne.
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-[1.3fr_0.9fr] gap-8 items-start">
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold">1. Choisir une prestation</h2>
+          <div className="grid items-start gap-6 lg:grid-cols-[1.3fr_0.9fr] lg:gap-8">
+            <div className="space-y-4 sm:space-y-6">
+              <h2 className="text-lg font-semibold sm:text-2xl">1. Choisir une prestation</h2>
               {isLoading ? (
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-3">
                   {[1, 2, 3, 4].map((item) => (
-                    <Card key={item} className="p-6 animate-pulse">
-                      <div className="h-6 w-2/3 bg-muted rounded mb-3" />
-                      <div className="h-4 w-full bg-muted rounded mb-2" />
-                      <div className="h-4 w-1/2 bg-muted rounded" />
-                    </Card>
+                    <div key={item} className="rounded-xl border border-primary/10 p-4 animate-pulse">
+                      <div className="h-4 w-2/3 bg-muted rounded mb-3" />
+                      <div className="h-3 w-full bg-muted rounded mb-2" />
+                      <div className="h-3 w-1/2 bg-muted rounded" />
+                    </div>
                   ))}
                 </div>
               ) : (
-                <div className="grid md:grid-cols-2 gap-4">
-                  {services?.map((service) => {
-                    const isSelected = service.id === selectedServiceId
-                    return (
-                      <Card
-                        key={service.id}
-                        className={`p-6 cursor-pointer transition-all ${isSelected ? "border-primary ring-2 ring-primary/20" : "hover:border-primary/40"}`}
-                        onClick={() => setSelectedServiceId(service.id)}
-                      >
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <h3 className="text-lg font-semibold">{service.name}</h3>
-                          {service.description && (
-                            <p className="text-sm text-muted-foreground mt-2">{service.description}</p>
-                          )}
-                        </div>
-                        <div className="text-left sm:text-right">
-                          <p className="font-semibold text-primary">{(service.price_cents / 100).toFixed(2)}€</p>
-                          <p className="text-xs text-muted-foreground">{service.duration_minutes} min</p>
-                        </div>
-                        </div>
-                      </Card>
-                    )
-                  })}
-                </div>
+                <ServiceCatalog
+                  services={services || []}
+                  selectedServiceId={selectedServiceId}
+                  onSelectService={setSelectedServiceId}
+                  compact
+                />
               )}
             </div>
 
-            <Card className="space-y-5 p-6 lg:sticky lg:top-24">
-              <h2 className="text-2xl font-semibold">2. Informations d&apos;envoi</h2>
+            <Card className="gap-4 space-y-0 rounded-[1.1rem] border-primary/10 bg-card/72 px-4 py-5 shadow-none sm:space-y-5 sm:rounded-xl sm:p-6 lg:sticky lg:top-24">
+              <h2 className="text-lg font-semibold sm:text-2xl">2. Informations d&apos;envoi</h2>
 
               {selectedService ? (
-                <div className="rounded-lg bg-muted/50 p-4">
+                <div className="rounded-xl border border-primary/10 bg-background/28 p-3.5 sm:p-4">
                   <p className="text-sm text-muted-foreground">Prestation sélectionnée</p>
                   <p className="break-words font-semibold">{selectedService.name}</p>
                   <p className="text-sm text-muted-foreground mt-1">{selectedService.duration_minutes} min</p>
                   <p className="text-lg font-bold text-primary mt-2">{(selectedService.price_cents / 100).toFixed(2)}€</p>
                 </div>
               ) : (
-                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                <div className="rounded-xl border border-dashed border-primary/15 p-3.5 text-sm text-muted-foreground sm:p-4">
                   Sélectionne d&apos;abord une prestation dans la liste.
                 </div>
               )}

@@ -267,7 +267,9 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       ? undefined
       : isMultiStaff
         ? data.employees
-        : data.employee || undefined
+        : data.employee
+          ? [data.employee]
+          : undefined
 
   // Availability based on selected therapist and date
   const selectedDateObj = data.date ? new Date(data.date) : undefined

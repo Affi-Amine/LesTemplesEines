@@ -349,7 +349,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   }, [availableTimesSet, data.time])
 
   useEffect(() => {
-    if (!data.employee || isRandomAssignment) {
+    if (!data.employee || isRandomAssignment || !data.time || !availabilityData?.available_slots) {
       return
     }
 
@@ -361,10 +361,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
         employee: "",
       }))
     }
-  }, [availableEmployeesForSelectedTime, data.employee, isRandomAssignment])
+  }, [availabilityData?.available_slots, availableEmployeesForSelectedTime, data.employee, data.time, isRandomAssignment])
 
   useEffect(() => {
-    if (data.employees.length === 0 || isRandomAssignment) {
+    if (data.employees.length === 0 || isRandomAssignment || !data.time || !availabilityData?.available_slots) {
       return
     }
 
@@ -377,7 +377,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
         employees: nextEmployees,
       }))
     }
-  }, [availableEmployeesForSelectedTime, data.employees, isRandomAssignment])
+  }, [availabilityData?.available_slots, availableEmployeesForSelectedTime, data.employees, data.time, isRandomAssignment])
 
   useEffect(() => {
     if (!containerRef.current) return

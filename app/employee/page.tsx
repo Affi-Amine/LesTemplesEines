@@ -1,256 +1,205 @@
 "use client"
 
-import { StatCard } from "@/components/stat-card"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Calendar, Clock, Users, TrendingUp, Eye } from "lucide-react"
-import { useQuery } from "@tanstack/react-query"
-import { fetchAPI } from "@/lib/api/client"
-import { useMemo, useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { format } from "date-fns"
-import { fr } from "date-fns/locale"
-import { toZonedTime, formatInTimeZone } from "date-fns-tz"
+import { useQuery } from "@tanstack/react-query"
+import { formatInTimeZone } from "date-fns-tz"
+import { Calendar, CheckCircle2, Clock, PlayCircle } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { fetchAPI } from "@/lib/api/client"
+import { cn } from "@/lib/utils"
+
+type AppointmentStatus = "confirmed" | "pending" | "in_progress" | "completed" | "cancelled" | "no_show" | "blocked"
+
+interface EmployeeAppointment {
+  id: string
+  start_time: string
+  end_time: string
+  status: AppointmentStatus
+  client?: { first_name?: string | null; last_name?: string | null } | null
+  service?: { name?: string | null } | null
+  clients?: { first_name?: string | null; last_name?: string | null } | null
+  services?: { name?: string | null } | null
+}
+
+const TIMEZONE = "Europe/Paris"
+
+function getClientName(appointment: EmployeeAppointment) {
+  const client = appointment.client || appointment.clients
+  return `${client?.first_name || ""} ${client?.last_name || "Client"}`.trim()
+}
+
+function getServiceName(appointment: EmployeeAppointment) {
+  return appointment.service?.name || appointment.services?.name || "Service"
+}
+
+function getStatusClass(status: AppointmentStatus) {
+  switch (status) {
+    case "in_progress":
+      return "border-amber-200 bg-amber-100 text-amber-900"
+    case "completed":
+      return "border-emerald-200 bg-emerald-100 text-emerald-900"
+    case "no_show":
+      return "border-orange-200 bg-orange-100 text-orange-900"
+    case "cancelled":
+      return "border-rose-200 bg-rose-100 text-rose-900"
+    default:
+      return "border-sky-200 bg-sky-100 text-sky-900"
+  }
+}
+
+function getShortStatus(status: AppointmentStatus) {
+  if (status === "in_progress") return "NOW"
+  if (status === "completed") return "DONE"
+  if (status === "no_show") return "ABSENT"
+  if (status === "cancelled") return "CANCEL"
+  return "OK"
+}
 
 export default function EmployeeDashboard() {
   const [userInfo, setUserInfo] = useState<any>(null)
 
   useEffect(() => {
-    // Get user info from localStorage
     const adminUser = localStorage.getItem("adminUser")
     if (adminUser) {
       setUserInfo(JSON.parse(adminUser))
     }
   }, [])
 
-  // Fetch appointments for this staff member
-  const { data: appointments, isLoading, error } = useQuery({
+  const { data: appointments = [], isLoading } = useQuery({
     queryKey: ["staff-appointments", userInfo?.id],
-    queryFn: async () => {
-      if (!userInfo?.id) {
-        console.warn("No user ID available for fetching appointments")
-        return []
-      }
-      try {
-        return await fetchAPI<any[]>(`/staff/${userInfo.id}/appointments`)
-      } catch (error) {
-        console.error("Error fetching staff appointments:", error)
-        return []
-      }
-    },
-    enabled: !!userInfo?.id,
+    queryFn: () => userInfo?.id ? fetchAPI<EmployeeAppointment[]>(`/staff/${userInfo.id}/appointments`) : [],
+    enabled: Boolean(userInfo?.id),
     retry: 1,
-    staleTime: 30000, // 30 seconds
+    staleTime: 30000,
   })
 
-  // Calculate today's statistics
-  const todayStats = useMemo(() => {
-    if (!appointments) return {
-      todayAppointments: [],
-      upcomingAppointments: [],
-      totalToday: 0,
-      completedToday: 0,
-      revenueToday: 0
-    }
+  const today = formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd")
+  const todayAppointments = useMemo(() => (
+    appointments
+      .filter((appointment) => formatInTimeZone(appointment.start_time, TIMEZONE, "yyyy-MM-dd") === today)
+      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+  ), [appointments, today])
 
-    const now = new Date()
-    const nowParis = toZonedTime(now, "Europe/Paris")
-    const todayStr = formatInTimeZone(now, "Europe/Paris", "yyyy-MM-dd")
+  const activeAppointment = todayAppointments.find((appointment) => appointment.status === "in_progress")
+  const nextAppointment = activeAppointment || todayAppointments.find((appointment) =>
+    ["confirmed", "pending"].includes(appointment.status) &&
+    new Date(appointment.end_time).getTime() >= Date.now()
+  )
+  const doneCount = todayAppointments.filter((appointment) => appointment.status === "completed").length
+  const openCount = todayAppointments.filter((appointment) => ["confirmed", "pending", "in_progress"].includes(appointment.status)).length
 
-    const todayAppointments = appointments.filter((apt: any) => {
-      const aptDateStr = formatInTimeZone(apt.start_time, "Europe/Paris", "yyyy-MM-dd")
-      return aptDateStr === todayStr
-    })
-
-    const upcomingAppointments = appointments.filter((apt: any) => {
-      const aptDate = new Date(apt.start_time) // UTC comparison is fine for "upcoming" relative to "now"
-      return aptDate > now && formatInTimeZone(apt.start_time, "Europe/Paris", "yyyy-MM-dd") === todayStr
-    }).sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
-
-    const completedToday = todayAppointments.filter((apt: any) => 
-      apt.status === 'completed' || new Date(apt.end_time) < now
-    ).length
-
-    const revenueToday = todayAppointments
-      .filter((apt: any) => apt?.status === 'completed')
-      .reduce((sum: number, apt: any) => sum + (apt?.services?.price_cents || apt?.service?.price_cents || 0), 0)
-
-    return {
-      todayAppointments,
-      upcomingAppointments: upcomingAppointments.slice(0, 5), // Next 5 appointments
-      totalToday: todayAppointments.length,
-      completedToday,
-      revenueToday: revenueToday / 100 // Convert cents to euros
-    }
-  }, [appointments])
-
-  const formatTime = (dateString: string) => {
-    return formatInTimeZone(dateString, "Europe/Paris", "HH:mm")
-  }
-
-  const formatDate = (dateString: string) => {
-    return formatInTimeZone(dateString, "Europe/Paris", "EEEE d MMMM yyyy", { locale: fr })
-  }
+  const formatTime = (dateTime: string) => formatInTimeZone(dateTime, TIMEZONE, "HH:mm")
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 bg-primary/20 rounded-full animate-pulse mx-auto mb-4" />
-          <p className="text-muted-foreground">Chargement de votre planning...</p>
-        </div>
+      <div className="flex min-h-[70svh] items-center justify-center">
+        <div className="h-10 w-10 animate-pulse rounded-full bg-primary/25" />
       </div>
     )
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-serif font-bold text-foreground">
-            Bonjour {userInfo?.first_name} 👋
+    <div className="min-h-screen bg-[#f7f3ed] px-3 pb-8 pt-4 sm:px-6">
+      <div className="mx-auto max-w-xl space-y-4">
+        <header className="rounded-[1.25rem] bg-[#181612] p-4 text-white shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/55">Hello</p>
+          <h1 className="mt-1 text-3xl font-black leading-tight">
+            {userInfo?.first_name || "Therapist"}
           </h1>
-          <p className="text-muted-foreground mt-1">
-            {formatDate(new Date().toISOString())}
+          <p className="mt-2 text-sm text-white/65">
+            {formatInTimeZone(new Date(), TIMEZONE, "EEEE d MMMM")}
           </p>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/employee/calendar">
-            <Button variant="outline" className="gap-2">
-              <Calendar className="h-4 w-4" />
-              Voir le calendrier
-            </Button>
-          </Link>
-        </div>
-      </div>
 
-      {/* Today's Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Rendez-vous aujourd'hui"
-          value={todayStats.totalToday.toString()}
-          icon={Calendar}
-        />
-        <StatCard
-          title="Terminés"
-          value={todayStats.completedToday.toString()}
-          icon={Clock}
-        />
-        <StatCard
-          title="Revenus du jour"
-          value={`${todayStats.revenueToday.toFixed(2)}€`}
-          icon={TrendingUp}
-        />
-        <StatCard
-          title="À venir"
-          value={(todayStats.totalToday - todayStats.completedToday).toString()}
-          icon={Users}
-        />
-      </div>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="rounded-xl bg-white/10 p-3">
+              <p className="text-xs text-white/60">Today</p>
+              <p className="text-2xl font-black">{todayAppointments.length}</p>
+            </div>
+            <div className="rounded-xl bg-white/10 p-3">
+              <p className="text-xs text-white/60">To do</p>
+              <p className="text-2xl font-black">{openCount}</p>
+            </div>
+            <div className="rounded-xl bg-white/10 p-3">
+              <p className="text-xs text-white/60">Done</p>
+              <p className="text-2xl font-black">{doneCount}</p>
+            </div>
+          </div>
+        </header>
 
-      {/* Today's Schedule */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Upcoming Appointments */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Prochains rendez-vous</h2>
+        <section className="rounded-[1.25rem] border border-black/5 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-black text-[#181612]">Next</h2>
+            <Clock className="h-5 w-5 text-muted-foreground" />
+          </div>
+
+          {nextAppointment ? (
+            <div className="mt-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-4xl font-black tabular-nums text-[#181612]">
+                    {formatTime(nextAppointment.start_time)}
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-muted-foreground">
+                    {formatTime(nextAppointment.start_time)} - {formatTime(nextAppointment.end_time)}
+                  </p>
+                </div>
+                <Badge className={cn("border px-2.5 py-1", getStatusClass(nextAppointment.status))}>
+                  {getShortStatus(nextAppointment.status)}
+                </Badge>
+              </div>
+
+              <p className="mt-4 text-xl font-black leading-tight">{getServiceName(nextAppointment)}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{getClientName(nextAppointment)}</p>
+
+              <Link href="/employee/calendar" className="mt-4 block">
+                <Button className="h-14 w-full rounded-2xl text-base font-black">
+                  {nextAppointment.status === "in_progress" ? (
+                    <CheckCircle2 className="mr-2 h-5 w-5" />
+                  ) : (
+                    <PlayCircle className="mr-2 h-5 w-5" />
+                  )}
+                  Open
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl bg-[#f7f3ed] p-5 text-center">
+              <p className="font-black text-[#181612]">No next appointment</p>
+              <p className="mt-1 text-sm text-muted-foreground">Nothing to start now.</p>
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-black text-[#181612]">Today list</h2>
             <Link href="/employee/calendar">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <Eye className="h-4 w-4" />
-                Voir tout
+              <Button variant="outline" size="sm" className="rounded-full">
+                <Calendar className="mr-2 h-4 w-4" />
+                Calendar
               </Button>
             </Link>
           </div>
-          
-          {todayStats.upcomingAppointments.length > 0 ? (
-            <div className="space-y-3">
-              {todayStats.upcomingAppointments.map((appointment: any) => {
-                // Safety checks for appointment data
-                if (!appointment?.id) return null
 
-                const clientName = `${appointment.clients?.first_name || appointment.client?.first_name || ''} ${appointment.clients?.last_name || appointment.client?.last_name || 'Client'}`.trim()
-                const serviceName = appointment.services?.name || appointment.service?.name || 'Service'
-
-                return (
-                  <div
-                    key={appointment.id}
-                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium">
-                          {formatTime(appointment.start_time)} - {formatTime(appointment.end_time)}
-                        </span>
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          appointment.status === 'confirmed'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {appointment.status === 'confirmed' ? 'Confirmé' : 'En attente'}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {clientName}
-                      </p>
-                      <p className="text-sm font-medium">
-                        {serviceName}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>Aucun rendez-vous à venir aujourd'hui</p>
-            </div>
-          )}
-        </Card>
-
-        {/* Today's Summary */}
-        <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-4">Résumé du jour</h2>
-          
-          {todayStats.todayAppointments.length > 0 ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-3 bg-primary/5 rounded-lg">
-                  <div className="text-2xl font-bold text-primary">
-                    {todayStats.totalToday}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Total rendez-vous
-                  </div>
-                </div>
-                <div className="text-center p-3 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">
-                    {todayStats.completedToday}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Terminés
-                  </div>
-                </div>
+          {todayAppointments.slice(0, 4).map((appointment) => (
+            <Link
+              key={appointment.id}
+              href="/employee/calendar"
+              className="flex items-center justify-between gap-3 rounded-2xl border border-black/5 bg-white p-3 shadow-sm"
+            >
+              <div className="min-w-0">
+                <p className="font-black tabular-nums text-[#181612]">{formatTime(appointment.start_time)}</p>
+                <p className="truncate text-sm font-semibold">{getServiceName(appointment)}</p>
+                <p className="truncate text-xs text-muted-foreground">{getClientName(appointment)}</p>
               </div>
-              
-              <div className="pt-4 border-t">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Revenus du jour</span>
-                  <span className="font-semibold text-lg">
-                    {todayStats.revenueToday.toFixed(2)}€
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>Aucun rendez-vous programmé aujourd'hui</p>
-              <p className="text-sm mt-1">Profitez de cette journée libre !</p>
-            </div>
-          )}
-        </Card>
+              <Badge className={cn("shrink-0 border px-2.5 py-1", getStatusClass(appointment.status))}>
+                {getShortStatus(appointment.status)}
+              </Badge>
+            </Link>
+          ))}
+        </section>
       </div>
     </div>
   )

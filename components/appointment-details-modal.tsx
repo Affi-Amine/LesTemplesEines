@@ -1,26 +1,18 @@
 "use client"
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { fr } from "date-fns/locale"
+import { formatInTimeZone } from "date-fns-tz"
+import { Check, Clock, MapPin, Phone, Play, User, UserX, X } from "lucide-react"
+import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { 
-  User, 
-  Phone, 
-  Mail, 
-  Clock, 
-  Calendar, 
-  MapPin, 
-  FileText
-} from "lucide-react"
-import { format } from "date-fns"
-import { fr } from "date-fns/locale"
-import { useState } from "react"
-import { useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Dialog as InlineDialog, DialogContent as InlineDialogContent, DialogHeader as InlineDialogHeader, DialogTitle as InlineDialogTitle } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
+
+type AppointmentStatus = "confirmed" | "pending" | "in_progress" | "completed" | "cancelled" | "no_show" | "blocked"
 
 interface AppointmentDetailsModalProps {
   isOpen: boolean
@@ -29,331 +21,294 @@ interface AppointmentDetailsModalProps {
     id: string
     start_time: string
     end_time: string
-    status: string
-    notes?: string
-    client_notes?: string
-    clients: {
-      id: string
-      first_name: string
-      last_name: string
-      phone: string
-      email: string
-    }
-    services: {
-      id: string
-      name: string
-      duration_minutes: number
-      price_cents: number
-      category?: string
-      description?: string
-    }
-    salons: {
-      id: string
-      name: string
-      city: string
-      address: string
-    }
+    status: AppointmentStatus
+    notes?: string | null
+    client_notes?: string | null
+    client?: {
+      first_name?: string | null
+      last_name?: string | null
+      phone?: string | null
+      email?: string | null
+    } | null
+    service?: {
+      name?: string | null
+      duration_minutes?: number | null
+      price_cents?: number | null
+    } | null
+    salon?: {
+      name?: string | null
+      city?: string | null
+      address?: string | null
+    } | null
+    clients?: {
+      first_name?: string | null
+      last_name?: string | null
+      phone?: string | null
+      email?: string | null
+    } | null
+    services?: {
+      name?: string | null
+      duration_minutes?: number | null
+      price_cents?: number | null
+    } | null
+    salons?: {
+      name?: string | null
+      city?: string | null
+      address?: string | null
+    } | null
   } | null
 }
 
-export function AppointmentDetailsModal({ 
-  isOpen, 
-  onClose, 
-  appointment 
+const TIMEZONE = "Europe/Paris"
+
+function getStatusText(status: AppointmentStatus) {
+  switch (status) {
+    case "in_progress":
+      return "NOW"
+    case "completed":
+      return "DONE"
+    case "cancelled":
+      return "CANCEL"
+    case "no_show":
+      return "ABSENT"
+    case "pending":
+      return "WAIT"
+    default:
+      return "OK"
+  }
+}
+
+function getStatusClass(status: AppointmentStatus) {
+  switch (status) {
+    case "in_progress":
+      return "border-amber-200 bg-amber-100 text-amber-900"
+    case "completed":
+      return "border-emerald-200 bg-emerald-100 text-emerald-900"
+    case "cancelled":
+      return "border-rose-200 bg-rose-100 text-rose-900"
+    case "no_show":
+      return "border-orange-200 bg-orange-100 text-orange-900"
+    case "pending":
+      return "border-slate-200 bg-slate-100 text-slate-700"
+    default:
+      return "border-sky-200 bg-sky-100 text-sky-900"
+  }
+}
+
+export function AppointmentDetailsModal({
+  isOpen,
+  onClose,
+  appointment,
 }: AppointmentDetailsModalProps) {
-  if (!appointment) return null
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "confirmed":
-        return "bg-green-100 text-green-800 border-green-200"
-      case "pending":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "cancelled":
-        return "bg-red-100 text-red-800 border-red-200"
-      case "in_progress":
-        return "bg-blue-100 text-blue-800 border-blue-200"
-      case "completed":
-        return "bg-indigo-100 text-indigo-800 border-indigo-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
-    }
-  }
-
-  const formatTime = (dateTime: string) => {
-    return format(new Date(dateTime), "HH:mm")
-  }
-
-  const formatDate = (dateTime: string) => {
-    return format(new Date(dateTime), "EEEE d MMMM yyyy", { locale: fr })
-  }
-
-  const formatDuration = (minutes: number) => {
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    if (hours > 0) {
-      return `${hours}h ${mins > 0 ? `${mins} min` : ""}`
-    }
-    return `${mins} min`
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "confirmed":
-        return "Confirmé"
-      case "pending":
-        return "En attente"
-      case "cancelled":
-        return "Annulé"
-      case "in_progress":
-        return "En cours"
-      case "completed":
-        return "Terminé"
-      case "no_show":
-        return "Absence"
-      default:
-        return status
-    }
-  }
-
   const queryClient = useQueryClient()
-  const [saving, setSaving] = useState(false)
-  const [cancelOpen, setCancelOpen] = useState(false)
-  const [cancelReason, setCancelReason] = useState("")
-  const [cancelSaving, setCancelSaving] = useState(false)
+  const [savingStatus, setSavingStatus] = useState<AppointmentStatus | null>(null)
+  const [absentOpen, setAbsentOpen] = useState(false)
+  const [absentNote, setAbsentNote] = useState("")
 
-  const updateStatus = async (nextStatus: "in_progress" | "completed") => {
+  const normalized = useMemo(() => {
+    if (!appointment) return null
+
+    return {
+      client: appointment.client || appointment.clients,
+      service: appointment.service || appointment.services,
+      salon: appointment.salon || appointment.salons,
+      notes: appointment.client_notes || appointment.notes || "",
+    }
+  }, [appointment])
+
+  if (!appointment || !normalized) return null
+
+  const clientName = `${normalized.client?.first_name || ""} ${normalized.client?.last_name || "Client"}`.trim()
+  const start = formatInTimeZone(appointment.start_time, TIMEZONE, "HH:mm")
+  const end = formatInTimeZone(appointment.end_time, TIMEZONE, "HH:mm")
+  const date = formatInTimeZone(appointment.start_time, TIMEZONE, "EEE d MMM", { locale: fr })
+
+  const updateStatus = async (nextStatus: "in_progress" | "completed" | "no_show", note?: string) => {
     try {
-      setSaving(true)
-      const res = await fetch(`/api/appointments/${appointment.id}`, {
+      setSavingStatus(nextStatus)
+      const response = await fetch(`/api/appointments/${appointment.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus }),
+        body: JSON.stringify({
+          status: nextStatus,
+          ...(note ? { internal_notes: note } : {}),
+        }),
       })
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data?.error || "Impossible de mettre à jour le statut")
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Update failed")
       }
-      toast.success(
-        nextStatus === "in_progress" ? "Le massage a commencé" : "Le massage est terminé",
-        { description: `Statut mis à jour: ${getStatusLabel(data.status || nextStatus)}` }
-      )
-      // Rafraîchir la liste des rendez-vous de l'employé
+
+      const message =
+        nextStatus === "in_progress"
+          ? "Started"
+          : nextStatus === "completed"
+            ? "Done"
+            : "Marked absent"
+
+      toast.success(message)
       await queryClient.invalidateQueries({ queryKey: ["staff-appointments"] })
+      await queryClient.invalidateQueries({ queryKey: ["appointments"] })
+      setAbsentOpen(false)
+      setAbsentNote("")
       onClose()
-    } catch (e: any) {
-      toast.error("Échec de la mise à jour", { description: e.message })
+    } catch (error: any) {
+      toast.error("Update failed", {
+        description: error.message || "Try again",
+      })
     } finally {
-      setSaving(false)
+      setSavingStatus(null)
     }
   }
 
-  const cancelAppointment = async () => {
-    if (!cancelReason.trim()) {
-      toast.error("Veuillez préciser une raison d'annulation")
-      return
-    }
-    try {
-      setCancelSaving(true)
-      const res = await fetch(`/api/appointments/${appointment.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "cancelled", internal_notes: cancelReason.trim() }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data?.error || "Impossible d'annuler le rendez-vous")
-      }
-      toast.success("Rendez-vous annulé", { description: "La raison a été enregistrée" })
-      await queryClient.invalidateQueries({ queryKey: ["staff-appointments"] })
-      setCancelOpen(false)
-      onClose()
-    } catch (e: any) {
-      toast.error("Échec de l'annulation", { description: e.message })
-    } finally {
-      setCancelSaving(false)
-    }
-  }
+  const canStart = appointment.status === "confirmed" || appointment.status === "pending"
+  const canFinish = appointment.status === "in_progress"
+  const canMarkAbsent = !["completed", "cancelled", "no_show", "blocked"].includes(appointment.status)
 
   return (
-    <>
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Détails du rendez-vous</span>
-            <Badge className={getStatusColor(appointment.status)}>
-              {getStatusLabel(appointment.status)}
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <DialogContent className="top-auto bottom-0 max-h-[92svh] max-w-full translate-y-0 rounded-b-none rounded-t-[1.5rem] border-0 p-0 shadow-2xl sm:top-[50%] sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-[1.5rem]">
+        <DialogHeader className="border-b px-4 pb-3 pt-5 text-left">
+          <DialogTitle className="flex items-center justify-between gap-3 pr-8">
+            <span className="text-xl font-black">Appointment</span>
+            <Badge className={cn("border px-2.5 py-1", getStatusClass(appointment.status))}>
+              {getStatusText(appointment.status)}
             </Badge>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Date & Time */}
-          <div className="space-y-3">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Date & Heure
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-600">Date :</span>
-                <p className="font-medium">{formatDate(appointment.start_time)}</p>
-              </div>
-              <div>
-                <span className="text-gray-600">Heure :</span>
-                <p className="font-medium">
-                  {formatTime(appointment.start_time)} - {formatTime(appointment.end_time)}
+        <div className="max-h-[calc(92svh-5rem)] overflow-y-auto px-4 pb-5 pt-4">
+          <div className="rounded-2xl bg-[#181612] p-4 text-white">
+            <p className="text-sm uppercase tracking-wide text-white/50">{date}</p>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <p className="text-4xl font-black tabular-nums">{start}</p>
+              <p className="pb-1 text-sm font-bold text-white/65">{start} - {end}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            <div className="rounded-2xl border bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Massage</p>
+              <p className="mt-1 text-xl font-black leading-tight">{normalized.service?.name || "Service"}</p>
+              {normalized.service?.duration_minutes ? (
+                <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                  <Clock className="h-4 w-4" />
+                  {normalized.service.duration_minutes} min
                 </p>
-              </div>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Client Information */}
-          <div className="space-y-3">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Informations du client
-            </h3>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-gray-500" />
-                <span className="font-medium">
-                  {appointment.clients?.first_name || ''} {appointment.clients?.last_name || 'Client'}
-                </span>
-              </div>
-              {appointment.clients?.phone && (
-                <div className="flex items-center gap-2 break-words">
-                  <Phone className="h-4 w-4 text-gray-500" />
-                  <span>{appointment.clients.phone}</span>
-                </div>
-              )}
-              {appointment.clients?.email && (
-                <div className="flex items-center gap-2 break-words">
-                  <Mail className="h-4 w-4 text-gray-500" />
-                  <span>{appointment.clients.email}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Service Information */}
-          <div className="space-y-3">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Détails du service
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-600">Service :</span>
-                <p className="font-medium">{appointment.services?.name || 'Service'}</p>
-              </div>
-              {appointment.services?.duration_minutes && (
-                <div>
-                  <span className="text-gray-600">Durée :</span>
-                  <p className="font-medium">{formatDuration(appointment.services.duration_minutes)}</p>
-                </div>
-              )}
-              {appointment.services?.price_cents !== undefined && (
-                <div>
-                  <span className="text-gray-600">Prix :</span>
-                  <p className="font-medium">€{(appointment.services.price_cents / 100).toFixed(2)}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Location */}
-          <div className="space-y-3">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Lieu
-            </h3>
-            <div className="text-sm break-words">
-              <p className="font-medium">{appointment.salons?.name || 'Salon'}</p>
-              {appointment.salons?.address && (
-                <p className="text-gray-600 break-words">{appointment.salons.address}</p>
-              )}
-              {appointment.salons?.city && (
-                <p className="text-gray-600 break-words">{appointment.salons.city}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Notes */}
-          {(appointment.client_notes || appointment.notes) && (
-            <>
-              <Separator />
-              <div className="space-y-3">
-                <h3 className="font-semibold text-lg flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Notes
-                </h3>
-                <div className="bg-gray-50 p-3 rounded-lg text-sm">
-                  {appointment.client_notes || appointment.notes}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Actions */}
-          <div className="flex flex-col sm:flex-row sm:justify-between gap-3 pt-4">
-            <div className="flex gap-2 w-full sm:w-auto">
-              {appointment.status === "confirmed" || appointment.status === "pending" ? (
-                <Button className="w-full sm:w-auto" onClick={() => updateStatus("in_progress")} disabled={saving}>
-                  Commencer le massage
-                </Button>
-              ) : null}
-              {appointment.status === "in_progress" ? (
-                <Button className="w-full sm:w-auto" variant="default" onClick={() => updateStatus("completed")} disabled={saving}>
-                  Terminer le massage
-                </Button>
               ) : null}
             </div>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <Button className="w-full sm:w-auto" variant="destructive" onClick={() => setCancelOpen(true)}>
-                Annuler rendez vous
+
+            <div className="rounded-2xl border bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Client</p>
+              <p className="mt-1 flex items-center gap-2 text-lg font-bold">
+                <User className="h-5 w-5" />
+                {clientName}
+              </p>
+              {normalized.client?.phone ? (
+                <a
+                  href={`tel:${normalized.client.phone}`}
+                  className="mt-3 flex h-12 items-center justify-center gap-2 rounded-xl bg-[#f7f3ed] text-base font-black text-[#181612]"
+                >
+                  <Phone className="h-5 w-5" />
+                  Call
+                </a>
+              ) : null}
+            </div>
+
+            <div className="rounded-2xl border bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Place</p>
+              <p className="mt-1 flex items-center gap-2 text-base font-bold">
+                <MapPin className="h-5 w-5" />
+                {normalized.salon?.name || "Salon"}
+              </p>
+              {normalized.salon?.address ? (
+                <p className="mt-1 text-sm text-muted-foreground">{normalized.salon.address}</p>
+              ) : null}
+            </div>
+
+            {normalized.notes ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-900/70">Note</p>
+                <p className="mt-1 text-base font-semibold leading-6 text-amber-950">{normalized.notes}</p>
+              </div>
+            ) : null}
+          </div>
+
+          {absentOpen ? (
+            <div className="mt-4 rounded-2xl border border-orange-200 bg-orange-50 p-4">
+              <p className="font-black text-orange-950">Absent?</p>
+              <Textarea
+                value={absentNote}
+                onChange={(event) => setAbsentNote(event.target.value)}
+                placeholder="Optional note"
+                className="mt-3 min-h-20 bg-white"
+              />
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Button variant="outline" onClick={() => setAbsentOpen(false)} disabled={Boolean(savingStatus)}>
+                  Back
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => updateStatus("no_show", absentNote.trim() || "Client absent")}
+                  disabled={Boolean(savingStatus)}
+                >
+                  Confirm
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="sticky bottom-0 mt-5 grid gap-2 bg-background pt-2">
+              {canStart ? (
+                <Button
+                  size="lg"
+                  className="h-14 rounded-2xl text-base font-black"
+                  onClick={() => updateStatus("in_progress")}
+                  disabled={Boolean(savingStatus)}
+                >
+                  <Play className="mr-2 h-5 w-5" />
+                  START
+                </Button>
+              ) : null}
+
+              {canFinish ? (
+                <Button
+                  size="lg"
+                  className="h-14 rounded-2xl bg-emerald-700 text-base font-black hover:bg-emerald-800"
+                  onClick={() => updateStatus("completed")}
+                  disabled={Boolean(savingStatus)}
+                >
+                  <Check className="mr-2 h-5 w-5" />
+                  DONE
+                </Button>
+              ) : null}
+
+              {canMarkAbsent ? (
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="h-12 rounded-2xl border-orange-200 text-base font-black text-orange-900"
+                  onClick={() => setAbsentOpen(true)}
+                  disabled={Boolean(savingStatus)}
+                >
+                  <UserX className="mr-2 h-5 w-5" />
+                  ABSENT
+                </Button>
+              ) : null}
+
+              <Button size="lg" variant="ghost" className="h-11 rounded-2xl" onClick={onClose}>
+                <X className="mr-2 h-4 w-4" />
+                Close
               </Button>
             </div>
-          </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
-
-    {/* Cancel Reason Popup */}
-    <InlineDialog open={cancelOpen} onOpenChange={setCancelOpen}>
-      <InlineDialogContent className="max-w-lg">
-        <InlineDialogHeader>
-          <InlineDialogTitle>Annuler le rendez-vous</InlineDialogTitle>
-        </InlineDialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="cancel-reason">Raison de l'annulation</Label>
-            <Textarea
-              id="cancel-reason"
-              placeholder="Exemples: Le client ne s'est pas présenté, malade, demande d'annulation, autre..."
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-              rows={4}
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={cancelSaving}>
-              Retour
-            </Button>
-            <Button variant="destructive" onClick={cancelAppointment} disabled={cancelSaving || !cancelReason.trim()}>
-              Confirmer l'annulation
-            </Button>
-          </div>
-        </div>
-      </InlineDialogContent>
-    </InlineDialog>
-    </>
   )
 }

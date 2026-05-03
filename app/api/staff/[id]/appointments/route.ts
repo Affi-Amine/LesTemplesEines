@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
+import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { fromZonedTime } from "date-fns-tz"
 
@@ -7,26 +8,27 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log("=== Staff Appointments API Called ===")
+    const auth = requireStaffAuth(request, ["admin", "manager", "receptionist", "assistant", "therapist"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const { id: staffId } = await params
-    console.log("Staff ID:", staffId)
+    const canViewOtherStaff = ["admin", "manager", "receptionist"].includes(auth.payload.role)
+
+    if (!canViewOtherStaff && auth.payload.staffId !== staffId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
     
     const startDate = request.nextUrl.searchParams.get("start_date")
     const endDate = request.nextUrl.searchParams.get("end_date")
     const status = request.nextUrl.searchParams.get("status")
-    
-    console.log("Filters:", { startDate, endDate, status })
 
     if (!staffId) {
-      console.log("ERROR: No staff ID provided")
       return NextResponse.json({ error: "Staff ID is required" }, { status: 400 })
     }
 
-    console.log("Creating Supabase admin client...")
-    const supabase = createAdminClient()
-    console.log("Admin client created successfully")
-
-    console.log("Building query...")
+    const supabase = await createAdminClient()
     
     // 1. Get appointments where staff is primary
     const { data: primaryApts, error: primaryError } = await supabase
@@ -104,12 +106,9 @@ export async function GET(
     // Sort again
     filteredApts.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
 
-    console.log("Query successful! Found", filteredApts.length, "appointments")
-    
     return NextResponse.json(filteredApts)
   } catch (error) {
-    console.error("Catch block error:", error)
-    console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace')
+    console.error("[staff:appointments] error:", error)
     return NextResponse.json({ error: "Internal server error", details: error instanceof Error ? error.message : String(error) }, { status: 500 })
   }
 }

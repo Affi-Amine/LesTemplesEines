@@ -114,7 +114,7 @@ export async function validateBookableAppointment(
 ) {
   const { endTime, service } = await validateAppointmentScheduling(supabase, input)
 
-  const allStaffIds = input.staff_ids || (input.staff_id ? [input.staff_id] : [])
+  const allStaffIds = Array.from(new Set(input.staff_ids || (input.staff_id ? [input.staff_id] : [])))
 
   return { endTime, service, allStaffIds }
 }
@@ -144,7 +144,17 @@ export async function validateAppointmentScheduling(
     throw new Error("Ce service n'est pas disponible dans le salon selectionne")
   }
 
-  const allStaffIds = input.staff_ids || (input.staff_id ? [input.staff_id] : [])
+  const allStaffIds = Array.from(new Set(input.staff_ids || (input.staff_id ? [input.staff_id] : [])))
+  const requiredStaffCount = service.required_staff_count || 1
+
+  if (allStaffIds.length !== requiredStaffCount) {
+    throw new Error(
+      requiredStaffCount === 1
+        ? "Cette prestation necessite exactement 1 praticien"
+        : `Cette prestation necessite exactement ${requiredStaffCount} praticiens`
+    )
+  }
+
   await assertStaffCanProvideService(supabase, allStaffIds, input.service_id)
 
   for (const staffId of allStaffIds) {

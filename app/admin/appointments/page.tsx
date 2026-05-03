@@ -91,6 +91,21 @@ export default function AppointmentsPage() {
   // Hooks for Edit Form
   const { data: editServices } = useServices(editForm.salon_id || undefined)
   const { data: editStaff } = useStaff(editForm.salon_id || undefined)
+  const selectedService = services?.find((service) => service.id === form.service_id)
+  const selectedServiceRequiredStaffCount = selectedService?.required_staff_count || 1
+  const editSelectedService = editServices?.find((service) => service.id === editForm.service_id)
+  const editSelectedServiceRequiredStaffCount = editSelectedService?.required_staff_count || Math.max(editForm.staff_ids.length, 1)
+  const staffCanProvideSelectedService = (member: { allowed_service_ids?: string[] }, serviceId: string, allStaff = staff || []) => {
+    const hasExplicitAssignments = allStaff.some((employee) => (employee.allowed_service_ids || []).includes(serviceId))
+
+    return !hasExplicitAssignments || (member.allowed_service_ids || []).includes(serviceId)
+  }
+  const availableStaff = (staff || []).filter((member) =>
+    !form.service_id || staffCanProvideSelectedService(member, form.service_id)
+  )
+  const availableEditStaff = (editStaff || []).filter((member) =>
+    !editForm.service_id || staffCanProvideSelectedService(member, editForm.service_id, editStaff || [])
+  )
 
   const createAppointment = useCreateAppointment()
 
@@ -121,7 +136,7 @@ export default function AppointmentsPage() {
   }
 
   const handleAddStaff = (staffId: string) => {
-    if (!form.staff_ids.includes(staffId)) {
+    if (!form.staff_ids.includes(staffId) && form.staff_ids.length < selectedServiceRequiredStaffCount) {
       setForm({ ...form, staff_ids: [...form.staff_ids, staffId] })
     }
   }
@@ -132,7 +147,7 @@ export default function AppointmentsPage() {
 
   // Edit Form Staff Handlers
   const handleEditAddStaff = (staffId: string) => {
-    if (!editForm.staff_ids.includes(staffId)) {
+    if (!editForm.staff_ids.includes(staffId) && editForm.staff_ids.length < editSelectedServiceRequiredStaffCount) {
       setEditForm({ ...editForm, staff_ids: [...editForm.staff_ids, staffId] })
     }
   }
@@ -171,9 +186,17 @@ export default function AppointmentsPage() {
   }
 
   const handleSave = async () => {
-    if (!form.salon_id || !form.service_id || (form.staff_ids.length === 0 && !form.staff_id) || !form.date || !form.time || !form.first_name || !form.last_name || !form.phone) {
+    if (!form.salon_id || !form.service_id || !form.date || !form.time || !form.first_name || !form.last_name || !form.phone) {
       toast.error("Champs manquants", {
         description: "Veuillez remplir tous les champs obligatoires",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+      return
+    }
+
+    if (form.staff_ids.length !== selectedServiceRequiredStaffCount) {
+      toast.error("Thérapeutes incomplets", {
+        description: `Cette prestation nécessite ${selectedServiceRequiredStaffCount} thérapeute${selectedServiceRequiredStaffCount > 1 ? "s" : ""}.`,
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
       })
       return
@@ -267,6 +290,14 @@ export default function AppointmentsPage() {
 
   const handleSaveEdit = async () => {
     if (!selectedAppointment) return
+
+    if (editForm.staff_ids.length !== editSelectedServiceRequiredStaffCount) {
+      toast.error("Thérapeutes incomplets", {
+        description: `Cette prestation nécessite ${editSelectedServiceRequiredStaffCount} thérapeute${editSelectedServiceRequiredStaffCount > 1 ? "s" : ""}.`,
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+      return
+    }
 
     try {
       // Construct start_time from date and time
@@ -368,7 +399,7 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="salon">Salon</Label>
-                  <Select value={form.salon_id} onValueChange={(value) => setForm({ ...form, salon_id: value, service_id: "", staff_id: "" })}>
+                  <Select value={form.salon_id} onValueChange={(value) => setForm({ ...form, salon_id: value, service_id: "", staff_id: "", staff_ids: [] })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Sélectionner un salon" />
                     </SelectTrigger>
@@ -383,7 +414,7 @@ export default function AppointmentsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="service">Service</Label>
-                  <Select value={form.service_id} onValueChange={(value) => setForm({ ...form, service_id: value })} disabled={!form.salon_id}>
+                  <Select value={form.service_id} onValueChange={(value) => setForm({ ...form, service_id: value, staff_id: "", staff_ids: [] })} disabled={!form.salon_id}>
                     <SelectTrigger>
                       <SelectValue placeholder="Sélectionner un service" />
                     </SelectTrigger>
@@ -398,19 +429,26 @@ export default function AppointmentsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="therapist">Thérapeutes</Label>
-                <Select onValueChange={handleAddStaff} disabled={!form.salon_id}>
+                <Label htmlFor="therapist">
+                  Thérapeutes ({form.staff_ids.length}/{selectedServiceRequiredStaffCount})
+                </Label>
+                <Select onValueChange={handleAddStaff} disabled={!form.salon_id || !form.service_id || form.staff_ids.length >= selectedServiceRequiredStaffCount}>
                   <SelectTrigger>
                     <SelectValue placeholder="Ajouter un thérapeute" />
                   </SelectTrigger>
                   <SelectContent>
-                    {staff?.filter(m => !form.staff_ids.includes(m.id)).map((member) => (
+                    {availableStaff.filter(m => !form.staff_ids.includes(m.id)).map((member) => (
                       <SelectItem key={member.id} value={member.id}>
                         {member.first_name} {member.last_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {form.service_id ? (
+                  <p className="text-xs text-muted-foreground">
+                    Cette prestation nécessite {selectedServiceRequiredStaffCount} thérapeute{selectedServiceRequiredStaffCount > 1 ? "s" : ""}.
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2 mt-2">
                   {form.staff_ids.map(id => {
                     const member = staff?.find(s => s.id === id)
@@ -654,7 +692,7 @@ export default function AppointmentsPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-service">Service</Label>
-                    <Select value={editForm.service_id} onValueChange={(value) => setEditForm({ ...editForm, service_id: value })} disabled={!editForm.salon_id}>
+                    <Select value={editForm.service_id} onValueChange={(value) => setEditForm({ ...editForm, service_id: value, staff_ids: [] })} disabled={!editForm.salon_id}>
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionner un service" />
                       </SelectTrigger>
@@ -670,19 +708,26 @@ export default function AppointmentsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit-therapist">Thérapeutes</Label>
-                  <Select onValueChange={handleEditAddStaff} disabled={!editForm.salon_id}>
+                  <Label htmlFor="edit-therapist">
+                    Thérapeutes ({editForm.staff_ids.length}/{editSelectedServiceRequiredStaffCount})
+                  </Label>
+                  <Select onValueChange={handleEditAddStaff} disabled={!editForm.salon_id || !editForm.service_id || editForm.staff_ids.length >= editSelectedServiceRequiredStaffCount}>
                     <SelectTrigger>
                       <SelectValue placeholder="Ajouter un thérapeute" />
                     </SelectTrigger>
                     <SelectContent>
-                      {editStaff?.filter(m => !editForm.staff_ids.includes(m.id)).map((member) => (
+                      {availableEditStaff.filter(m => !editForm.staff_ids.includes(m.id)).map((member) => (
                         <SelectItem key={member.id} value={member.id}>
                           {member.first_name} {member.last_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {editForm.service_id ? (
+                    <p className="text-xs text-muted-foreground">
+                      Cette prestation nécessite {editSelectedServiceRequiredStaffCount} thérapeute{editSelectedServiceRequiredStaffCount > 1 ? "s" : ""}.
+                    </p>
+                  ) : null}
                   <div className="flex flex-wrap gap-2 mt-2">
                     {editForm.staff_ids.map(id => {
                       const member = editStaff?.find(s => s.id === id)

@@ -14,8 +14,21 @@ export class APIError extends Error {
   }
 }
 
+function resolveAPIUrl(endpoint: string) {
+  if (endpoint.startsWith("http")) {
+    return endpoint
+  }
+
+  const path = `/api${endpoint}`
+  if (typeof window !== "undefined") {
+    return new URL(path, window.location.origin).toString()
+  }
+
+  return path
+}
+
 export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const url = endpoint.startsWith("http") ? endpoint : `/api${endpoint}`
+  const url = resolveAPIUrl(endpoint)
   const startedAt = performance.now()
 
   const response = await fetch(url, {
@@ -41,7 +54,7 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Prom
 }
 
 export async function fetchAPIWithoutJSON(endpoint: string, options?: RequestInit): Promise<Response> {
-  const url = endpoint.startsWith("http") ? endpoint : `/api${endpoint}`
+  const url = resolveAPIUrl(endpoint)
   const startedAt = performance.now()
 
   const response = await fetch(url, {

@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useServices } from "@/lib/hooks/use-services"
 import { useSalons } from "@/lib/hooks/use-salons"
-import { Plus, Edit, Trash2, Clock, Tags, Search, ListFilter } from "lucide-react"
+import { Plus, Edit, Clock, Tags, Search, ListFilter, Power, RotateCcw, CheckCircle2, XCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { useMemo, useState } from "react"
@@ -36,11 +36,12 @@ import { useRoleProtection } from "@/lib/hooks/use-role-protection"
 export default function ServicesPage() {
   const isAuthorized = useRoleProtection(["admin", "manager"])
   const { t } = useTranslations()
-  const { data: services, isLoading, refetch } = useServices(undefined, true)
+  const { data: services, isLoading, refetch } = useServices(undefined, true, true)
   const { data: salons } = useSalons()
   const [selectedSalonId, setSelectedSalonId] = useState("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([])
   const [bulkCategory, setBulkCategory] = useState("")
   const [isBulkSaving, setIsBulkSaving] = useState(false)
@@ -56,7 +57,12 @@ export default function ServicesPage() {
   const salonFilteredServices = selectedSalonId === "all"
     ? services
     : services?.filter(service => (service.salon_ids?.length ? service.salon_ids : (service.salon_id ? [service.salon_id] : [])).includes(selectedSalonId))
-  const filteredServices = salonFilteredServices?.filter((service) => {
+  const statusFilteredServices = salonFilteredServices?.filter((service) => {
+    if (statusFilter === "active") return service.is_active
+    if (statusFilter === "inactive") return !service.is_active
+    return true
+  })
+  const filteredServices = statusFilteredServices?.filter((service) => {
     const query = searchTerm.trim().toLocaleLowerCase("fr-FR")
     if (!query) return true
 
@@ -67,6 +73,21 @@ export default function ServicesPage() {
       getSalonNames(service),
     ].some((value) => value.toLocaleLowerCase("fr-FR").includes(query))
   })
+  const serviceCounts = useMemo(() => {
+    const items = salonFilteredServices || []
+
+    return {
+      all: items.length,
+      active: items.filter((service) => service.is_active).length,
+      inactive: items.filter((service) => !service.is_active).length,
+    }
+  }, [salonFilteredServices])
+  const selectedServices = useMemo(
+    () => (services || []).filter((service) => selectedServiceIds.includes(service.id)),
+    [services, selectedServiceIds]
+  )
+  const selectedActiveCount = selectedServices.filter((service) => service.is_active).length
+  const selectedInactiveCount = selectedServices.length - selectedActiveCount
   const serviceCategories = useMemo(() => {
     const categories = new Map<string, string>()
 
@@ -204,27 +225,66 @@ export default function ServicesPage() {
     }
   }
 
-  const handleDelete = async (service: Service) => {
-    if (!confirm(`Êtes-vous sûr de vouloir désactiver ${service.name} ?`)) return
-
+  const updateServiceStatus = async (service: Service, isActive: boolean) => {
     try {
       const response = await fetch(`/api/services/${service.id}`, {
-        method: "DELETE",
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: isActive }),
       })
 
-      if (!response.ok) throw new Error("Échec de la suppression")
+      if (!response.ok) throw new Error("Échec de la mise à jour")
 
-      toast.success("Service désactivé", {
-        description: `${service.name} a été désactivé`,
+      toast.success(isActive ? "Prestation réactivée" : "Prestation désactivée", {
+        description: `${service.name} est maintenant ${isActive ? "active" : "désactivée"}.`,
         icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
       })
 
       refetch()
     } catch (error) {
       toast.error("Erreur", {
-        description: "Impossible de désactiver le service",
+        description: "Impossible de modifier le statut de la prestation",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
       })
+    }
+  }
+
+  const handleBulkStatusUpdate = async (isActive: boolean) => {
+    if (selectedServiceIds.length === 0) {
+      toast.error("Aucune prestation sélectionnée")
+      return
+    }
+
+    setIsBulkSaving(true)
+    try {
+      await Promise.all(
+        selectedServiceIds.map((serviceId) =>
+          fetch(`/api/services/${serviceId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ is_active: isActive }),
+          }).then(async (response) => {
+            if (!response.ok) {
+              const error = await response.json().catch(() => ({}))
+              throw new Error(error.error || "Échec de la mise à jour")
+            }
+          })
+        )
+      )
+
+      toast.success(isActive ? "Prestations réactivées" : "Prestations désactivées", {
+        description: `${selectedServiceIds.length} prestation${selectedServiceIds.length > 1 ? "s" : ""} mise${selectedServiceIds.length > 1 ? "s" : ""} à jour.`,
+        icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
+      })
+      setSelectedServiceIds([])
+      refetch()
+    } catch (error: any) {
+      toast.error("Erreur", {
+        description: error.message || "Impossible de modifier les prestations",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+    } finally {
+      setIsBulkSaving(false)
     }
   }
 
@@ -296,23 +356,58 @@ export default function ServicesPage() {
       <AdminHeader title="Gestion des services" description="Gérez les prestations de vos salons" />
 
       <div className="p-6 space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="rounded-2xl border bg-card p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-2xl font-bold">Prestations</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Vue dense pour gérer les prix, durées, salons et catégories sans ouvrir chaque fiche.
+            <h2 className="text-2xl font-bold tracking-tight">Prestations</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Tous les services sont visibles ici, même désactivés. Sélectionnez plusieurs lignes pour gérer les catégories ou les statuts en masse.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <SalonFilter selectedSalonId={selectedSalonId} onSelectSalon={setSelectedSalonId} />
-            <Button onClick={handleCreate} className="gap-2 cursor-pointer">
+            <Button onClick={handleCreate} className="gap-2 cursor-pointer bg-[#123f38] hover:bg-[#0b302a]">
               <Plus className="w-4 h-4" />
-              Nouveau service
+              Nouvelle prestation
             </Button>
+          </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className={`rounded-xl border p-3 text-left transition ${statusFilter === "all" ? "border-[#123f38] bg-[#eef8f4]" : "bg-background hover:bg-muted/40"}`}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total</p>
+              <p className="mt-1 text-2xl font-bold">{serviceCounts.all}</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("active")}
+              className={`rounded-xl border p-3 text-left transition ${statusFilter === "active" ? "border-[#0e7f63] bg-[#e8f8ef]" : "bg-background hover:bg-muted/40"}`}
+            >
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#0b4936]">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Actives
+              </p>
+              <p className="mt-1 text-2xl font-bold">{serviceCounts.active}</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("inactive")}
+              className={`rounded-xl border p-3 text-left transition ${statusFilter === "inactive" ? "border-[#d99a65] bg-[#fff3e8]" : "bg-background hover:bg-muted/40"}`}
+            >
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#8b3f12]">
+                <XCircle className="h-3.5 w-3.5" />
+                Désactivées
+              </p>
+              <p className="mt-1 text-2xl font-bold">{serviceCounts.inactive}</p>
+            </button>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 rounded-2xl border bg-card p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <div className="relative max-w-xl flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -328,6 +423,42 @@ export default function ServicesPage() {
           </div>
         </div>
 
+        {selectedServiceIds.length > 0 ? (
+          <div className="sticky top-3 z-20 flex flex-col gap-3 rounded-2xl border border-[#123f38]/20 bg-[#f6f7f2]/95 p-3 shadow-lg backdrop-blur lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="font-semibold text-[#102d28]">
+                {selectedServiceIds.length} prestation{selectedServiceIds.length > 1 ? "s" : ""} sélectionnée{selectedServiceIds.length > 1 ? "s" : ""}
+              </p>
+              <p className="text-sm text-[#53615b]">
+                {selectedActiveCount} active{selectedActiveCount > 1 ? "s" : ""}, {selectedInactiveCount} désactivée{selectedInactiveCount > 1 ? "s" : ""}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                className="border-[#b7d8cd] bg-white text-[#0f4c43]"
+                onClick={() => handleBulkStatusUpdate(true)}
+                disabled={isBulkSaving || selectedInactiveCount === 0}
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Réactiver
+              </Button>
+              <Button
+                variant="outline"
+                className="border-[#d99a65] bg-white text-[#8b3f12]"
+                onClick={() => handleBulkStatusUpdate(false)}
+                disabled={isBulkSaving || selectedActiveCount === 0}
+              >
+                <Power className="mr-2 h-4 w-4" />
+                Désactiver
+              </Button>
+              <Button variant="ghost" onClick={() => setSelectedServiceIds([])}>
+                Vider
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {isLoading ? (
           <div className="space-y-2 rounded-lg border bg-card p-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -342,10 +473,10 @@ export default function ServicesPage() {
             </TabsList>
 
             <TabsContent value="list">
-              <div className="overflow-x-auto rounded-lg border bg-card">
-                <div className="grid grid-cols-[44px_minmax(260px,1.5fr)_140px_110px_140px_190px_96px] items-center border-b bg-muted/50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="overflow-x-auto rounded-2xl border bg-card shadow-sm">
+                <div className="grid grid-cols-[44px_minmax(280px,1.5fr)_150px_110px_130px_190px_116px] items-center border-b bg-[#f6f7f2] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <Checkbox
-                    checked={Boolean(filteredServices?.length && selectedServiceIds.length === filteredServices.length)}
+                    checked={Boolean(filteredServices?.length && filteredServices.every((service) => selectedServiceIds.includes(service.id)))}
                     onCheckedChange={(checked) => toggleAllFilteredServices(checked === true)}
                   />
                   <span>Prestation</span>
@@ -359,7 +490,7 @@ export default function ServicesPage() {
                   {filteredServices?.map((service: Service) => (
                     <div
                       key={service.id}
-                      className="grid grid-cols-[44px_minmax(260px,1.5fr)_140px_110px_140px_190px_96px] items-center px-3 py-3 text-sm transition-colors hover:bg-muted/35"
+                      className={`grid grid-cols-[44px_minmax(280px,1.5fr)_150px_110px_130px_190px_116px] items-center px-3 py-3 text-sm transition-colors hover:bg-muted/35 ${service.is_active ? "" : "bg-[#fff8f2] text-muted-foreground"}`}
                     >
                       <Checkbox
                         checked={selectedServiceIds.includes(service.id)}
@@ -368,7 +499,10 @@ export default function ServicesPage() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="truncate font-semibold">{service.name}</p>
-                          <Badge variant={service.is_active ? "default" : "secondary"} className="shrink-0">
+                          <Badge
+                            variant="outline"
+                            className={`shrink-0 ${service.is_active ? "border-[#75c7a1] bg-[#e8f8ef] text-[#0b4936]" : "border-[#d99a65] bg-[#fff3e8] text-[#8b3f12]"}`}
+                          >
                             {service.is_active ? "Actif" : "Inactif"}
                           </Badge>
                           {service.required_staff_count > 1 ? (
@@ -400,23 +534,34 @@ export default function ServicesPage() {
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(service)} className="cursor-pointer">
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(service)} className="cursor-pointer text-destructive hover:bg-destructive/10">
-                          <Trash2 className="h-4 w-4" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => updateServiceStatus(service, !service.is_active)}
+                          className={service.is_active ? "cursor-pointer text-[#8b3f12] hover:bg-[#fff3e8]" : "cursor-pointer text-[#0f4c43] hover:bg-[#eef8f4]"}
+                          title={service.is_active ? "Désactiver" : "Réactiver"}
+                        >
+                          {service.is_active ? <Power className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
                         </Button>
                       </div>
                     </div>
                   ))}
+                  {filteredServices?.length === 0 ? (
+                    <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                      Aucune prestation ne correspond aux filtres.
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </TabsContent>
 
             <TabsContent value="categories" className="space-y-4">
-              <Card className="gap-4 rounded-lg p-4">
+              <Card className="gap-4 rounded-2xl border-[#dfe5dd] p-4 shadow-sm">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                   <div>
                     <h3 className="font-semibold">Affectation en masse</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Sélectionnez des prestations dans les groupes ci-dessous, puis appliquez une catégorie commune.
+                      Les prestations actives et désactivées peuvent être rangées ensemble. Utilisez le filtre statut au-dessus pour travailler sur un sous-ensemble.
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -437,7 +582,11 @@ export default function ServicesPage() {
                       placeholder="Nom de catégorie"
                       className="w-full sm:w-[220px]"
                     />
-                    <Button onClick={handleBulkCategorySave} disabled={isBulkSaving || selectedServiceIds.length === 0}>
+                    <Button
+                      onClick={handleBulkCategorySave}
+                      disabled={isBulkSaving || selectedServiceIds.length === 0}
+                      className="bg-[#123f38] hover:bg-[#0b302a]"
+                    >
                       {isBulkSaving ? "Application..." : `Appliquer (${selectedServiceIds.length})`}
                     </Button>
                   </div>
@@ -446,11 +595,13 @@ export default function ServicesPage() {
 
               <div className="grid gap-4 lg:grid-cols-2">
                 {categoryGroups.map(({ category, items }) => (
-                  <Card key={category} className="gap-3 rounded-lg p-4">
+                  <Card key={category} className="gap-3 rounded-2xl border-[#dfe5dd] p-4 shadow-sm">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <h4 className="font-semibold">{category}</h4>
-                        <p className="text-sm text-muted-foreground">{items.length} prestation{items.length > 1 ? "s" : ""}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {items.length} prestation{items.length > 1 ? "s" : ""}, {items.filter((service) => !service.is_active).length} désactivée{items.filter((service) => !service.is_active).length > 1 ? "s" : ""}
+                        </p>
                       </div>
                       <Button
                         variant="outline"
@@ -468,14 +619,20 @@ export default function ServicesPage() {
                         {items.every((service) => selectedServiceIds.includes(service.id)) ? "Retirer" : "Sélectionner"}
                       </Button>
                     </div>
-                    <div className="divide-y rounded-md border">
+                    <div className="divide-y overflow-hidden rounded-xl border">
                       {items.map((service) => (
-                        <label key={service.id} className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted/35">
+                        <label
+                          key={service.id}
+                          className={`flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted/35 ${service.is_active ? "" : "bg-[#fff8f2]"}`}
+                        >
                           <Checkbox
                             checked={selectedServiceIds.includes(service.id)}
                             onCheckedChange={(checked) => toggleServiceSelection(service.id, checked === true)}
                           />
                           <span className="min-w-0 flex-1 truncate text-sm font-medium">{service.name}</span>
+                          {!service.is_active ? (
+                            <Badge variant="outline" className="border-[#d99a65] bg-[#fff3e8] text-[#8b3f12]">Inactif</Badge>
+                          ) : null}
                           <span className="text-xs text-muted-foreground">{service.duration_minutes} min</span>
                         </label>
                       ))}

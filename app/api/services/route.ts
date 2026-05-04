@@ -37,6 +37,14 @@ function mapService(service: any) {
 export async function GET(request: NextRequest) {
   try {
     const salonIdOrSlug = request.nextUrl.searchParams.get("salon_id")
+    const includeInactive = request.nextUrl.searchParams.get("include_inactive") === "true"
+
+    if (includeInactive) {
+      const auth = requireStaffAuth(request, ["admin", "manager"])
+      if ("response" in auth) {
+        return auth.response
+      }
+    }
 
     const supabase = await createAdminClient()
     const selectClause = salonIdOrSlug
@@ -58,7 +66,10 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from("services")
       .select(selectClause)
-      .eq("is_active", true)
+
+    if (!includeInactive) {
+      query = query.eq("is_active", true)
+    }
 
     if (salonIdOrSlug) {
       // Check if it's a UUID or a slug

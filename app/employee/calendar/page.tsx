@@ -62,34 +62,34 @@ function getSalon(appointment: EmployeeAppointment) {
 function getStatusText(status: AppointmentStatus) {
   switch (status) {
     case "in_progress":
-      return "NOW"
+      return "En cours"
     case "completed":
-      return "DONE"
+      return "Terminé"
     case "cancelled":
-      return "CANCEL"
+      return "Annulé"
     case "no_show":
-      return "ABSENT"
+      return "Absent"
     case "pending":
-      return "WAIT"
+      return "Attente"
     default:
-      return "OK"
+      return "Confirmé"
   }
 }
 
 function getStatusClass(status: AppointmentStatus) {
   switch (status) {
     case "in_progress":
-      return "border-amber-300 bg-amber-100 text-amber-950"
+      return "border-[#f4b740] bg-[#fff4cf] text-[#5c3d00]"
     case "completed":
-      return "border-emerald-300 bg-emerald-100 text-emerald-950"
+      return "border-[#75c7a1] bg-[#e8f8ef] text-[#0b4936]"
     case "cancelled":
-      return "border-rose-300 bg-rose-100 text-rose-950"
+      return "border-[#f0a0a7] bg-[#fff0f1] text-[#7b1e2b]"
     case "no_show":
-      return "border-orange-300 bg-orange-100 text-orange-950"
+      return "border-[#e6a36f] bg-[#fff3e8] text-[#74380d]"
     case "pending":
-      return "border-slate-300 bg-slate-100 text-slate-900"
+      return "border-[#c9d4d0] bg-[#f0f5f2] text-[#35514a]"
     default:
-      return "border-sky-300 bg-sky-100 text-sky-950"
+      return "border-[#9cc9bf] bg-[#e8f6f2] text-[#0f4c43]"
   }
 }
 
@@ -150,23 +150,23 @@ export default function EmployeeCalendarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f1ea] px-3 pb-20 pt-3 sm:px-6">
+    <div className="min-h-screen bg-[#f6f7f2] px-3 pb-20 pt-3 sm:px-6">
       <div className="mx-auto max-w-xl space-y-3">
-        <header className="rounded-xl bg-[#221d16] p-3.5 text-white shadow-sm">
+        <header className="rounded-2xl bg-[#123f38] p-3.5 text-white shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/75">Today</p>
-              <h1 className="mt-0.5 text-xl font-bold">My appointments</h1>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-[#cfe7df]">Aujourd'hui</p>
+              <h1 className="mt-0.5 text-xl font-bold">Mes rendez-vous</h1>
             </div>
-            <CalendarDays className="h-6 w-6 text-primary" />
+            <CalendarDays className="h-6 w-6 text-[#bfe2d8]" />
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-white/12 p-2.5">
-              <p className="text-[11px] text-white/75">Total</p>
+            <div className="rounded-xl bg-white/12 p-2.5">
+              <p className="text-[11px] text-[#d7eee7]">Total</p>
               <p className="text-xl font-bold">{dayAppointments.length}</p>
             </div>
-            <div className="rounded-lg bg-white/12 p-2.5">
-              <p className="text-[11px] text-white/75">Now</p>
+            <div className="rounded-xl bg-white/12 p-2.5">
+              <p className="text-[11px] text-[#d7eee7]">En cours</p>
               <p className="truncate text-base font-bold">{activeAppointment ? formatTime(activeAppointment.start_time) : "-"}</p>
             </div>
           </div>
@@ -186,15 +186,15 @@ export default function EmployeeCalendarPage() {
                   type="button"
                   onClick={() => setSelectedDate(day.value)}
                   className={cn(
-                    "flex h-16 w-14 shrink-0 flex-col items-center justify-center rounded-xl border text-sm shadow-sm transition",
+                    "flex h-16 w-14 shrink-0 flex-col items-center justify-center rounded-2xl border text-sm shadow-sm transition",
                     isSelected
-                      ? "border-[#221d16] bg-[#221d16] text-white"
-                      : "border-black/10 bg-white text-[#221d16]"
+                      ? "border-[#123f38] bg-[#123f38] text-white"
+                      : "border-[#dfe5dd] bg-white text-[#102d28]"
                   )}
                 >
                   <span className="text-xs uppercase opacity-65">{day.day}</span>
                   <span className="text-lg font-bold">{day.number}</span>
-                  <span className={cn("mt-1 h-1.5 w-1.5 rounded-full", count > 0 ? "bg-primary" : "bg-transparent")} />
+                  <span className={cn("mt-1 h-1.5 w-1.5 rounded-full", count > 0 ? "bg-[#36a07e]" : "bg-transparent")} />
                 </button>
               )
             })}
@@ -203,17 +203,17 @@ export default function EmployeeCalendarPage() {
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold capitalize text-[#221d16]">{selectedDateLabel}</h2>
+            <h2 className="text-base font-bold capitalize text-[#102d28]">{selectedDateLabel}</h2>
             {nextAppointment ? (
-              <Badge className="border-amber-300 bg-amber-100 text-amber-950">
-                Next {formatTime(nextAppointment.start_time)}
+              <Badge className="border-[#f4b740] bg-[#fff4cf] text-[#5c3d00]">
+                Prochain {formatTime(nextAppointment.start_time)}
               </Badge>
             ) : null}
           </div>
 
           {dayAppointments.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-black/15 bg-white p-5 text-center text-sm text-[#6b6258]">
-              No appointment
+            <div className="rounded-2xl border border-dashed border-[#c9d4d0] bg-white p-5 text-center text-sm font-medium text-[#53615b]">
+              Aucun rendez-vous
             </div>
           ) : (
             <div className="space-y-3">
@@ -229,44 +229,44 @@ export default function EmployeeCalendarPage() {
                     type="button"
                     onClick={() => setSelectedAppointment(appointment)}
                     className={cn(
-                      "w-full rounded-xl border bg-white p-3.5 text-left shadow-sm transition active:scale-[0.99]",
-                      appointment.status === "in_progress" ? "border-amber-400 ring-2 ring-amber-100" : "border-black/10"
+                      "w-full rounded-2xl border bg-white p-3.5 text-left shadow-sm transition active:scale-[0.99]",
+                      appointment.status === "in_progress" ? "border-[#f4b740] ring-2 ring-[#fff4cf]" : "border-[#dfe5dd]"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-2xl font-bold tabular-nums text-[#221d16]">
+                        <p className="text-2xl font-bold tabular-nums text-[#102d28]">
                           {formatTime(appointment.start_time)}
                         </p>
-                        <p className="mt-0.5 text-xs font-semibold text-[#6b6258]">
+                        <p className="mt-0.5 text-xs font-semibold text-[#53615b]">
                           {formatTime(appointment.start_time)} - {formatTime(appointment.end_time)}
                         </p>
                       </div>
-                      <Badge className={cn("border px-2 py-0.5 text-[11px]", getStatusClass(appointment.status))}>
+                      <Badge className={cn("border px-2.5 py-1 text-[11px] font-bold", getStatusClass(appointment.status))}>
                         {getStatusText(appointment.status)}
                       </Badge>
                     </div>
 
                     <div className="mt-3 space-y-1.5">
-                      <p className="text-base font-bold leading-tight text-[#221d16]">{service?.name || "Service"}</p>
-                      <p className="flex items-center gap-2 text-sm text-[#6b6258]">
+                      <p className="text-base font-bold leading-tight text-[#102d28]">{service?.name || "Prestation"}</p>
+                      <p className="flex items-center gap-2 text-sm font-medium text-[#53615b]">
                         <User className="h-4 w-4" />
                         <span className="truncate">{clientName}</span>
                       </p>
                       {client?.phone ? (
-                        <p className="flex items-center gap-2 text-sm text-[#6b6258]">
+                        <p className="flex items-center gap-2 text-sm font-medium text-[#53615b]">
                           <Phone className="h-4 w-4" />
                           <span>{client.phone}</span>
                         </p>
                       ) : null}
-                      <p className="flex items-center gap-2 text-sm text-[#6b6258]">
+                      <p className="flex items-center gap-2 text-sm font-medium text-[#53615b]">
                         <MapPin className="h-4 w-4" />
                         <span className="truncate">{salon?.name || "Salon"}</span>
                       </p>
                     </div>
 
                     {appointment.client_notes || appointment.notes ? (
-                      <div className="mt-3 rounded-lg bg-[#f4f1ea] px-3 py-2 text-sm text-[#221d16]">
+                      <div className="mt-3 rounded-xl bg-[#eef4ef] px-3 py-2 text-sm font-medium text-[#102d28]">
                         {appointment.client_notes || appointment.notes}
                       </div>
                     ) : null}
@@ -278,13 +278,13 @@ export default function EmployeeCalendarPage() {
         </section>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-black/10 bg-white/95 px-4 py-2.5 backdrop-blur md:hidden">
+      <div className="fixed inset-x-0 bottom-0 border-t border-[#dfe5dd] bg-white/95 px-4 py-2.5 backdrop-blur md:hidden">
         <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
           <div>
-            <p className="text-xs text-[#6b6258]">Selected</p>
-            <p className="text-sm font-bold capitalize text-[#221d16]">{selectedDateLabel}</p>
+            <p className="text-xs text-[#53615b]">Sélection</p>
+            <p className="text-sm font-bold capitalize text-[#102d28]">{selectedDateLabel}</p>
           </div>
-          <div className="flex items-center gap-1.5 text-sm font-bold text-[#221d16]">
+          <div className="flex items-center gap-1.5 text-sm font-bold text-[#102d28]">
             <Clock className="h-4 w-4" />
             {dayAppointments.length}
           </div>

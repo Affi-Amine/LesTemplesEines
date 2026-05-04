@@ -64,34 +64,34 @@ const TIMEZONE = "Europe/Paris"
 function getStatusText(status: AppointmentStatus) {
   switch (status) {
     case "in_progress":
-      return "NOW"
+      return "En cours"
     case "completed":
-      return "DONE"
+      return "Terminé"
     case "cancelled":
-      return "CANCEL"
+      return "Annulé"
     case "no_show":
-      return "ABSENT"
+      return "Absent"
     case "pending":
-      return "WAIT"
+      return "Attente"
     default:
-      return "OK"
+      return "Confirmé"
   }
 }
 
 function getStatusClass(status: AppointmentStatus) {
   switch (status) {
     case "in_progress":
-      return "border-amber-300 bg-amber-100 text-amber-950"
+      return "border-[#f4b740] bg-[#fff4cf] text-[#5c3d00]"
     case "completed":
-      return "border-emerald-300 bg-emerald-100 text-emerald-950"
+      return "border-[#75c7a1] bg-[#e8f8ef] text-[#0b4936]"
     case "cancelled":
-      return "border-rose-300 bg-rose-100 text-rose-950"
+      return "border-[#f0a0a7] bg-[#fff0f1] text-[#7b1e2b]"
     case "no_show":
-      return "border-orange-300 bg-orange-100 text-orange-950"
+      return "border-[#e6a36f] bg-[#fff3e8] text-[#74380d]"
     case "pending":
-      return "border-slate-300 bg-slate-100 text-slate-900"
+      return "border-[#c9d4d0] bg-[#f0f5f2] text-[#35514a]"
     default:
-      return "border-sky-300 bg-sky-100 text-sky-950"
+      return "border-[#9cc9bf] bg-[#e8f6f2] text-[#0f4c43]"
   }
 }
 
@@ -137,15 +137,15 @@ export function AppointmentDetailsModal({
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data?.error || "Update failed")
+        throw new Error(data?.error || "Mise à jour impossible")
       }
 
       const message =
         nextStatus === "in_progress"
-          ? "Started"
+          ? "Rendez-vous lancé"
           : nextStatus === "completed"
-            ? "Done"
-            : "Marked absent"
+            ? "Rendez-vous terminé"
+            : "Client marqué absent"
 
       toast.success(message)
       await queryClient.invalidateQueries({ queryKey: ["staff-appointments"] })
@@ -154,8 +154,8 @@ export function AppointmentDetailsModal({
       setAbsentNote("")
       onClose()
     } catch (error: any) {
-      toast.error("Update failed", {
-        description: error.message || "Try again",
+      toast.error("Mise à jour impossible", {
+        description: error.message || "Réessayez",
       })
     } finally {
       setSavingStatus(null)
@@ -173,135 +173,135 @@ export function AppointmentDetailsModal({
         if (!open) onClose()
       }}
     >
-      <DialogContent className="top-auto bottom-0 max-h-[88svh] max-w-full translate-y-0 rounded-b-none rounded-t-xl border-0 p-0 shadow-2xl sm:top-[50%] sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-xl">
-        <DialogHeader className="border-b px-4 pb-2.5 pt-4 text-left">
+      <DialogContent className="top-auto bottom-0 max-h-[88svh] max-w-full translate-y-0 overflow-hidden rounded-b-none rounded-t-2xl border-0 bg-[#f6f7f2] p-0 shadow-2xl sm:top-[50%] sm:bottom-auto sm:max-w-lg sm:-translate-y-1/2 sm:rounded-2xl">
+        <DialogHeader className="border-b border-[#dfe5dd] bg-white px-4 pb-3 pt-4 text-left">
           <DialogTitle className="flex items-center justify-between gap-3 pr-8">
-            <span className="text-lg font-bold">Appointment</span>
-            <Badge className={cn("border px-2 py-0.5 text-[11px]", getStatusClass(appointment.status))}>
+            <span className="text-lg font-bold text-[#102d28]">Rendez-vous</span>
+            <Badge className={cn("border px-2.5 py-1 text-[11px] font-bold", getStatusClass(appointment.status))}>
               {getStatusText(appointment.status)}
             </Badge>
           </DialogTitle>
         </DialogHeader>
 
         <div className="max-h-[calc(88svh-4.5rem)] overflow-y-auto px-4 pb-4 pt-3">
-          <div className="rounded-xl bg-[#221d16] p-3.5 text-white">
-            <p className="text-xs uppercase tracking-wide text-white/75">{date}</p>
+          <div className="rounded-2xl bg-[#123f38] p-3.5 text-white shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-[#cfe7df]">{date}</p>
             <div className="mt-1.5 flex items-end justify-between gap-3">
               <p className="text-3xl font-bold tabular-nums">{start}</p>
-              <p className="pb-1 text-xs font-semibold text-white/80">{start} - {end}</p>
+              <p className="pb-1 text-xs font-semibold text-[#d7eee7]">{start} - {end}</p>
             </div>
           </div>
 
           <div className="mt-3 space-y-2.5">
-            <div className="rounded-xl border border-black/10 bg-white p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6b6258]">Massage</p>
-              <p className="mt-1 text-lg font-bold leading-tight text-[#221d16]">{normalized.service?.name || "Service"}</p>
+            <div className="rounded-2xl border border-[#dfe5dd] bg-white p-3.5 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-[#6b756f]">Prestation</p>
+              <p className="mt-1 text-lg font-bold leading-tight text-[#102d28]">{normalized.service?.name || "Prestation"}</p>
               {normalized.service?.duration_minutes ? (
-                <p className="mt-1.5 flex items-center gap-2 text-sm text-[#6b6258]">
+                <p className="mt-1.5 flex items-center gap-2 text-sm font-medium text-[#53615b]">
                   <Clock className="h-4 w-4" />
                   {normalized.service.duration_minutes} min
                 </p>
               ) : null}
             </div>
 
-            <div className="rounded-xl border border-black/10 bg-white p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6b6258]">Client</p>
-              <p className="mt-1 flex items-center gap-2 text-base font-bold text-[#221d16]">
+            <div className="rounded-2xl border border-[#dfe5dd] bg-white p-3.5 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-[#6b756f]">Client</p>
+              <p className="mt-1 flex items-center gap-2 text-base font-bold text-[#102d28]">
                 <User className="h-5 w-5" />
                 {clientName}
               </p>
               {normalized.client?.phone ? (
                 <a
                   href={`tel:${normalized.client.phone}`}
-                  className="mt-2.5 flex h-10 items-center justify-center gap-2 rounded-lg bg-[#f4f1ea] text-sm font-bold text-[#221d16]"
+                  className="mt-2.5 flex h-10 items-center justify-center gap-2 rounded-xl border border-[#b7d8cd] bg-[#eef8f4] text-sm font-bold text-[#0f4c43] shadow-sm transition active:scale-[0.99]"
                 >
                   <Phone className="h-4 w-4" />
-                  Call
+                  Appeler
                 </a>
               ) : null}
             </div>
 
-            <div className="rounded-xl border border-black/10 bg-white p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6b6258]">Place</p>
-              <p className="mt-1 flex items-center gap-2 text-base font-bold text-[#221d16]">
+            <div className="rounded-2xl border border-[#dfe5dd] bg-white p-3.5 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-[#6b756f]">Lieu</p>
+              <p className="mt-1 flex items-center gap-2 text-base font-bold text-[#102d28]">
                 <MapPin className="h-5 w-5" />
                 {normalized.salon?.name || "Salon"}
               </p>
               {normalized.salon?.address ? (
-                <p className="mt-1 text-sm text-[#6b6258]">{normalized.salon.address}</p>
+                <p className="mt-1 text-sm font-medium text-[#53615b]">{normalized.salon.address}</p>
               ) : null}
             </div>
 
             {normalized.notes ? (
-              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-950/80">Note</p>
-                <p className="mt-1 text-sm font-semibold leading-6 text-amber-950">{normalized.notes}</p>
+              <div className="rounded-2xl border border-[#f2cd79] bg-[#fff8df] p-3.5">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-[#6c520f]">Note</p>
+                <p className="mt-1 text-sm font-semibold leading-6 text-[#4c3907]">{normalized.notes}</p>
               </div>
             ) : null}
           </div>
 
           {absentOpen ? (
-            <div className="mt-3 rounded-xl border border-orange-300 bg-orange-50 p-3">
-              <p className="font-bold text-orange-950">Absent?</p>
+            <div className="mt-3 rounded-2xl border border-[#e6a36f] bg-[#fff3e8] p-3.5">
+              <p className="font-bold text-[#74380d]">Client absent ?</p>
               <Textarea
                 value={absentNote}
                 onChange={(event) => setAbsentNote(event.target.value)}
-                placeholder="Optional note"
-                className="mt-2.5 min-h-20 bg-white"
+                placeholder="Note optionnelle"
+                className="mt-2.5 min-h-20 border-[#e6c7ad] bg-white"
               />
               <div className="mt-2.5 grid grid-cols-2 gap-2">
                 <Button className="h-10 rounded-lg" variant="outline" onClick={() => setAbsentOpen(false)} disabled={Boolean(savingStatus)}>
-                  Back
+                  Retour
                 </Button>
                 <Button
-                  className="h-10 rounded-lg"
+                  className="h-10 rounded-lg bg-[#b34720] hover:bg-[#923716]"
                   variant="destructive"
                   onClick={() => updateStatus("no_show", absentNote.trim() || "Client absent")}
                   disabled={Boolean(savingStatus)}
                 >
-                  Confirm
+                  Confirmer
                 </Button>
               </div>
             </div>
           ) : (
-            <div className="sticky bottom-0 mt-4 grid gap-2 bg-background pt-2">
+            <div className="sticky bottom-0 mt-4 grid gap-2 bg-[#f6f7f2] pt-2">
               {canStart ? (
                 <Button
-                  className="h-11 rounded-lg text-sm font-bold"
+                  className="h-11 rounded-xl bg-[#0f4c43] text-sm font-bold text-white shadow-sm hover:bg-[#0b3d36]"
                   onClick={() => updateStatus("in_progress")}
                   disabled={Boolean(savingStatus)}
                 >
                   <Play className="mr-2 h-4 w-4" />
-                  START
+                  Démarrer
                 </Button>
               ) : null}
 
               {canFinish ? (
                 <Button
-                  className="h-11 rounded-lg bg-emerald-700 text-sm font-bold hover:bg-emerald-800"
+                  className="h-11 rounded-xl bg-[#0e7f63] text-sm font-bold text-white shadow-sm hover:bg-[#09664f]"
                   onClick={() => updateStatus("completed")}
                   disabled={Boolean(savingStatus)}
                 >
                   <Check className="mr-2 h-4 w-4" />
-                  DONE
+                  Terminer
                 </Button>
               ) : null}
 
               {canMarkAbsent ? (
                 <Button
                   variant="outline"
-                  className="h-10 rounded-lg border-orange-300 text-sm font-bold text-orange-950"
+                  className="h-10 rounded-xl border-[#d99a65] bg-white text-sm font-bold text-[#8b3f12] hover:bg-[#fff3e8]"
                   onClick={() => setAbsentOpen(true)}
                   disabled={Boolean(savingStatus)}
                 >
                   <UserX className="mr-2 h-4 w-4" />
-                  ABSENT
+                  Client absent
                 </Button>
               ) : null}
 
-              <Button variant="ghost" className="h-9 rounded-lg text-sm" onClick={onClose}>
+              <Button variant="ghost" className="h-9 rounded-xl text-sm font-semibold text-[#53615b]" onClick={onClose}>
                 <X className="mr-2 h-4 w-4" />
-                Close
+                Fermer
               </Button>
             </div>
           )}

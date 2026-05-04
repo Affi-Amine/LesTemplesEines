@@ -31,6 +31,7 @@ import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/compone
 import { ClientSuggestionList } from "@/components/client-suggestion-list"
 import {
   findOverlappingAppointment,
+  canStaffTakeBookings,
   getAppointmentDurationMinutes,
   getAppointmentStaffIds,
   getStaffDisplayName,
@@ -128,37 +129,9 @@ export default function SalonDashboardPage() {
   const selectedDayHours = date ? resolveOpeningHoursForDate(selectedOpeningHours, date) : null
   const scheduleHours = date ? getScheduleHourRange(selectedOpeningHours, date) : []
   const dayAppointments = appointments || []
-  const staffFromAppointments = dayAppointments.reduce((acc: any[], appointment: any) => {
-    const byId = new Map(acc.map((member) => [member.id, member]))
-
-    if (appointment.staff?.id && !byId.has(appointment.staff.id)) {
-      byId.set(appointment.staff.id, {
-        id: appointment.staff.id,
-        first_name: appointment.staff.first_name || "",
-        last_name: appointment.staff.last_name || "",
-        role: appointment.staff.role || "therapist",
-        is_active: true,
-      })
-    }
-
-    appointment.assignments?.forEach((assignment: any) => {
-      const staffId = assignment.staff_id || assignment.staff?.id
-      if (!staffId || byId.has(staffId)) {
-        return
-      }
-
-      byId.set(staffId, {
-        id: staffId,
-        first_name: assignment.staff?.first_name || "",
-        last_name: assignment.staff?.last_name || "",
-        role: assignment.staff?.role || "therapist",
-        is_active: true,
-      })
-    })
-
-    return Array.from(byId.values())
-  }, [])
-  const bookableStaff = staff && staff.length > 0 ? staff : isStaffLoading ? [] : staffFromAppointments
+  const bookableStaff = (staff || []).filter(canStaffTakeBookings).sort((a: any, b: any) =>
+    getStaffDisplayName(a).localeCompare(getStaffDisplayName(b), "fr")
+  )
   const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * STAFF_COLUMN_MIN_WIDTH
   const confirmedAppointments = dayAppointments.filter((apt: any) => apt.status === "confirmed" || apt.status === "pending")
   const inProgressAppointments = dayAppointments.filter((apt: any) => apt.status === "in_progress")
@@ -294,7 +267,7 @@ export default function SalonDashboardPage() {
         throw new Error(errorData.error || "Remplacement impossible")
       }
 
-      const nextStaff = staff?.find((member) => member.id === nextStaffId)
+      const nextStaff = bookableStaff.find((member) => member.id === nextStaffId)
       toast.success("Masseuse remplacée", {
         description: nextStaff ? `${getStaffDisplayName(nextStaff)} est assignée au rendez-vous.` : undefined,
       })
@@ -554,9 +527,9 @@ export default function SalonDashboardPage() {
   const selectedCreateRequiredStaffCount = selectedCreateService?.required_staff_count || 1
   const hasExplicitCreateServiceAssignments = Boolean(
     selectedCreateService &&
-      (staff || []).some((member) => (member.allowed_service_ids || []).includes(selectedCreateService.id))
+      bookableStaff.some((member) => (member.allowed_service_ids || []).includes(selectedCreateService.id))
   )
-  const availableCreateStaff = (staff || []).filter((member) => {
+  const availableCreateStaff = bookableStaff.filter((member) => {
     if (!selectedCreateService || !hasExplicitCreateServiceAssignments) return true
     return (member.allowed_service_ids || []).includes(selectedCreateService.id)
   })
@@ -757,7 +730,7 @@ export default function SalonDashboardPage() {
         throw new Error(errorData.error || "Erreur lors du déplacement")
       }
 
-      const staffMember = dropData.staffId ? staff?.find(s => s.id === dropData.staffId) : null
+      const staffMember = dropData.staffId ? bookableStaff.find(s => s.id === dropData.staffId) : null
       toast.success("Rendez-vous déplacé", {
         description: staffChanged
           ? `Nouveau créneau: ${format(newStartTime, "HH:mm")} avec ${staffMember ? getStaffDisplayName(staffMember) : "la masseuse"}`
@@ -1533,7 +1506,7 @@ export default function SalonDashboardPage() {
                 <Label>Masseuses</Label>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {blockingForm.staff_ids.map(id => {
-                    const member = staff?.find(s => s.id === id)
+                    const member = bookableStaff.find(s => s.id === id)
                     return (
                       <Badge key={id} variant="secondary" className="gap-1 flex items-center p-2">
                         <span>{member?.first_name} {member?.last_name}</span>
@@ -1547,7 +1520,7 @@ export default function SalonDashboardPage() {
                     <SelectValue placeholder="Ajouter une masseuse" />
                   </SelectTrigger>
                   <SelectContent>
-                    {staff?.filter(s => !blockingForm.staff_ids.includes(s.id)).map((member) => (
+                    {bookableStaff.filter(s => !blockingForm.staff_ids.includes(s.id)).map((member) => (
                       <SelectItem key={member.id} value={member.id}>
                         {member.first_name} {member.last_name}
                       </SelectItem>
@@ -1646,7 +1619,7 @@ export default function SalonDashboardPage() {
                 ) : null}
                 <div className="flex flex-wrap gap-2 mb-2">
                   {createForm.staff_ids.map(id => {
-                    const member = staff?.find(s => s.id === id)
+                    const member = bookableStaff.find(s => s.id === id)
                     return (
                       <Badge key={id} variant="secondary" className="gap-1 flex items-center p-2">
                         <span>{member?.first_name} {member?.last_name}</span>

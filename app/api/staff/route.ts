@@ -86,24 +86,18 @@ export async function GET(request: NextRequest) {
     let filteredStaff = staff || []
 
     if (targetSalonId) {
-      const { data: salonServices, error: salonServicesError } = await supabase
-        .from("service_salons")
-        .select("service_id")
-        .eq("salon_id", targetSalonId)
-
-      if (salonServicesError) throw salonServicesError
-
-      const salonServiceIds = new Set((salonServices || []).map((relation) => relation.service_id))
-      filteredStaff = filteredStaff.filter((member) => {
-        if (member.salon_id === targetSalonId) {
-          return true
-        }
-
-        return member.staff_services?.some((relation: any) => salonServiceIds.has(relation.service_id))
-      })
+      filteredStaff = filteredStaff.filter((member) => member.salon_id === targetSalonId)
     }
 
-    return NextResponse.json(filteredStaff.map(mapStaff))
+    return NextResponse.json(
+      filteredStaff
+        .map(mapStaff)
+        .sort((a, b) => {
+          const aName = `${a.first_name || ""} ${a.last_name || ""}`.trim()
+          const bName = `${b.first_name || ""} ${b.last_name || ""}`.trim()
+          return aName.localeCompare(bName, "fr")
+        })
+    )
   } catch (error) {
     console.error("[v0] Get staff error:", error)
     return NextResponse.json({ error: "Failed to fetch staff" }, { status: 500 })

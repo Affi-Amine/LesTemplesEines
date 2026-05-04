@@ -223,7 +223,7 @@ export default function StaffPage() {
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">{t("admin.staff")}</h2>
           <div className="flex items-center gap-4">
-            <SalonFilter selectedSalonId={selectedSalonId} onSelectSalon={setSelectedSalonId} />
+            <SalonFilter selectedSalonId={selectedSalonId} onSelectSalon={setSelectedSalonId} salons={salons} />
             <Button onClick={handleCreate} className="gap-2 cursor-pointer">
               <Plus className="w-4 h-4" />
               {t("common.add")}

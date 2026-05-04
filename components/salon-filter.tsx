@@ -8,15 +8,18 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useSalons } from "@/lib/hooks/use-salons"
+import type { Salon } from "@/lib/types/database"
 
 interface SalonFilterProps {
   selectedSalonId: string
   onSelectSalon: (salonId: string) => void
   className?: string
+  salons?: Salon[]
 }
 
-export function SalonFilter({ selectedSalonId, onSelectSalon, className }: SalonFilterProps) {
-  const { data: salons } = useSalons()
+export function SalonFilter({ selectedSalonId, onSelectSalon, className, salons: providedSalons }: SalonFilterProps) {
+  const { data: fetchedSalons } = useSalons({ enabled: !providedSalons })
+  const salons = providedSalons ?? fetchedSalons
 
   return (
     <div className={className}>

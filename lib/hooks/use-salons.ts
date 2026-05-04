@@ -6,15 +6,18 @@ import type { Salon } from "@/lib/types/database"
 
 interface UseSalonsOptions {
   includeInactive?: boolean
+  enabled?: boolean
 }
 
 export function useSalons(options?: UseSalonsOptions) {
   const includeInactive = options?.includeInactive ?? false
+  const enabled = options?.enabled ?? true
 
   return useQuery({
     queryKey: ["salons", { includeInactive }],
     queryFn: () =>
       fetchAPI<Salon[]>(includeInactive ? "/salons?include_inactive=true" : "/salons"),
+    enabled,
     staleTime: 0,
     gcTime: 0,
   })

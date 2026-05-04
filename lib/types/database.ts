@@ -25,6 +25,7 @@ export interface Service {
   duration_minutes: number
   price_cents: number
   category: string | null
+  category_order: number
   image_url: string | null
   is_visible: boolean
   is_active: boolean

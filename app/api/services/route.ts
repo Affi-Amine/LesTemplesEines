@@ -11,6 +11,7 @@ const ServiceSchema = z.object({
   duration_minutes: z.number().min(1),
   price_cents: z.number().min(0),
   category: z.string().nullable().optional(),
+  category_order: z.number().min(0).optional(),
   image_url: z.string().optional(),
   is_active: z.boolean().optional(),
   required_staff_count: z.number().min(1).default(1),
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
 
     }
 
-    const { data: services, error } = await query
+    const { data: services, error } = await query.order("category_order").order("category").order("name")
 
     if (error) throw error
 
@@ -126,6 +127,7 @@ export async function POST(request: NextRequest) {
       duration_minutes: serviceData.duration_minutes,
       price_cents: serviceData.price_cents,
       category: serviceData.category?.trim() || null,
+      category_order: serviceData.category_order ?? 0,
       image_url: serviceData.image_url,
       is_active: serviceData.is_active ?? true,
       required_staff_count: serviceData.required_staff_count,

@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useServices } from "@/lib/hooks/use-services"
 import { useSalons } from "@/lib/hooks/use-salons"
-import { Plus, Edit, Clock, Tags, Search, ListFilter, Power, RotateCcw, CheckCircle2, XCircle } from "lucide-react"
+import { Plus, Edit, Clock, Tags, Search, ListFilter, Power, RotateCcw, CheckCircle2, XCircle, ArrowUp, ArrowDown } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { useMemo, useState } from "react"
@@ -89,21 +89,29 @@ export default function ServicesPage() {
   const selectedActiveCount = selectedServices.filter((service) => service.is_active).length
   const selectedInactiveCount = selectedServices.length - selectedActiveCount
   const serviceCategories = useMemo(() => {
-    const categories = new Map<string, string>()
+    const categories = new Map<string, { name: string; order: number }>()
 
     services?.forEach((service) => {
       const category = service.category?.trim().replace(/\s+/g, " ")
       if (!category) return
 
-      categories.set(category.toLocaleLowerCase("fr-FR"), category)
+      const key = category.toLocaleLowerCase("fr-FR")
+      const existing = categories.get(key)
+      const order = service.category_order ?? 0
+      categories.set(key, {
+        name: category,
+        order: existing ? Math.min(existing.order, order) : order,
+      })
     })
 
-    return Array.from(categories.values()).sort((a, b) => a.localeCompare(b, "fr"))
+    return Array.from(categories.values())
+      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, "fr"))
+      .map((category) => category.name)
   }, [services])
   const categoryGroups = useMemo(() => {
     const groups = new Map<string, Service[]>()
 
-    filteredServices?.forEach((service) => {
+    salonFilteredServices?.forEach((service) => {
       const category = service.category?.trim() || "Sans catégorie"
       groups.set(category, [...(groups.get(category) || []), service])
     })
@@ -111,14 +119,15 @@ export default function ServicesPage() {
     return Array.from(groups.entries())
       .map(([category, items]) => ({
         category,
+        order: Math.min(...items.map((service) => service.category_order ?? 0)),
         items: items.sort((a, b) => a.name.localeCompare(b.name, "fr")),
       }))
       .sort((a, b) => {
         if (a.category === "Sans catégorie") return 1
         if (b.category === "Sans catégorie") return -1
-        return a.category.localeCompare(b.category, "fr")
+        return a.order - b.order || a.category.localeCompare(b.category, "fr")
       })
-  }, [filteredServices])
+  }, [salonFilteredServices])
 
   const [editingService, setEditingService] = useState<Service | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -335,6 +344,53 @@ export default function ServicesPage() {
     } catch (error: any) {
       toast.error("Erreur", {
         description: error.message || "Impossible de mettre à jour les catégories",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+    } finally {
+      setIsBulkSaving(false)
+    }
+  }
+
+  const handleCategoryMove = async (category: string, direction: "up" | "down") => {
+    const movableGroups = categoryGroups.filter((group) => group.category !== "Sans catégorie")
+    const currentIndex = movableGroups.findIndex((group) => group.category === category)
+    const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1
+
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= movableGroups.length) return
+
+    const reorderedGroups = [...movableGroups]
+    const [movedGroup] = reorderedGroups.splice(currentIndex, 1)
+    reorderedGroups.splice(nextIndex, 0, movedGroup)
+
+    setIsBulkSaving(true)
+    try {
+      await Promise.all(
+        reorderedGroups.flatMap((group, order) =>
+          (services || [])
+            .filter((service) => (service.category?.trim() || "Sans catégorie") === group.category)
+            .map((service) =>
+              fetch(`/api/services/${service.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ category_order: order }),
+              }).then(async (response) => {
+                if (!response.ok) {
+                  const error = await response.json().catch(() => ({}))
+                  throw new Error(error.error || "Échec de la mise à jour de l'ordre")
+                }
+              })
+            )
+        )
+      )
+
+      toast.success("Ordre des catégories mis à jour", {
+        description: "L'ordre sera utilisé pour l'affichage public des prestations.",
+        icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
+      })
+      refetch()
+    } catch (error: any) {
+      toast.error("Erreur", {
+        description: error.message || "Impossible de modifier l'ordre des catégories",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
       })
     } finally {
@@ -561,7 +617,10 @@ export default function ServicesPage() {
                   <div>
                     <h3 className="font-semibold">Affectation en masse</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Les prestations actives et désactivées peuvent être rangées ensemble. Utilisez le filtre statut au-dessus pour travailler sur un sous-ensemble.
+                      Les prestations actives et désactivées peuvent être rangées ensemble, indépendamment du filtre de liste.
+                    </p>
+                    <p className="mt-1 text-sm text-[#0f4c43]">
+                      L'ordre des blocs ci-dessous correspond à l'ordre d'apparition sur le site.
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -594,30 +653,59 @@ export default function ServicesPage() {
               </Card>
 
               <div className="grid gap-4 lg:grid-cols-2">
-                {categoryGroups.map(({ category, items }) => (
+                {categoryGroups.map(({ category, items }, index) => (
                   <Card key={category} className="gap-3 rounded-2xl border-[#dfe5dd] p-4 shadow-sm">
                     <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <h4 className="font-semibold">{category}</h4>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          {category !== "Sans catégorie" ? (
+                            <Badge variant="outline" className="border-[#b7d8cd] bg-[#eef8f4] text-[#0f4c43]">
+                              #{index + 1}
+                            </Badge>
+                          ) : null}
+                          <h4 className="truncate font-semibold">{category}</h4>
+                        </div>
                         <p className="text-sm text-muted-foreground">
                           {items.length} prestation{items.length > 1 ? "s" : ""}, {items.filter((service) => !service.is_active).length} désactivée{items.filter((service) => !service.is_active).length > 1 ? "s" : ""}
                         </p>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const ids = items.map((service) => service.id)
-                          const allSelected = ids.every((id) => selectedServiceIds.includes(id))
-                          setSelectedServiceIds((current) =>
-                            allSelected
-                              ? current.filter((id) => !ids.includes(id))
-                              : Array.from(new Set([...current, ...ids]))
-                          )
-                        }}
-                      >
-                        {items.every((service) => selectedServiceIds.includes(service.id)) ? "Retirer" : "Sélectionner"}
-                      </Button>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleCategoryMove(category, "up")}
+                          disabled={isBulkSaving || category === "Sans catégorie" || index === 0}
+                          title="Monter"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleCategoryMove(category, "down")}
+                          disabled={isBulkSaving || category === "Sans catégorie" || index >= categoryGroups.filter((group) => group.category !== "Sans catégorie").length - 1}
+                          title="Descendre"
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const ids = items.map((service) => service.id)
+                            const allSelected = ids.every((id) => selectedServiceIds.includes(id))
+                            setSelectedServiceIds((current) =>
+                              allSelected
+                                ? current.filter((id) => !ids.includes(id))
+                                : Array.from(new Set([...current, ...ids]))
+                            )
+                          }}
+                        >
+                          {items.every((service) => selectedServiceIds.includes(service.id)) ? "Retirer" : "Sélectionner"}
+                        </Button>
+                      </div>
                     </div>
                     <div className="divide-y overflow-hidden rounded-xl border">
                       {items.map((service) => (

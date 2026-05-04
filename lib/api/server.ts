@@ -33,6 +33,7 @@ export type Service = {
   duration_minutes: number
   price_cents: number
   category?: string
+  category_order?: number
   photo_url?: string
   is_active: boolean
   created_at?: string
@@ -129,7 +130,7 @@ export async function getServices(salonId?: string): Promise<Service[]> {
     query = query.eq('service_salons.salon_id', salonId)
   }
 
-  const { data, error } = await query.order('category').order('name')
+  const { data, error } = await query.order('category_order').order('category').order('name')
 
   if (error) {
     console.error('[API] Error fetching services:', error)

@@ -45,6 +45,7 @@ CREATE TABLE services (
     duration_minutes INTEGER NOT NULL, -- Duration in minutes
     price_cents INTEGER NOT NULL, -- Price in cents to avoid floating point issues
     category VARCHAR(100), -- e.g., "Détente", "Thérapeutique", "Sportif"
+    category_order INTEGER NOT NULL DEFAULT 0,
     image_url TEXT,
     is_visible BOOLEAN DEFAULT true, -- If false, hidden from public booking
     is_active BOOLEAN DEFAULT true,
@@ -207,6 +208,7 @@ CREATE INDEX idx_salons_is_active ON salons(is_active);
 CREATE INDEX idx_services_salon_id ON services(salon_id);
 CREATE INDEX idx_services_is_visible ON services(is_visible);
 CREATE INDEX idx_services_is_active ON services(is_active);
+CREATE INDEX idx_services_category_order ON services(category_order);
 
 -- Staff
 CREATE INDEX idx_staff_salon_id ON staff(salon_id);

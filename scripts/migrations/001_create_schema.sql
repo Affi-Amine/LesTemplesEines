@@ -26,6 +26,7 @@ CREATE TABLE services (
   duration_minutes INTEGER NOT NULL,
   price_cents INTEGER NOT NULL,
   category VARCHAR(50),
+  category_order INTEGER NOT NULL DEFAULT 0,
   image_url TEXT,
   is_visible BOOLEAN DEFAULT true,
   is_active BOOLEAN DEFAULT true,

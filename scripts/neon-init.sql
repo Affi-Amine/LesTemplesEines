@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS services (
   duration_minutes INTEGER NOT NULL,
   price_cents INTEGER NOT NULL,
   category VARCHAR(100),
+  category_order INTEGER NOT NULL DEFAULT 0,
   image_url TEXT,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -103,6 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_salons_is_active ON salons(is_active);
 -- Services
 CREATE INDEX IF NOT EXISTS idx_services_salon_id ON services(salon_id);
 CREATE INDEX IF NOT EXISTS idx_services_is_active ON services(is_active);
+CREATE INDEX IF NOT EXISTS idx_services_category_order ON services(category_order);
 
 -- Staff
 CREATE INDEX IF NOT EXISTS idx_staff_salon_id ON staff(salon_id);

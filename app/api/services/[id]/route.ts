@@ -11,6 +11,7 @@ const UpdateServiceSchema = z.object({
   duration_minutes: z.number().min(1).optional(),
   price_cents: z.number().min(0).optional(),
   category: z.string().nullable().optional(),
+  category_order: z.number().min(0).optional(),
   image_url: z.string().optional(),
   is_active: z.boolean().optional(),
   required_staff_count: z.number().min(1).optional(),

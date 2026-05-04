@@ -37,18 +37,19 @@ import type { Staff } from "@/lib/types/database"
 import { SalonFilter } from "@/components/salon-filter"
 import { useRoleProtection } from "@/lib/hooks/use-role-protection"
 import { useServices } from "@/lib/hooks/use-services"
+import { useQueryClient } from "@tanstack/react-query"
 
 export default function StaffPage() {
   const isAuthorized = useRoleProtection(["admin", "manager"])
+  const queryClient = useQueryClient()
   const { t } = useTranslations()
-  const { data: staff, isLoading, refetch } = useStaff()
-  const { data: salons } = useSalons()
   const [selectedSalonId, setSelectedSalonId] = useState("all")
+  const staffSalonId = selectedSalonId === "all" ? undefined : selectedSalonId
+  const { data: staff, isLoading, refetch } = useStaff(staffSalonId)
+  const { data: salons } = useSalons({ includeInactive: true })
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  const filteredStaff = selectedSalonId === "all" 
-    ? staff 
-    : staff?.filter(member => member.salon_id === selectedSalonId)
+  const staffList = staff || []
 
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -94,7 +95,7 @@ export default function StaffPage() {
   const handleCreate = () => {
     setEditingStaff(null)
     setFormData({
-      salon_id: "",
+      salon_id: selectedSalonId === "all" ? "" : selectedSalonId,
       email: "",
       password: "",
       first_name: "",
@@ -177,6 +178,7 @@ export default function StaffPage() {
       })
 
       setIsDialogOpen(false)
+      queryClient.invalidateQueries({ queryKey: ["staff"] })
       refetch()
     } catch (error: any) {
       toast.error("Erreur", {
@@ -203,6 +205,7 @@ export default function StaffPage() {
         icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
       })
 
+      queryClient.invalidateQueries({ queryKey: ["staff"] })
       refetch()
     } catch (error) {
       toast.error("Erreur", {
@@ -243,7 +246,7 @@ export default function StaffPage() {
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredStaff?.map((emp) => (
+            {staffList.map((emp) => (
               <Card key={emp.id} className="overflow-hidden">
                 <div className="relative h-40 bg-muted">
                   {emp.photo_url ? (
@@ -274,6 +277,9 @@ export default function StaffPage() {
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground mb-1 capitalize">{emp.role}</p>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    {salons?.find((salon) => salon.id === emp.salon_id)?.name || "Salon non affecté"}
+                  </p>
                   <p className="text-xs text-muted-foreground mb-3">{emp.email}</p>
                   <div className="flex flex-wrap gap-2 mb-4">
                     {emp.specialties && emp.specialties.length > 0 ? (
@@ -313,7 +319,7 @@ export default function StaffPage() {
           </div>
         )}
 
-        {!isLoading && filteredStaff && filteredStaff.length === 0 && (
+        {!isLoading && staffList.length === 0 && (
           <Card className="p-12 text-center">
             <Icon icon="solar:user-bold" className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Aucun membre</h3>
@@ -395,7 +401,12 @@ export default function StaffPage() {
                 <Label htmlFor="salon_id">
                   Salon <span className="text-red-500">*</span>
                 </Label>
-                <Select value={formData.salon_id} onValueChange={(value) => setFormData({ ...formData, salon_id: value })}>
+                <Select
+                  value={formData.salon_id}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, salon_id: value, allowed_service_ids: [] })
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Sélectionnez un salon" />
                   </SelectTrigger>

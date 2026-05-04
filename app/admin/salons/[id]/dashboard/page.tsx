@@ -119,7 +119,7 @@ export default function SalonDashboardPage() {
     startDate: date ? format(date, "yyyy-MM-dd") : undefined,
     endDate: date ? format(date, "yyyy-MM-dd") : undefined,
   })
-  const { data: staff } = useStaff(salonId)
+  const { data: staff, isLoading: isStaffLoading } = useStaff(salonId)
   const { data: services } = useServices(salonId)
   const createAppointment = useCreateAppointment()
 
@@ -134,7 +134,7 @@ export default function SalonDashboardPage() {
     if (appointment.staff?.id && !byId.has(appointment.staff.id)) {
       byId.set(appointment.staff.id, {
         id: appointment.staff.id,
-        first_name: appointment.staff.first_name || "Masseuse",
+        first_name: appointment.staff.first_name || "",
         last_name: appointment.staff.last_name || "",
         role: appointment.staff.role || "therapist",
         is_active: true,
@@ -149,7 +149,7 @@ export default function SalonDashboardPage() {
 
       byId.set(staffId, {
         id: staffId,
-        first_name: assignment.staff?.first_name || "Masseuse",
+        first_name: assignment.staff?.first_name || "",
         last_name: assignment.staff?.last_name || "",
         role: assignment.staff?.role || "therapist",
         is_active: true,
@@ -158,7 +158,7 @@ export default function SalonDashboardPage() {
 
     return Array.from(byId.values())
   }, [])
-  const bookableStaff = staff && staff.length > 0 ? staff : staffFromAppointments
+  const bookableStaff = staff && staff.length > 0 ? staff : isStaffLoading ? [] : staffFromAppointments
   const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * STAFF_COLUMN_MIN_WIDTH
   const confirmedAppointments = dayAppointments.filter((apt: any) => apt.status === "confirmed" || apt.status === "pending")
   const inProgressAppointments = dayAppointments.filter((apt: any) => apt.status === "in_progress")
@@ -215,11 +215,11 @@ export default function SalonDashboardPage() {
   const getAppointmentStaffLabel = (appointment: any) => {
     const names = new Map<string, string>()
     if (appointment.staff?.id) {
-      names.set(appointment.staff.id, `${appointment.staff.first_name} ${appointment.staff.last_name || ""}`.trim())
+      names.set(appointment.staff.id, getStaffDisplayName(appointment.staff))
     }
     appointment.assignments?.forEach((assignment: any) => {
       if (assignment.staff?.id) {
-        names.set(assignment.staff.id, `${assignment.staff.first_name} ${assignment.staff.last_name || ""}`.trim())
+        names.set(assignment.staff.id, getStaffDisplayName(assignment.staff))
       }
     })
 
@@ -1090,7 +1090,7 @@ export default function SalonDashboardPage() {
                       <div className="space-y-1">
                         {bookableStaff.length === 0 ? (
                           <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-                            Aucune masseuse active pour ce salon.
+                            {isStaffLoading ? "Chargement des masseuses du salon..." : "Aucune masseuse active pour ce salon."}
                           </div>
                         ) : scheduleHours.length === 0 ? (
                           <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">

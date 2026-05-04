@@ -162,11 +162,20 @@ export function getAppointmentStaffIds(appointment: CalendarAppointmentLike): st
 
 export function getStaffDisplayName(staff: { first_name?: string | null; last_name?: string | null }): string {
   const firstName = staff.first_name?.trim()
-  if (firstName) {
-    return firstName
+  const lastName = staff.last_name?.trim()
+  const normalizedFirstName = firstName?.toLowerCase()
+  const isHonorific =
+    normalizedFirstName === "madame" ||
+    normalizedFirstName === "monsieur" ||
+    normalizedFirstName === "mme" ||
+    normalizedFirstName === "mr" ||
+    normalizedFirstName === "m."
+
+  if (isHonorific) {
+    return lastName || firstName || "Masseuse"
   }
 
-  return staff.last_name?.trim() || "Prestataire"
+  return firstName || lastName || "Masseuse"
 }
 
 export function rangesOverlap(startA: Date, endA: Date, startB: Date, endB: Date): boolean {

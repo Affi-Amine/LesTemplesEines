@@ -86,7 +86,21 @@ export async function GET(request: NextRequest) {
     let filteredStaff = staff || []
 
     if (targetSalonId) {
-      filteredStaff = filteredStaff.filter((member) => member.salon_id === targetSalonId)
+      const { data: salonServices, error: salonServicesError } = await supabase
+        .from("service_salons")
+        .select("service_id")
+        .eq("salon_id", targetSalonId)
+
+      if (salonServicesError) throw salonServicesError
+
+      const salonServiceIds = new Set((salonServices || []).map((relation) => relation.service_id))
+      filteredStaff = filteredStaff.filter((member) => {
+        if (member.salon_id === targetSalonId) {
+          return true
+        }
+
+        return member.staff_services?.some((relation: any) => salonServiceIds.has(relation.service_id))
+      })
     }
 
     return NextResponse.json(

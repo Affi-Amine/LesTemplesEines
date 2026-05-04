@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
     const isActive = request.nextUrl.searchParams.get("is_active")
 
     const supabase = await createAdminClient()
+    let targetSalonId: string | null = null
 
     let query = supabase
       .from("staff")
@@ -58,8 +59,7 @@ export async function GET(request: NextRequest) {
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonIdOrSlug)
       
       if (isUUID) {
-        // It's already a UUID, use it directly
-        query = query.eq("salon_id", salonIdOrSlug)
+        targetSalonId = salonIdOrSlug
       } else {
         // It's a slug, need to convert to UUID first
         const { data: salon, error: salonError } = await supabase
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
           return NextResponse.json({ error: "Salon not found" }, { status: 404 })
         }
 
-        query = query.eq("salon_id", salon.id)
+        targetSalonId = salon.id
       }
     }
     
@@ -83,7 +83,27 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    return NextResponse.json((staff || []).map(mapStaff))
+    let filteredStaff = staff || []
+
+    if (targetSalonId) {
+      const { data: salonServices, error: salonServicesError } = await supabase
+        .from("service_salons")
+        .select("service_id")
+        .eq("salon_id", targetSalonId)
+
+      if (salonServicesError) throw salonServicesError
+
+      const salonServiceIds = new Set((salonServices || []).map((relation) => relation.service_id))
+      filteredStaff = filteredStaff.filter((member) => {
+        if (member.salon_id === targetSalonId) {
+          return true
+        }
+
+        return member.staff_services?.some((relation: any) => salonServiceIds.has(relation.service_id))
+      })
+    }
+
+    return NextResponse.json(filteredStaff.map(mapStaff))
   } catch (error) {
     console.error("[v0] Get staff error:", error)
     return NextResponse.json({ error: "Failed to fetch staff" }, { status: 500 })

@@ -27,17 +27,25 @@ function resolveAPIUrl(endpoint: string) {
   return path
 }
 
+function resolveFetchOptions(options?: RequestInit): RequestInit {
+  const method = options?.method || "GET"
+  const headers = new Headers(options?.headers)
+
+  if (method !== "GET" || options?.body) {
+    headers.set("Content-Type", headers.get("Content-Type") || "application/json")
+  }
+
+  return {
+    ...options,
+    headers,
+  }
+}
+
 export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = resolveAPIUrl(endpoint)
   const startedAt = performance.now()
 
-  const response = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-    ...options,
-  })
+  const response = await fetch(url, resolveFetchOptions(options))
   console.log("[api] fetchAPI", {
     method: options?.method || "GET",
     url,
@@ -57,13 +65,7 @@ export async function fetchAPIWithoutJSON(endpoint: string, options?: RequestIni
   const url = resolveAPIUrl(endpoint)
   const startedAt = performance.now()
 
-  const response = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-    ...options,
-  })
+  const response = await fetch(url, resolveFetchOptions(options))
   console.log("[api] fetchAPIWithoutJSON", {
     method: options?.method || "GET",
     url,

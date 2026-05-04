@@ -128,7 +128,37 @@ export default function SalonDashboardPage() {
   const selectedDayHours = date ? resolveOpeningHoursForDate(selectedOpeningHours, date) : null
   const scheduleHours = date ? getScheduleHourRange(selectedOpeningHours, date) : []
   const dayAppointments = appointments || []
-  const bookableStaff = staff || []
+  const staffFromAppointments = dayAppointments.reduce((acc: any[], appointment: any) => {
+    const byId = new Map(acc.map((member) => [member.id, member]))
+
+    if (appointment.staff?.id && !byId.has(appointment.staff.id)) {
+      byId.set(appointment.staff.id, {
+        id: appointment.staff.id,
+        first_name: appointment.staff.first_name || "Masseuse",
+        last_name: appointment.staff.last_name || "",
+        role: appointment.staff.role || "therapist",
+        is_active: true,
+      })
+    }
+
+    appointment.assignments?.forEach((assignment: any) => {
+      const staffId = assignment.staff_id || assignment.staff?.id
+      if (!staffId || byId.has(staffId)) {
+        return
+      }
+
+      byId.set(staffId, {
+        id: staffId,
+        first_name: assignment.staff?.first_name || "Masseuse",
+        last_name: assignment.staff?.last_name || "",
+        role: assignment.staff?.role || "therapist",
+        is_active: true,
+      })
+    })
+
+    return Array.from(byId.values())
+  }, [])
+  const bookableStaff = staff && staff.length > 0 ? staff : staffFromAppointments
   const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * STAFF_COLUMN_MIN_WIDTH
   const confirmedAppointments = dayAppointments.filter((apt: any) => apt.status === "confirmed" || apt.status === "pending")
   const inProgressAppointments = dayAppointments.filter((apt: any) => apt.status === "in_progress")

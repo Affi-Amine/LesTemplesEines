@@ -114,22 +114,46 @@ export default function SalonDashboardPage() {
   )
 
   // Data fetching
-  const { data: salons } = useSalons()
+  const { data: salons } = useSalons({ includeInactive: true })
   const { data: appointments, refetch: refetchAppointments } = useAppointments({
     salonId,
     startDate: date ? format(date, "yyyy-MM-dd") : undefined,
     endDate: date ? format(date, "yyyy-MM-dd") : undefined,
   })
   const { data: staff, isLoading: isStaffLoading } = useStaff(salonId)
+  const { data: allStaff, isLoading: isAllStaffLoading } = useStaff()
   const { data: services } = useServices(salonId)
   const createAppointment = useCreateAppointment()
 
   const salon = salons?.find(s => s.id === salonId)
+  const normalizeSalonValue = (value?: string | null) => value?.trim().toLowerCase() || ""
+  const staffById = new Map<string, any>()
+  ;[...(staff || []), ...(allStaff || [])].forEach((member) => {
+    if (!member?.id) return
+    if (staffById.has(member.id)) return
+    if (member.salon_id === salonId) {
+      staffById.set(member.id, member)
+      return
+    }
+
+    const memberSalon = salons?.find((candidate) => candidate.id === member.salon_id)
+    if (
+      salon &&
+      memberSalon &&
+      (
+        normalizeSalonValue(memberSalon.slug) === normalizeSalonValue(salon.slug) ||
+        normalizeSalonValue(memberSalon.name) === normalizeSalonValue(salon.name)
+      )
+    ) {
+      staffById.set(member.id, member)
+    }
+  })
+  const dashboardStaff = Array.from(staffById.values())
   const selectedOpeningHours = salon?.opening_hours || null
   const selectedDayHours = date ? resolveOpeningHoursForDate(selectedOpeningHours, date) : null
   const scheduleHours = date ? getScheduleHourRange(selectedOpeningHours, date) : []
   const dayAppointments = appointments || []
-  const bookableStaff = (staff || []).filter(canStaffTakeBookings).sort((a: any, b: any) =>
+  const bookableStaff = dashboardStaff.filter(canStaffTakeBookings).sort((a: any, b: any) =>
     getStaffDisplayName(a).localeCompare(getStaffDisplayName(b), "fr")
   )
   const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * STAFF_COLUMN_MIN_WIDTH
@@ -1063,7 +1087,7 @@ export default function SalonDashboardPage() {
                       <div className="space-y-1">
                         {bookableStaff.length === 0 ? (
                           <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-                            {isStaffLoading ? "Chargement des masseuses du salon..." : "Aucune masseuse active pour ce salon."}
+                            {isStaffLoading || isAllStaffLoading ? "Chargement des masseuses du salon..." : "Aucune masseuse active pour ce salon."}
                           </div>
                         ) : scheduleHours.length === 0 ? (
                           <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -1380,7 +1404,7 @@ export default function SalonDashboardPage() {
                   <h4 className="font-semibold">Masseuse(s)</h4>
                   <div className="space-y-2">
                     {getAppointmentStaffIds(selectedSlot).map((staffId) => {
-                      const assignedMember = staff?.find((member) => member.id === staffId) ||
+                      const assignedMember = dashboardStaff.find((member) => member.id === staffId) ||
                         selectedSlot.assignments?.find((assignment: any) => assignment.staff_id === staffId || assignment.staff?.id === staffId)?.staff ||
                         (selectedSlot.staff?.id === staffId ? selectedSlot.staff : null)
                       const assignedStaffIds = getAppointmentStaffIds(selectedSlot)

@@ -153,6 +153,9 @@ export default function SalonDashboardPage() {
   const selectedDayHours = date ? resolveOpeningHoursForDate(selectedOpeningHours, date) : null
   const scheduleHours = date ? getScheduleHourRange(selectedOpeningHours, date) : []
   const dayAppointments = appointments || []
+  const sortedDayAppointments = [...dayAppointments].sort(
+    (a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+  )
   const bookableStaff = dashboardStaff.filter(canStaffTakeBookings).sort((a: any, b: any) =>
     getStaffDisplayName(a).localeCompare(getStaffDisplayName(b), "fr")
   )
@@ -1071,7 +1074,107 @@ export default function SalonDashboardPage() {
                 </TabsList>
 
                 <TabsContent value="timeline" className="mt-4">
-                  <Card className="min-h-[600px] rounded-lg border-border/80 shadow-sm">
+                  <div className="space-y-3 md:hidden">
+                    {bookableStaff.length === 0 ? (
+                      <Card className="rounded-lg border-dashed p-6 text-center shadow-sm">
+                        <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-muted">
+                          <User className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <p className="font-medium">
+                          {isStaffLoading || isAllStaffLoading ? "Chargement des masseuses..." : "Aucune masseuse active"}
+                        </p>
+                      </Card>
+                    ) : (
+                      bookableStaff.map((member) => {
+                        const staffAppointments = sortedDayAppointments.filter((apt: any) =>
+                          getAppointmentStaffIds(apt).includes(member.id)
+                        )
+                        const firstHour = scheduleHours[0] || 10
+
+                        return (
+                          <section key={member.id} className="overflow-hidden rounded-xl border bg-card shadow-sm">
+                            <div className="flex items-center justify-between gap-3 border-b bg-muted/35 px-4 py-3">
+                              <div className="min-w-0">
+                                <h3 className="truncate text-base font-semibold">{getStaffDisplayName(member)}</h3>
+                                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                  {staffAppointments.length} rendez-vous
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-9 shrink-0 cursor-pointer"
+                                onClick={() =>
+                                  handleEmptySlotClick({
+                                    date: date || new Date(),
+                                    hour: firstHour,
+                                    minute: 0,
+                                    staffId: member.id,
+                                  })
+                                }
+                              >
+                                <Plus className="mr-1.5 h-4 w-4" />
+                                Ajouter
+                              </Button>
+                            </div>
+
+                            <div className="space-y-2 p-3">
+                              {staffAppointments.length === 0 ? (
+                                <div className="rounded-lg border border-dashed bg-background/60 px-3 py-5 text-center text-sm text-muted-foreground">
+                                  Aucun rendez-vous assigné
+                                </div>
+                              ) : (
+                                staffAppointments.map((apt: any) => {
+                                  const appointmentStaffIds = getAppointmentStaffIds(apt)
+                                  const isMultiStaffAppointment = appointmentStaffIds.length > 1
+
+                                  return (
+                                    <button
+                                      key={`${member.id}-${apt.id}`}
+                                      type="button"
+                                      onClick={() => {
+                                        if (apt.status === "blocked") return
+                                        handleValidate(apt)
+                                      }}
+                                      className={`w-full rounded-lg border p-3 text-left shadow-sm transition active:scale-[0.99] ${getDashboardStatusClass(apt.status)}`}
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <span className="text-sm font-bold tabular-nums">
+                                              {formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(apt.end_time, "Europe/Paris", "HH:mm")}
+                                            </span>
+                                            {isMultiStaffAppointment ? (
+                                              <span className="rounded bg-background/80 px-1.5 py-0.5 text-[10px] font-semibold">
+                                                x{appointmentStaffIds.length}
+                                              </span>
+                                            ) : null}
+                                          </div>
+                                          <p className="mt-1 truncate text-sm font-semibold">
+                                            {apt.status === "blocked"
+                                              ? "Créneau bloqué"
+                                              : `${apt.client?.first_name || "Client"} ${apt.client?.last_name || ""}`}
+                                          </p>
+                                          <p className="mt-0.5 truncate text-xs opacity-80">
+                                            {apt.service?.name || getDashboardStatusLabel(apt.status)}
+                                          </p>
+                                        </div>
+                                        <Badge className={`shrink-0 border text-[10px] ${getDashboardStatusClass(apt.status)}`}>
+                                          {getDashboardStatusLabel(apt.status)}
+                                        </Badge>
+                                      </div>
+                                    </button>
+                                  )
+                                })
+                              )}
+                            </div>
+                          </section>
+                        )
+                      })
+                    )}
+                  </div>
+
+                  <Card className="hidden min-h-[600px] rounded-lg border-border/80 shadow-sm md:block">
                     <div className="overflow-x-auto p-2 sm:p-4">
                     <div style={{ minWidth: scheduleMinWidth }}>
                       {/* Header: Staff names */}
@@ -1201,7 +1304,7 @@ export default function SalonDashboardPage() {
 
                 <TabsContent value="list" className="mt-4">
                   <div className="space-y-3">
-                    {dayAppointments.map((apt: any) => (
+                    {sortedDayAppointments.map((apt: any) => (
                       <Card key={apt.id} className="rounded-lg p-4 shadow-sm transition-colors hover:bg-muted/40">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="flex min-w-0 gap-4">

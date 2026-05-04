@@ -48,6 +48,9 @@ import { useRouter } from "next/navigation"
 const SCHEDULE_HOUR_HEIGHT = 76
 const STAFF_COLUMN_MIN_WIDTH = 152
 const TIME_COLUMN_WIDTH = 84
+const MOBILE_SCHEDULE_HOUR_HEIGHT = 58
+const MOBILE_STAFF_COLUMN_WIDTH = 104
+const MOBILE_TIME_COLUMN_WIDTH = 54
 
 export default function SalonDashboardPage() {
   const params = useParams()
@@ -160,6 +163,7 @@ export default function SalonDashboardPage() {
     getStaffDisplayName(a).localeCompare(getStaffDisplayName(b), "fr")
   )
   const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * STAFF_COLUMN_MIN_WIDTH
+  const mobileScheduleMinWidth = MOBILE_TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * MOBILE_STAFF_COLUMN_WIDTH
   const confirmedAppointments = dayAppointments.filter((apt: any) => apt.status === "confirmed" || apt.status === "pending")
   const inProgressAppointments = dayAppointments.filter((apt: any) => apt.status === "in_progress")
   const completedAppointments = dayAppointments.filter((apt: any) => apt.status === "completed")
@@ -1074,105 +1078,127 @@ export default function SalonDashboardPage() {
                 </TabsList>
 
                 <TabsContent value="timeline" className="mt-4">
-                  <div className="space-y-3 md:hidden">
-                    {bookableStaff.length === 0 ? (
-                      <Card className="rounded-lg border-dashed p-6 text-center shadow-sm">
-                        <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-muted">
-                          <User className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <p className="font-medium">
-                          {isStaffLoading || isAllStaffLoading ? "Chargement des masseuses..." : "Aucune masseuse active"}
+                  <Card className="overflow-hidden rounded-lg border-border/80 shadow-sm md:hidden">
+                    <div className="border-b bg-muted/30 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Mini planning
                         </p>
-                      </Card>
-                    ) : (
-                      bookableStaff.map((member) => {
-                        const staffAppointments = sortedDayAppointments.filter((apt: any) =>
-                          getAppointmentStaffIds(apt).includes(member.id)
-                        )
-                        const firstHour = scheduleHours[0] || 10
-
-                        return (
-                          <section key={member.id} className="overflow-hidden rounded-xl border bg-card shadow-sm">
-                            <div className="flex items-center justify-between gap-3 border-b bg-muted/35 px-4 py-3">
-                              <div className="min-w-0">
-                                <h3 className="truncate text-base font-semibold">{getStaffDisplayName(member)}</h3>
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                  {staffAppointments.length} rendez-vous
-                                </p>
+                        <Badge variant="outline" className="px-2 py-0.5 text-[10px]">
+                          {bookableStaff.length} masseuses
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="max-h-[68vh] overflow-auto overscroll-contain p-2">
+                      <div style={{ minWidth: mobileScheduleMinWidth }}>
+                        <div className="sticky top-0 z-20 mb-1 flex border-b bg-card/95 pb-1 backdrop-blur">
+                          <div className="shrink-0" style={{ width: MOBILE_TIME_COLUMN_WIDTH }} />
+                          {bookableStaff.map((member) => (
+                            <div
+                              key={member.id}
+                              className="shrink-0 border-l px-1 text-center"
+                              style={{ width: MOBILE_STAFF_COLUMN_WIDTH }}
+                            >
+                              <div className="truncate text-[11px] font-semibold leading-tight">
+                                {getStaffDisplayName(member)}
                               </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-9 shrink-0 cursor-pointer"
-                                onClick={() =>
-                                  handleEmptySlotClick({
-                                    date: date || new Date(),
-                                    hour: firstHour,
-                                    minute: 0,
-                                    staffId: member.id,
-                                  })
-                                }
+                              <div className="text-[8px] uppercase tracking-wide text-muted-foreground">Masseuse</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="space-y-0.5">
+                          {bookableStaff.length === 0 ? (
+                            <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                              {isStaffLoading || isAllStaffLoading ? "Chargement des masseuses..." : "Aucune masseuse active"}
+                            </div>
+                          ) : scheduleHours.length === 0 ? (
+                            <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                              Salon fermé ce jour.
+                            </div>
+                          ) : scheduleHours.map((hour) => (
+                            <div
+                              key={`mobile-${hour}`}
+                              className="relative flex border-t border-border"
+                              style={{ height: MOBILE_SCHEDULE_HOUR_HEIGHT }}
+                            >
+                              <div
+                                className="sticky left-0 z-10 shrink-0 bg-card pr-2 pt-1 text-right text-[11px] font-semibold text-muted-foreground"
+                                style={{ width: MOBILE_TIME_COLUMN_WIDTH }}
                               >
-                                <Plus className="mr-1.5 h-4 w-4" />
-                                Ajouter
-                              </Button>
-                            </div>
-
-                            <div className="space-y-2 p-3">
-                              {staffAppointments.length === 0 ? (
-                                <div className="rounded-lg border border-dashed bg-background/60 px-3 py-5 text-center text-sm text-muted-foreground">
-                                  Aucun rendez-vous assigné
-                                </div>
-                              ) : (
-                                staffAppointments.map((apt: any) => {
-                                  const appointmentStaffIds = getAppointmentStaffIds(apt)
-                                  const isMultiStaffAppointment = appointmentStaffIds.length > 1
-
-                                  return (
-                                    <button
-                                      key={`${member.id}-${apt.id}`}
-                                      type="button"
-                                      onClick={() => {
-                                        if (apt.status === "blocked") return
-                                        handleValidate(apt)
-                                      }}
-                                      className={`w-full rounded-lg border p-3 text-left shadow-sm transition active:scale-[0.99] ${getDashboardStatusClass(apt.status)}`}
-                                    >
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                          <div className="flex flex-wrap items-center gap-2">
-                                            <span className="text-sm font-bold tabular-nums">
-                                              {formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(apt.end_time, "Europe/Paris", "HH:mm")}
-                                            </span>
-                                            {isMultiStaffAppointment ? (
-                                              <span className="rounded bg-background/80 px-1.5 py-0.5 text-[10px] font-semibold">
-                                                x{appointmentStaffIds.length}
-                                              </span>
-                                            ) : null}
-                                          </div>
-                                          <p className="mt-1 truncate text-sm font-semibold">
-                                            {apt.status === "blocked"
-                                              ? "Créneau bloqué"
-                                              : `${apt.client?.first_name || "Client"} ${apt.client?.last_name || ""}`}
-                                          </p>
-                                          <p className="mt-0.5 truncate text-xs opacity-80">
-                                            {apt.service?.name || getDashboardStatusLabel(apt.status)}
-                                          </p>
-                                        </div>
-                                        <Badge className={`shrink-0 border text-[10px] ${getDashboardStatusClass(apt.status)}`}>
-                                          {getDashboardStatusLabel(apt.status)}
-                                        </Badge>
-                                      </div>
-                                    </button>
-                                  )
+                                {hour.toString().padStart(2, "0")}:00
+                              </div>
+                              {bookableStaff.map((member) => {
+                                const staffApts = sortedDayAppointments.filter((apt: any) => {
+                                  const aptHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
+                                  return getAppointmentStaffIds(apt).includes(member.id) && aptHour === hour
                                 })
-                              )}
+
+                                return (
+                                  <div
+                                    key={`mobile-${member.id}-${hour}`}
+                                    className="relative shrink-0 border-l bg-background/80"
+                                    style={{ width: MOBILE_STAFF_COLUMN_WIDTH }}
+                                    onClick={() =>
+                                      handleEmptySlotClick({
+                                        date: date || new Date(),
+                                        hour,
+                                        minute: 0,
+                                        staffId: member.id,
+                                      })
+                                    }
+                                  >
+                                    <div className="absolute inset-0 grid grid-rows-4">
+                                      {[0, 15, 30, 45].map((minute, idx) => (
+                                        <div
+                                          key={`mobile-${member.id}-${hour}-${minute}`}
+                                          className={idx < 3 ? "border-b border-dashed border-border/40" : ""}
+                                        />
+                                      ))}
+                                    </div>
+
+                                    {staffApts.map((apt: any) => {
+                                      const startMinute = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "m"), 10)
+                                      const startHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
+                                      const topOffset = startHour === hour ? (startMinute / 60) * MOBILE_SCHEDULE_HOUR_HEIGHT : 0
+                                      const heightPx = Math.max((getAppointmentDurationMinutes(apt) / 60) * MOBILE_SCHEDULE_HOUR_HEIGHT, 18)
+                                      const appointmentStaffIds = getAppointmentStaffIds(apt)
+                                      const isMultiStaffAppointment = appointmentStaffIds.length > 1
+
+                                      return (
+                                        <button
+                                          key={`mobile-${member.id}-${apt.id}`}
+                                          type="button"
+                                          onClick={(event) => {
+                                            event.stopPropagation()
+                                            if (apt.status !== "blocked") {
+                                              handleValidate(apt)
+                                            }
+                                          }}
+                                          className={`absolute left-1 right-1 overflow-hidden rounded border px-1 py-0.5 text-left shadow-sm ${getDashboardStatusClass(apt.status)}`}
+                                          style={{ top: `${topOffset}px`, height: `${heightPx}px` }}
+                                        >
+                                          <div className="flex items-center gap-1 text-[9px] font-bold leading-tight">
+                                            <span>{formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")}</span>
+                                            {isMultiStaffAppointment ? <span className="rounded bg-background/80 px-1">x{appointmentStaffIds.length}</span> : null}
+                                          </div>
+                                          {heightPx >= 28 ? (
+                                            <div className="truncate text-[8px] font-medium leading-tight">
+                                              {apt.status === "blocked" ? "Bloqué" : `${apt.client?.first_name || "Client"} ${apt.client?.last_name?.[0] || ""}`}
+                                            </div>
+                                          ) : null}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                )
+                              })}
                             </div>
-                          </section>
-                        )
-                      })
-                    )}
-                  </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
 
                   <Card className="hidden min-h-[600px] rounded-lg border-border/80 shadow-sm md:block">
                     <div className="overflow-x-auto p-2 sm:p-4">

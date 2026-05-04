@@ -991,9 +991,9 @@ export default function SalonDashboardPage() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-5">
             {/* Left Sidebar - Calendar & Quick Actions */}
-            <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+            <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-stretch">
               <Card className="gap-4 rounded-lg p-4 shadow-sm">
                 <div>
                   <h2 className="text-lg font-semibold">Date de travail</h2>
@@ -1007,19 +1007,21 @@ export default function SalonDashboardPage() {
                 />
               </Card>
 
-              <Card className="gap-3 rounded-lg p-4 shadow-sm">
+              <Card className="gap-3 rounded-lg p-4 shadow-sm lg:justify-center">
                 <div>
                   <h3 className="text-lg font-semibold">Actions rapides</h3>
                   <p className="text-sm text-muted-foreground">Créer, bloquer, puis ajuster au planning.</p>
                 </div>
-                <Button className="h-11 w-full justify-start cursor-pointer" variant="default" onClick={handleOpenCreate}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Ajouter un rendez-vous
-                </Button>
-                <Button className="h-11 w-full justify-start cursor-pointer" variant="outline" onClick={handleBlockSlot}>
-                  <Ban className="mr-2 h-4 w-4" />
-                  Bloquer un créneau
-                </Button>
+                <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
+                  <Button className="h-11 w-full justify-start cursor-pointer" variant="default" onClick={handleOpenCreate}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Ajouter un rendez-vous
+                  </Button>
+                  <Button className="h-11 w-full justify-start cursor-pointer" variant="outline" onClick={handleBlockSlot}>
+                    <Ban className="mr-2 h-4 w-4" />
+                    Bloquer un créneau
+                  </Button>
+                </div>
               </Card>
             </div>
 
@@ -1076,7 +1078,7 @@ export default function SalonDashboardPage() {
                       <div className="sticky top-0 z-20 mb-3 flex border-b border-border bg-card/95 pb-2 backdrop-blur">
                         <div className="shrink-0" style={{ width: TIME_COLUMN_WIDTH }}></div>
                         {bookableStaff.map(s => (
-                          <div key={s.id} className="min-w-[152px] flex-1 border-l border-border px-2 text-center sm:min-w-[190px]">
+                          <div key={s.id} className="min-w-[152px] flex-1 border-l border-border px-2 text-center">
                             <div className="truncate text-sm font-semibold sm:text-base">{getStaffDisplayName(s)}</div>
                             <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Masseuse</div>
                           </div>
@@ -1109,7 +1111,7 @@ export default function SalonDashboardPage() {
                                 const slotId = `slot-dashboard-${s.id}-${hour}`
 
                                 return (
-                                  <div key={`${s.id}-${hour}`} className="relative min-w-[152px] flex-1 border-l border-border bg-background/80 sm:min-w-[190px]">
+                                  <div key={`${s.id}-${hour}`} className="relative min-w-[152px] flex-1 border-l border-border bg-background/80">
                                     <div className="absolute inset-0 grid grid-rows-4">
                                       {[0, 15, 30, 45].map((minute, idx) => (
                                         <DroppableSlot

@@ -425,7 +425,7 @@ export function QuickCreateModal({
           </div>
 
           <div className="space-y-2">
-            <Label>Prestataire(s) *</Label>
+            <Label>Masseuse(s) *</Label>
             <div className="flex flex-wrap gap-2 mb-2">
               {form.staff_ids.map((id) => {
                 const member = staff?.find((s) => s.id === id)
@@ -444,7 +444,7 @@ export function QuickCreateModal({
             </div>
             <Select onValueChange={(val) => toggleStaffSelection(val)}>
               <SelectTrigger>
-                <SelectValue placeholder="Ajouter un prestataire" />
+                <SelectValue placeholder="Ajouter une masseuse" />
               </SelectTrigger>
               <SelectContent>
                 {staff
@@ -461,7 +461,7 @@ export function QuickCreateModal({
 
           {conflict && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-              Conflit détecté: un rendez-vous existe déjà sur ce créneau pour le prestataire sélectionné.
+              Conflit détecté: un rendez-vous existe déjà sur ce créneau pour la masseuse sélectionnée.
             </div>
           )}
 

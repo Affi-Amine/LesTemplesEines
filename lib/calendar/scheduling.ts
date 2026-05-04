@@ -30,7 +30,7 @@ export interface CalendarAppointmentLike {
   status?: string | null
   staff_id?: string | null
   staff?: { id?: string | null } | null
-  assignments?: Array<{ staff?: { id?: string | null } | null }> | null
+  assignments?: Array<{ staff_id?: string | null; staff?: { id?: string | null } | null }> | null
 }
 
 interface OverlapParams {
@@ -150,11 +150,23 @@ export function getAppointmentStaffIds(appointment: CalendarAppointmentLike): st
     ids.add(appointment.staff.id)
   }
   appointment.assignments?.forEach((assignment) => {
+    if (assignment.staff_id) {
+      ids.add(assignment.staff_id)
+    }
     if (assignment.staff?.id) {
       ids.add(assignment.staff.id)
     }
   })
   return Array.from(ids)
+}
+
+export function getStaffDisplayName(staff: { first_name?: string | null; last_name?: string | null }): string {
+  const firstName = staff.first_name?.trim()
+  if (firstName) {
+    return firstName
+  }
+
+  return staff.last_name?.trim() || "Prestataire"
 }
 
 export function rangesOverlap(startA: Date, endA: Date, startB: Date, endB: Date): boolean {

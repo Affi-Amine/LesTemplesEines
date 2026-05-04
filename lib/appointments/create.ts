@@ -150,8 +150,8 @@ export async function validateAppointmentScheduling(
   if (allStaffIds.length !== requiredStaffCount) {
     throw new Error(
       requiredStaffCount === 1
-        ? "Cette prestation necessite exactement 1 praticien"
-        : `Cette prestation necessite exactement ${requiredStaffCount} praticiens`
+        ? "Cette prestation nécessite exactement 1 masseuse"
+        : `Cette prestation nécessite exactement ${requiredStaffCount} masseuses`
     )
   }
 
@@ -219,7 +219,7 @@ export async function assertStaffCanProvideService(
   const unavailableStaffIds = staffIds.filter((staffId) => !qualifiedStaffIds.includes(staffId))
 
   if (unavailableStaffIds.length > 0) {
-    throw new Error("Un ou plusieurs praticiens ne peuvent pas realiser ce soin")
+    throw new Error("Une ou plusieurs masseuses ne peuvent pas réaliser ce soin")
   }
 }
 

@@ -206,6 +206,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         `*,
         client:clients(*),
         staff:staff(id, first_name, last_name, role, phone),
+        assignments:appointment_assignments(
+          staff_id,
+          staff:staff(id, first_name, last_name)
+        ),
         service:services(*),
         salon:salons(id, name, city, address)`
       )

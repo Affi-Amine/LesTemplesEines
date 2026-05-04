@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
         client:clients(*),
         staff:staff(id, first_name, last_name, role, phone),
         assignments:appointment_assignments(
+          staff_id,
           staff:staff(id, first_name, last_name)
         ),
         service:services(*),

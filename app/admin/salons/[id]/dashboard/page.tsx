@@ -33,6 +33,7 @@ import {
   findOverlappingAppointment,
   getAppointmentDurationMinutes,
   getAppointmentStaffIds,
+  getStaffDisplayName,
   getDefaultStartTimeForDate,
   getScheduleHourRange,
   minutesToTimeLabel,
@@ -42,6 +43,10 @@ import {
 import type { Client } from "@/lib/types/database"
 
 import { useRouter } from "next/navigation"
+
+const SCHEDULE_HOUR_HEIGHT = 76
+const STAFF_COLUMN_MIN_WIDTH = 152
+const TIME_COLUMN_WIDTH = 84
 
 export default function SalonDashboardPage() {
   const params = useParams()
@@ -83,6 +88,7 @@ export default function SalonDashboardPage() {
     staffIds: string[]
   } | null>(null)
   const [isMovingAppointment, setIsMovingAppointment] = useState(false)
+  const [replacingStaffId, setReplacingStaffId] = useState<string | null>(null)
 
   // Quick create modal state
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
@@ -122,6 +128,8 @@ export default function SalonDashboardPage() {
   const selectedDayHours = date ? resolveOpeningHoursForDate(selectedOpeningHours, date) : null
   const scheduleHours = date ? getScheduleHourRange(selectedOpeningHours, date) : []
   const dayAppointments = appointments || []
+  const bookableStaff = staff || []
+  const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * STAFF_COLUMN_MIN_WIDTH
   const confirmedAppointments = dayAppointments.filter((apt: any) => apt.status === "confirmed" || apt.status === "pending")
   const inProgressAppointments = dayAppointments.filter((apt: any) => apt.status === "in_progress")
   const completedAppointments = dayAppointments.filter((apt: any) => apt.status === "completed")
@@ -137,7 +145,7 @@ export default function SalonDashboardPage() {
       case "confirmed":
         return "Confirmé"
       case "pending":
-        return "À confirmer"
+        return "Attente"
       case "in_progress":
         return "En cours"
       case "completed":
@@ -156,16 +164,17 @@ export default function SalonDashboardPage() {
   const getDashboardStatusClass = (status: string) => {
     switch (status) {
       case "confirmed":
-        return "border-sky-200 bg-sky-50 text-sky-900"
+        return "border-[#9cc9bf] bg-[#e8f6f2] text-[#0f4c43]"
       case "pending":
-        return "border-amber-200 bg-amber-50 text-amber-900"
+        return "border-[#c9d4d0] bg-[#f0f5f2] text-[#35514a]"
       case "in_progress":
-        return "border-violet-200 bg-violet-50 text-violet-900"
+        return "border-[#f4b740] bg-[#fff4cf] text-[#5c3d00]"
       case "completed":
-        return "border-emerald-200 bg-emerald-50 text-emerald-900"
-      case "cancelled":
+        return "border-[#75c7a1] bg-[#e8f8ef] text-[#0b4936]"
       case "no_show":
-        return "border-rose-200 bg-rose-50 text-rose-900"
+        return "border-[#e6a36f] bg-[#fff3e8] text-[#74380d]"
+      case "cancelled":
+        return "border-[#f0a0a7] bg-[#fff0f1] text-[#7b1e2b]"
       case "blocked":
         return "border-stone-300 bg-stone-100 text-stone-800"
       default:
@@ -184,20 +193,89 @@ export default function SalonDashboardPage() {
       }
     })
 
-    return Array.from(names.values()).filter(Boolean).join(", ") || "Prestataire"
+    return Array.from(names.values()).filter(Boolean).join(", ") || "Masseuse"
   }
 
   const handleValidate = async (appointment: any) => {
     setSelectedSlot(appointment)
 
-    // If appointment is already completed/paid, show details instead of payment panel
-    if (appointment.status === 'completed' || appointment.payment_status === 'paid') {
+    if (appointment.status === "blocked") {
+      return
+    }
+
+    if (appointment.payment_status === "paid") {
       setIsDetailsOpen(true)
-    } else {
-      // Show payment panel for pending/confirmed appointments
-      const price = appointment.service?.price_cents ? appointment.service.price_cents / 100 : 0
-      setPaymentLines([{ method: "card", amount: price }])
-      setIsValidationOpen(true)
+      return
+    }
+
+    handleOpenPayment(appointment)
+  }
+
+  const handleOpenPayment = (appointment = selectedSlot) => {
+    if (!appointment) return
+    const price = appointment.service?.price_cents ? appointment.service.price_cents / 100 : 0
+    setSelectedSlot(appointment)
+    setPaymentLines([{ method: "card", amount: price }])
+    setIsDetailsOpen(false)
+    setIsValidationOpen(true)
+  }
+
+  const isStaffAvailableForAppointment = (appointment: any, staffId: string) => {
+    return !findOverlappingAppointment({
+      appointments: appointments || [],
+      staffId,
+      start: new Date(appointment.start_time),
+      end: new Date(appointment.end_time),
+      ignoreAppointmentId: appointment.id,
+    })
+  }
+
+  const handleReplaceAppointmentStaff = async (appointment: any, previousStaffId: string, nextStaffId: string) => {
+    if (!appointment || previousStaffId === nextStaffId) return
+
+    if (!isStaffAvailableForAppointment(appointment, nextStaffId)) {
+      toast.error("Masseuse indisponible", {
+        description: "Cette masseuse a déjà un rendez-vous sur ce créneau.",
+      })
+      return
+    }
+
+    const currentStaffIds = getAppointmentStaffIds(appointment)
+    const nextStaffIds = currentStaffIds.map((staffId) => staffId === previousStaffId ? nextStaffId : staffId)
+
+    if (new Set(nextStaffIds).size !== nextStaffIds.length) {
+      toast.error("Masseuse déjà assignée")
+      return
+    }
+
+    try {
+      setReplacingStaffId(previousStaffId)
+      const response = await fetch(`/api/appointments/${appointment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          staff_id: nextStaffIds[0],
+          staff_ids: nextStaffIds,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Remplacement impossible")
+      }
+
+      const nextStaff = staff?.find((member) => member.id === nextStaffId)
+      toast.success("Masseuse remplacée", {
+        description: nextStaff ? `${getStaffDisplayName(nextStaff)} est assignée au rendez-vous.` : undefined,
+      })
+      setIsDetailsOpen(false)
+      refetchAppointments()
+    } catch (error: any) {
+      toast.error("Remplacement impossible", {
+        description: error.message || "Réessayez",
+      })
+    } finally {
+      setReplacingStaffId(null)
     }
   }
 
@@ -219,7 +297,6 @@ export default function SalonDashboardPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          status: "completed",
           payment_status: "paid",
           payment_method: paymentLines.length > 1 ? "mixed" : paymentLines[0].method,
           amount_paid_cents: totalPaid * 100,
@@ -235,7 +312,9 @@ export default function SalonDashboardPage() {
         throw new Error(errorData.error || "Erreur lors de la validation")
       }
 
-      toast.success("Paiement validé et rendez-vous terminé !")
+      toast.success("Paiement validé", {
+        description: "Le statut de prestation reste géré par la vue employée.",
+      })
       setIsValidationOpen(false)
       refetchAppointments()
     } catch (error) {
@@ -317,8 +396,8 @@ export default function SalonDashboardPage() {
     }
 
     if (createForm.staff_ids.length !== selectedCreateRequiredStaffCount) {
-      toast.error("Prestataires incomplets", {
-        description: `Cette prestation nécessite ${selectedCreateRequiredStaffCount} prestataire${selectedCreateRequiredStaffCount > 1 ? "s" : ""}.`,
+      toast.error("Masseuses incomplètes", {
+        description: `Cette prestation nécessite ${selectedCreateRequiredStaffCount} masseuse${selectedCreateRequiredStaffCount > 1 ? "s" : ""}.`,
       })
       return
     }
@@ -407,8 +486,8 @@ export default function SalonDashboardPage() {
         setCreateForm({...createForm, staff_ids: current.filter(id => id !== staffId)})
       } else {
         if (current.length >= selectedCreateRequiredStaffCount) {
-          toast.error("Nombre de prestataires atteint", {
-            description: `Cette prestation nécessite ${selectedCreateRequiredStaffCount} prestataire${selectedCreateRequiredStaffCount > 1 ? "s" : ""}.`,
+          toast.error("Nombre de masseuses atteint", {
+            description: `Cette prestation nécessite ${selectedCreateRequiredStaffCount} masseuse${selectedCreateRequiredStaffCount > 1 ? "s" : ""}.`,
           })
           return
         }
@@ -569,8 +648,10 @@ export default function SalonDashboardPage() {
     const durationMinutes = getAppointmentDurationMinutes(appointment)
     const newEndTime = addMinutes(newStartTime, durationMinutes)
     const assignedStaffIds = getAppointmentStaffIds(appointment)
+    const primaryStaffId = assignedStaffIds[0] || appointment.staff_id || appointment.staff?.id
+    const isMultiStaffMove = assignedStaffIds.length > 1
     const targetStaffId = dropData.staffId || appointment.staff_id || appointment.staff?.id
-    const targetStaffIds = assignedStaffIds.length > 1
+    const targetStaffIds = isMultiStaffMove
       ? assignedStaffIds
       : targetStaffId
         ? [targetStaffId]
@@ -578,16 +659,18 @@ export default function SalonDashboardPage() {
 
     // Check if anything actually changed
     const oldStart = new Date(appointment.start_time)
-    const staffChanged = Boolean(dropData.staffId && dropData.staffId !== appointment.staff_id)
+    const staffChanged = Boolean(dropData.staffId && (
+      isMultiStaffMove ? !assignedStaffIds.includes(dropData.staffId) : dropData.staffId !== primaryStaffId
+    ))
     const timeChanged = oldStart.getHours() !== newHour || oldStart.getMinutes() !== newMinute
 
     if (!staffChanged && !timeChanged) {
       return
     }
 
-    if (assignedStaffIds.length > 1 && staffChanged) {
-      toast.error("Déplacement multi-praticiens bloqué", {
-        description: "Pour remplacer un seul praticien sur un rendez-vous multi-praticiens, ouvrez le rendez-vous puis utilisez Modifier.",
+    if (isMultiStaffMove && staffChanged) {
+      toast.error("Déplacement multi-masseuses bloqué", {
+        description: "Un rendez-vous à plusieurs masseuses se déplace seulement en heure. Pour changer l'équipe, ouvrez les détails du rendez-vous.",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
       })
       return
@@ -605,13 +688,13 @@ export default function SalonDashboardPage() {
 
     if (overlap) {
       toast.error("Créneau indisponible", {
-        description: "Ce déplacement chevauche un autre rendez-vous pour au moins un praticien concerné.",
+        description: "Ce déplacement chevauche un autre rendez-vous pour au moins une masseuse concernée.",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
       })
       return
     }
 
-    if (assignedStaffIds.length > 1) {
+    if (isMultiStaffMove) {
       setPendingMove({
         appointment,
         start: newStartTime,
@@ -628,7 +711,7 @@ export default function SalonDashboardPage() {
       }
 
       // If staff changed, update staff_id
-      if (dropData.staffId && dropData.staffId !== appointment.staff_id) {
+      if (dropData.staffId && dropData.staffId !== primaryStaffId) {
         updateData.staff_id = dropData.staffId
         updateData.staff_ids = [dropData.staffId]
       }
@@ -647,7 +730,7 @@ export default function SalonDashboardPage() {
       const staffMember = dropData.staffId ? staff?.find(s => s.id === dropData.staffId) : null
       toast.success("Rendez-vous déplacé", {
         description: staffChanged
-          ? `Nouveau créneau: ${format(newStartTime, "HH:mm")} avec ${staffMember?.first_name || "le prestataire"}`
+          ? `Nouveau créneau: ${format(newStartTime, "HH:mm")} avec ${staffMember ? getStaffDisplayName(staffMember) : "la masseuse"}`
           : `Nouveau créneau: ${format(newStartTime, "HH:mm")} - ${format(newEndTime, "HH:mm")}`,
         icon: <Icon icon="solar:calendar-bold" className="w-5 h-5 text-green-500" />,
       })
@@ -772,8 +855,8 @@ export default function SalonDashboardPage() {
     }))
     const isSpecificSelectionComplete = selectedStaffCount === requiredStaffCount
     const availabilityModeLabel = isSpecificSelectionComplete
-      ? `Disponibilités communes pour les ${requiredStaffCount} prestataire${requiredStaffCount > 1 ? "s" : ""} sélectionné${requiredStaffCount > 1 ? "s" : ""}`
-      : `Créneaux avec au moins ${requiredStaffCount} prestataire${requiredStaffCount > 1 ? "s" : ""} disponible${requiredStaffCount > 1 ? "s" : ""}`
+      ? `Disponibilités communes pour les ${requiredStaffCount} masseuse${requiredStaffCount > 1 ? "s" : ""} sélectionnée${requiredStaffCount > 1 ? "s" : ""}`
+      : `Créneaux avec au moins ${requiredStaffCount} masseuse${requiredStaffCount > 1 ? "s" : ""} disponible${requiredStaffCount > 1 ? "s" : ""}`
 
     return (
       <div className="mt-4 space-y-3 border-t pt-4">
@@ -786,7 +869,7 @@ export default function SalonDashboardPage() {
 
         {!isSpecificSelectionComplete ? (
           <p className="text-xs text-muted-foreground">
-            Sélectionnez {requiredStaffCount} prestataire{requiredStaffCount > 1 ? "s" : ""} pour vérifier leur disponibilité commune exacte.
+            Sélectionnez {requiredStaffCount} masseuse{requiredStaffCount > 1 ? "s" : ""} pour vérifier leur disponibilité commune exacte.
           </p>
         ) : null}
 
@@ -800,7 +883,7 @@ export default function SalonDashboardPage() {
           </div>
         ) : slotTimes.length === 0 ? (
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            Aucun créneau disponible pour cette sélection. Changez la date, l'heure ou les prestataires.
+            Aucun créneau disponible pour cette sélection. Changez la date, l'heure ou les masseuses.
           </div>
         ) : (
           <div className="rounded-lg border bg-green-50 p-3">
@@ -945,7 +1028,8 @@ export default function SalonDashboardPage() {
                   <div className="flex items-start gap-2">
                     <GripVertical className="mt-0.5 h-4 w-4 shrink-0" />
                     <p>
-                      Glissez un rendez-vous pour le déplacer. Les rendez-vous multi-prestataires gardent tout le groupe ensemble.
+                      Colonnes = masseuses. Glissez un rendez-vous vers une autre heure ou une autre masseuse.
+                      Les rendez-vous à plusieurs masseuses gardent toute l'équipe ensemble.
                     </p>
                   </div>
                 </div>
@@ -958,44 +1042,47 @@ export default function SalonDashboardPage() {
                 </TabsList>
 
                 <TabsContent value="timeline" className="mt-4">
-                  <Card className="min-h-[600px] overflow-hidden rounded-lg shadow-sm">
-                    <div className="overflow-x-auto p-4">
-                    <div className="min-w-[860px]">
+                  <Card className="min-h-[600px] rounded-lg border-border/80 shadow-sm">
+                    <div className="overflow-x-auto p-2 sm:p-4">
+                    <div style={{ minWidth: scheduleMinWidth }}>
                       {/* Header: Staff names */}
-                      <div className="sticky top-0 z-20 mb-4 flex border-b bg-card/95 pb-3 backdrop-blur">
-                        <div className="w-20 shrink-0"></div>
-                        {staff?.map(s => (
-                          <div key={s.id} className="flex-1 border-l px-2 text-center">
-                            <div className="truncate font-semibold">{s.first_name}</div>
-                            <div className="text-[11px] text-muted-foreground">{s.role}</div>
+                      <div className="sticky top-0 z-20 mb-3 flex border-b border-border bg-card/95 pb-2 backdrop-blur">
+                        <div className="shrink-0" style={{ width: TIME_COLUMN_WIDTH }}></div>
+                        {bookableStaff.map(s => (
+                          <div key={s.id} className="min-w-[152px] flex-1 border-l border-border px-2 text-center sm:min-w-[190px]">
+                            <div className="truncate text-sm font-semibold sm:text-base">{getStaffDisplayName(s)}</div>
+                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Masseuse</div>
                           </div>
                         ))}
                       </div>
 
                       {/* Time slots */}
                       <div className="space-y-1">
-                        {scheduleHours.length === 0 ? (
+                        {bookableStaff.length === 0 ? (
+                          <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+                            Aucune masseuse active pour ce salon.
+                          </div>
+                        ) : scheduleHours.length === 0 ? (
                           <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
                             Salon fermé ce jour. Modifiez les horaires du salon pour ouvrir des créneaux.
                           </div>
                         ) : scheduleHours.map((hour) => {
                           return (
-                            <div key={hour} className="relative flex h-[64px] border-t">
-                              <div className="w-20 shrink-0 bg-card pr-3 pt-1 text-right text-sm font-medium text-muted-foreground">
+                            <div key={hour} className="relative flex border-t border-border" style={{ height: SCHEDULE_HOUR_HEIGHT }}>
+                              <div className="shrink-0 bg-card pr-3 pt-1 text-right text-sm font-medium text-muted-foreground" style={{ width: TIME_COLUMN_WIDTH }}>
                                 {hour.toString().padStart(2, "0")}:00
                               </div>
-                              {staff?.map(s => {
+                              {bookableStaff.map(s => {
                                 // Find appointments for this staff in this hour
                                 const staffApts = appointments?.filter((apt: any) => {
                                   const aptHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
-                                  return (apt.staff_id === s.id || apt.assignments?.some((a:any) => a.staff?.id === s.id)) &&
-                                         aptHour === hour
+                                  return getAppointmentStaffIds(apt).includes(s.id) && aptHour === hour
                                 })
 
                                 const slotId = `slot-dashboard-${s.id}-${hour}`
 
                                 return (
-                                  <div key={`${s.id}-${hour}`} className="relative flex-1 border-l bg-background/60">
+                                  <div key={`${s.id}-${hour}`} className="relative min-w-[152px] flex-1 border-l border-border bg-background/80 sm:min-w-[190px]">
                                     <div className="absolute inset-0 grid grid-rows-4">
                                       {[0, 15, 30, 45].map((minute, idx) => (
                                         <DroppableSlot
@@ -1008,7 +1095,7 @@ export default function SalonDashboardPage() {
                                           onEmptyClick={(data) => handleEmptySlotClick({ ...data, date: date || new Date() })}
                                           isInvalidDrop={isInvalidSlotForActive(date || new Date(), s.id, hour, minute)}
                                           isDragActive={Boolean(activeAppointment)}
-                                          className={`${idx < 3 ? "border-b border-border/30" : ""} min-h-0`}
+                                          className={`${idx < 3 ? "border-b border-dashed border-border/50" : ""} min-h-[19px]`}
                                         >
                                           <div />
                                         </DroppableSlot>
@@ -1018,8 +1105,8 @@ export default function SalonDashboardPage() {
                                     {staffApts?.map((apt: any) => {
                                       const startMinute = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "m"), 10)
                                       const startHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
-                                      const topOffset = startHour === hour ? startMinute : 0
-                                      const heightPx = Math.max(getAppointmentDurationMinutes(apt), 15)
+                                      const topOffset = startHour === hour ? (startMinute / 60) * SCHEDULE_HOUR_HEIGHT : 0
+                                      const heightPx = Math.max((getAppointmentDurationMinutes(apt) / 60) * SCHEDULE_HOUR_HEIGHT, 20)
                                       const isDraggable = apt.status !== 'blocked' && apt.status !== 'completed' && apt.status !== 'cancelled'
                                       const appointmentStaffIds = getAppointmentStaffIds(apt)
                                       const isMultiStaffAppointment = appointmentStaffIds.length > 1
@@ -1037,7 +1124,7 @@ export default function SalonDashboardPage() {
                                             top: `${topOffset}px`,
                                             height: `${heightPx}px`,
                                           }}
-                                          className={`overflow-hidden rounded-md border p-1 text-xs shadow-sm transition-shadow hover:shadow-md ${getDashboardStatusClass(apt.status)}`}
+                                          className={`overflow-hidden rounded-md border-2 p-1 text-xs shadow-sm transition-shadow hover:shadow-md ${getDashboardStatusClass(apt.status)}`}
                                         >
                                           <div
                                             className="w-full h-full"
@@ -1058,7 +1145,7 @@ export default function SalonDashboardPage() {
                                                 <div className="flex items-center gap-1 font-semibold text-[10px]">
                                                   <span>{formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")}</span>
                                                   {isMultiStaffAppointment ? (
-                                                    <span className="rounded bg-background/70 px-1 text-[9px]">x{appointmentStaffIds.length}</span>
+                                                    <span className="rounded bg-background/80 px-1 text-[9px]">x{appointmentStaffIds.length}</span>
                                                   ) : null}
                                                 </div>
                                                 <div className="truncate text-[9px] font-medium">{apt.client?.first_name} {apt.client?.last_name?.[0]}.</div>
@@ -1112,14 +1199,14 @@ export default function SalonDashboardPage() {
                           </div>
 
                           <div className="flex items-center gap-2 sm:justify-end">
-                            {apt.status === "confirmed" && (
+                            {apt.status !== "blocked" && apt.payment_status !== "paid" && (
                               <Button size="sm" onClick={() => handleValidate(apt)} className="cursor-pointer">
                                 <CheckCircle className="mr-2 h-4 w-4" />
-                                Valider
+                                Présent / payer
                               </Button>
                             )}
                             {apt.status !== "blocked" && (
-                              <Button size="sm" variant="outline" onClick={() => handleValidate(apt)} className="cursor-pointer">
+                              <Button size="sm" variant="outline" onClick={() => { setSelectedSlot(apt); setIsDetailsOpen(true) }} className="cursor-pointer">
                                 Détails
                               </Button>
                             )}
@@ -1208,7 +1295,7 @@ export default function SalonDashboardPage() {
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsValidationOpen(false)} className="cursor-pointer">Annuler</Button>
-              <Button onClick={handleConfirmValidation} className="cursor-pointer">Confirmer et Payer</Button>
+              <Button onClick={handleConfirmValidation} className="cursor-pointer">Confirmer et payer</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -1227,15 +1314,12 @@ export default function SalonDashboardPage() {
               <div className="space-y-4 py-4">
                 {/* Status Badge */}
                 <div className="flex items-center justify-between">
-                  <Badge variant={selectedSlot.status === "completed" ? "default" : "secondary"} className="text-sm px-3 py-1">
-                    {selectedSlot.status === "completed" ? "✓ Terminé" :
-                     selectedSlot.status === "confirmed" ? "Confirmé" :
-                     selectedSlot.status === "pending" ? "En attente" :
-                     selectedSlot.status}
+                  <Badge className={`border px-3 py-1 text-sm font-bold ${getDashboardStatusClass(selectedSlot.status)}`}>
+                    {getDashboardStatusLabel(selectedSlot.status)}
                   </Badge>
                   {selectedSlot.payment_status && (
                     <Badge variant={selectedSlot.payment_status === "paid" ? "default" : "outline"} className="text-sm px-3 py-1">
-                      {selectedSlot.payment_status === "paid" ? "💳 Payé" : "En attente de paiement"}
+                      {selectedSlot.payment_status === "paid" ? "Payé" : "Paiement en attente"}
                     </Badge>
                   )}
                 </div>
@@ -1290,20 +1374,49 @@ export default function SalonDashboardPage() {
 
                 {/* Staff/Employees */}
                 <div className="p-4 bg-muted/50 rounded-lg space-y-2">
-                  <h4 className="font-semibold">Prestataire(s)</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedSlot.staff && (
-                      <Badge variant="outline" className="px-3 py-1">
-                        {selectedSlot.staff.first_name} {selectedSlot.staff.last_name}
-                      </Badge>
-                    )}
-                    {selectedSlot.assignments
-                      ?.filter((assignment: any) => assignment.staff?.id !== selectedSlot.staff?.id)
-                      .map((assignment: any) => (
-                        <Badge key={assignment.staff?.id} variant="outline" className="px-3 py-1">
-                          {assignment.staff?.first_name} {assignment.staff?.last_name}
-                        </Badge>
-                      ))}
+                  <h4 className="font-semibold">Masseuse(s)</h4>
+                  <div className="space-y-2">
+                    {getAppointmentStaffIds(selectedSlot).map((staffId) => {
+                      const assignedMember = staff?.find((member) => member.id === staffId) ||
+                        selectedSlot.assignments?.find((assignment: any) => assignment.staff_id === staffId || assignment.staff?.id === staffId)?.staff ||
+                        (selectedSlot.staff?.id === staffId ? selectedSlot.staff : null)
+                      const assignedStaffIds = getAppointmentStaffIds(selectedSlot)
+
+                      return (
+                        <div key={staffId} className="flex flex-col gap-2 rounded-lg border bg-background p-2 sm:flex-row sm:items-center sm:justify-between">
+                          <Badge variant="outline" className="w-fit px-3 py-1">
+                            {assignedMember ? getStaffDisplayName(assignedMember) : "Masseuse"}
+                          </Badge>
+                          <Select
+                            value={staffId}
+                            onValueChange={(nextStaffId) => handleReplaceAppointmentStaff(selectedSlot, staffId, nextStaffId)}
+                            disabled={Boolean(replacingStaffId)}
+                          >
+                            <SelectTrigger className="h-9 sm:w-[220px]">
+                              <SelectValue placeholder="Remplacer" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {bookableStaff
+                                .filter((member) => member.id === staffId || !assignedStaffIds.includes(member.id))
+                                .map((member) => {
+                                  const available = member.id === staffId || isStaffAvailableForAppointment(selectedSlot, member.id)
+
+                                  return (
+                                    <SelectItem key={member.id} value={member.id} disabled={!available}>
+                                      {getStaffDisplayName(member)}{available ? "" : " - indisponible"}
+                                    </SelectItem>
+                                  )
+                                })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )
+                    })}
+                    {getAppointmentStaffIds(selectedSlot).length > 1 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Vous pouvez remplacer une masseuse seulement si la nouvelle est libre sur tout le créneau.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 
@@ -1358,6 +1471,17 @@ export default function SalonDashboardPage() {
               </div>
             )}
 
+            {selectedSlot && selectedSlot.status !== "blocked" ? (
+              <div className="grid gap-2 border-t pt-4 sm:grid-cols-2">
+                {selectedSlot.payment_status !== "paid" && !["cancelled", "no_show"].includes(selectedSlot.status) ? (
+                  <Button onClick={() => handleOpenPayment(selectedSlot)} className="cursor-pointer">
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Présent / payer
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsDetailsOpen(false)} className="cursor-pointer">Fermer</Button>
             </DialogFooter>
@@ -1370,13 +1494,13 @@ export default function SalonDashboardPage() {
             <DialogHeader>
               <DialogTitle>Bloquer un créneau</DialogTitle>
               <DialogDescription>
-                Rendre un créneau indisponible pour un ou plusieurs prestataires
+                Rendre un créneau indisponible pour une ou plusieurs masseuses
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Prestataires</Label>
+                <Label>Masseuses</Label>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {blockingForm.staff_ids.map(id => {
                     const member = staff?.find(s => s.id === id)
@@ -1390,7 +1514,7 @@ export default function SalonDashboardPage() {
                 </div>
                 <Select onValueChange={(val) => toggleStaffSelection(val, 'blocking')}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Ajouter un prestataire" />
+                    <SelectValue placeholder="Ajouter une masseuse" />
                   </SelectTrigger>
                   <SelectContent>
                     {staff?.filter(s => !blockingForm.staff_ids.includes(s.id)).map((member) => (
@@ -1478,7 +1602,7 @@ export default function SalonDashboardPage() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
-                  <Label>Prestataires</Label>
+                  <Label>Masseuses</Label>
                   {createForm.service_id ? (
                     <Badge variant={createForm.staff_ids.length === selectedCreateRequiredStaffCount ? "default" : "outline"}>
                       {createForm.staff_ids.length}/{selectedCreateRequiredStaffCount} requis
@@ -1487,7 +1611,7 @@ export default function SalonDashboardPage() {
                 </div>
                 {createForm.service_id ? (
                   <p className="text-xs text-muted-foreground">
-                    Cette prestation nécessite exactement {selectedCreateRequiredStaffCount} prestataire{selectedCreateRequiredStaffCount > 1 ? "s" : ""}. Sélectionnez uniquement le nombre requis.
+                    Cette prestation nécessite exactement {selectedCreateRequiredStaffCount} masseuse{selectedCreateRequiredStaffCount > 1 ? "s" : ""}. Sélectionnez uniquement le nombre requis.
                   </p>
                 ) : null}
                 <div className="flex flex-wrap gap-2 mb-2">
@@ -1511,7 +1635,7 @@ export default function SalonDashboardPage() {
                         ? "Choisir une prestation d'abord"
                         : createForm.staff_ids.length >= selectedCreateRequiredStaffCount
                           ? "Nombre requis atteint"
-                          : "Ajouter un prestataire"
+                          : "Ajouter une masseuse"
                     } />
                   </SelectTrigger>
                   <SelectContent>
@@ -1637,7 +1761,7 @@ export default function SalonDashboardPage() {
             <DialogHeader>
               <DialogTitle>Déplacer tout le rendez-vous ?</DialogTitle>
               <DialogDescription>
-                Ce rendez-vous mobilise {pendingMove?.staffIds.length || 0} praticiens. Le déplacement changera le créneau pour tous les praticiens assignés.
+                Ce rendez-vous mobilise {pendingMove?.staffIds.length || 0} masseuses. Le déplacement changera le créneau pour toute l'équipe assignée.
               </DialogDescription>
             </DialogHeader>
             {pendingMove ? (
@@ -1649,7 +1773,7 @@ export default function SalonDashboardPage() {
                   {format(pendingMove.start, "dd/MM/yyyy HH:mm")} - {format(pendingMove.end, "HH:mm")}
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">
-                  Pour changer seulement un praticien, annulez puis ouvrez Modifier.
+                  Pour changer seulement une masseuse, annulez puis ouvrez les détails du rendez-vous.
                 </div>
               </div>
             ) : null}

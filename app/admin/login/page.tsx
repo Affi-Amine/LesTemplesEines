@@ -149,13 +149,6 @@ export default function AdminLogin() {
               </div>
             )}
 
-            {/* Test Credentials Info */}
-            <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-xs text-muted-foreground">
-              <p className="font-semibold text-foreground mb-1">Identifiants de test:</p>
-              <p>Email: test@lestemples.fr</p>
-              <p>Mot de passe: admin123</p>
-            </div>
-
             {/* Submit Button */}
             <Button
               type="submit"

@@ -18,15 +18,18 @@ import { Icon } from "@iconify/react"
 import { BookingDetailsModal } from "@/components/booking-details-modal"
 import { DndContext, PointerSensor, TouchSensor, useSensors, useSensor, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core"
 import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
+import { useStaff } from "@/lib/hooks/use-staff"
 import {
   findOverlappingAppointment,
   getAppointmentDurationMinutes,
   getAppointmentStaffIds,
+  getStaffDisplayName,
   getDefaultStartTimeForDate,
   getScheduleHourRange,
   resolveOpeningHoursForDate,
   type SalonOpeningHours,
 } from "@/lib/calendar/scheduling"
+import type { Staff } from "@/lib/types/database"
 
 interface Salon {
   id: string
@@ -52,6 +55,7 @@ interface Appointment {
     last_name: string
   }
   assignments?: Array<{
+    staff_id?: string | null
     staff?: {
       id: string
       first_name?: string
@@ -73,6 +77,10 @@ interface PendingMove {
   end: Date
   staffIds: string[]
 }
+
+const SCHEDULE_HOUR_HEIGHT = 76
+const STAFF_COLUMN_MIN_WIDTH = 152
+const TIME_COLUMN_WIDTH = 84
 
 // Week View Component with Drag-and-Drop
 function WeekView({
@@ -270,6 +278,7 @@ function WeekView({
 function DayView({
   currentDate,
   appointments,
+  staffMembers,
   activeAppointment,
   openingHours,
   onAppointmentClick,
@@ -277,14 +286,17 @@ function DayView({
 }: {
   currentDate: Date
   appointments: Appointment[]
+  staffMembers: Staff[]
   activeAppointment: Appointment | null
   openingHours?: SalonOpeningHours | null
   onAppointmentClick: (appointment: Appointment) => void
-  onEmptySlotClick: (data: { hour: number; minute: number; date: Date }) => void
+  onEmptySlotClick: (data: { hour: number; minute: number; date: Date; staffId?: string }) => void
 }) {
   const hours = getScheduleHourRange(openingHours, currentDate)
+  const activeStaffMembers = staffMembers.filter((member) => member.is_active !== false)
+  const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(activeStaffMembers.length, 1) * STAFF_COLUMN_MIN_WIDTH
 
-  const getAppointmentsForHour = (hour: number) => {
+  const getAppointmentsForHour = (hour: number, staffId?: string) => {
     return appointments.filter(appointment => {
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const currentDateStr = format(currentDate, "yyyy-MM-dd")
@@ -292,7 +304,8 @@ function DayView({
       if (aptDateStr !== currentDateStr) return false
 
       const aptHour = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"), 10)
-      return aptHour === hour
+      if (aptHour !== hour) return false
+      return staffId ? getAppointmentStaffIds(appointment).includes(staffId) : true
     })
   }
 
@@ -311,19 +324,20 @@ function DayView({
     const startMinute = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "m"), 10)
     const startHour = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"), 10)
 
-    const topOffset = startHour === hourStart ? startMinute : 0
+    const topOffset = startHour === hourStart ? (startMinute / 60) * SCHEDULE_HOUR_HEIGHT : 0
     const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
 
     return {
       top: topOffset,
-      height: Math.max(durationMinutes, 15),
+      height: Math.max((durationMinutes / 60) * SCHEDULE_HOUR_HEIGHT, 20),
     }
   }
 
-  const isInvalidSlotForActive = (hour: number, minute: number) => {
+  const isInvalidSlotForActive = (hour: number, minute: number, staffId?: string) => {
     if (!activeAppointment) return false
 
-    const targetStaffIds = getAppointmentStaffIds(activeAppointment)
+    const activeStaffIds = getAppointmentStaffIds(activeAppointment)
+    const targetStaffIds = activeStaffIds.length > 1 ? activeStaffIds : staffId ? [staffId] : activeStaffIds
     if (targetStaffIds.length === 0) return false
 
     const targetStart = new Date(currentDate)
@@ -342,44 +356,66 @@ function DayView({
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="space-y-1">
+    <div className="overflow-x-auto">
+      <div className="space-y-1" style={{ minWidth: activeStaffMembers.length > 0 ? scheduleMinWidth : undefined }}>
+        {activeStaffMembers.length > 0 ? (
+          <div className="sticky top-0 z-20 mb-3 flex border-b border-border bg-card/95 pb-2 backdrop-blur">
+            <div className="shrink-0" style={{ width: TIME_COLUMN_WIDTH }}></div>
+            {activeStaffMembers.map((member) => (
+              <div key={member.id} className="min-w-[152px] flex-1 border-l border-border px-2 text-center sm:min-w-[190px]">
+                <div className="truncate text-sm font-semibold sm:text-base">{getStaffDisplayName(member)}</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Masseuse</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         {hours.length === 0 ? (
           <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
             Salon fermé ce jour.
           </div>
+        ) : activeStaffMembers.length === 0 ? (
+          <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+            Sélectionnez un salon pour afficher les colonnes masseuses.
+          </div>
         ) : hours.map((hourStart) => {
-          const hourAppointments = getAppointmentsForHour(hourStart)
           const slotId = `slot-day-${format(currentDate, "yyyy-MM-dd")}-${hourStart}`
 
           return (
-            <div key={hourStart} className="flex gap-4">
-              <div className="w-20 p-2 text-sm text-muted-foreground text-right">
+            <div key={hourStart} className="flex border-t border-border" style={{ height: SCHEDULE_HOUR_HEIGHT }}>
+              <div className="shrink-0 bg-card p-2 text-right text-sm font-medium text-muted-foreground" style={{ width: TIME_COLUMN_WIDTH }}>
                 {`${hourStart.toString().padStart(2, "0")}:00`}
               </div>
-              <div className="flex-1 h-[60px] border border-border bg-background rounded relative overflow-visible">
-                <div className="absolute inset-0 grid grid-rows-4">
-                  {[0, 15, 30, 45].map((minute, idx) => (
-                    <DroppableSlot
-                      key={`${slotId}-${minute}`}
-                      id={`${slotId}-${minute}`}
-                      hour={hourStart}
-                      minute={minute}
-                      date={currentDate}
-                      onEmptyClick={onEmptySlotClick}
-                      isInvalidDrop={isInvalidSlotForActive(hourStart, minute)}
-                      isDragActive={Boolean(activeAppointment)}
-                      className={`${idx < 3 ? "border-b border-border/30" : ""}`}
-                    >
-                      <div />
-                    </DroppableSlot>
-                  ))}
-                </div>
+              {activeStaffMembers.map((member) => {
+                const hourAppointments = getAppointmentsForHour(hourStart, member.id)
 
-                {hourAppointments.map((appointment) => {
+                return (
+                  <div key={`${member.id}-${hourStart}`} className="relative min-w-[152px] flex-1 border-l border-border bg-background/80 sm:min-w-[190px]">
+                    <div className="absolute inset-0 grid grid-rows-4">
+                      {[0, 15, 30, 45].map((minute, idx) => (
+                        <DroppableSlot
+                          key={`${slotId}-${member.id}-${minute}`}
+                          id={`${slotId}-${member.id}-${minute}`}
+                          hour={hourStart}
+                          minute={minute}
+                          staffId={member.id}
+                          date={currentDate}
+                          onEmptyClick={(data) => onEmptySlotClick({ ...data, staffId: member.id })}
+                          isInvalidDrop={isInvalidSlotForActive(hourStart, minute, member.id)}
+                          isDragActive={Boolean(activeAppointment)}
+                          className={`${idx < 3 ? "border-b border-dashed border-border/50" : ""} min-h-[19px]`}
+                        >
+                          <div />
+                        </DroppableSlot>
+                      ))}
+                    </div>
+
+                    {hourAppointments.map((appointment) => {
                   const position = getAppointmentPosition(appointment, hourStart)
                   const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
-                  const isDraggable = appointment.status !== "cancelled" && appointment.status !== "completed"
+                  const isDraggable = appointment.status !== "cancelled" && appointment.status !== "completed" && appointment.status !== "blocked"
+                  const appointmentStaffIds = getAppointmentStaffIds(appointment)
+                  const isMultiStaffAppointment = appointmentStaffIds.length > 1
 
                   return (
                     <DraggableAppointment
@@ -389,12 +425,12 @@ function DayView({
                       disabled={!isDraggable}
                       style={{
                         position: "absolute",
-                        left: "8px",
-                        right: "8px",
+                        left: "4px",
+                        right: "4px",
                         top: `${position.top}px`,
                         height: `${position.height}px`,
                       }}
-                      className={`p-2 rounded border hover:shadow-md transition-shadow ${getStatusColor(appointment.status)}`}
+                      className={`overflow-hidden rounded-md border-2 p-1 text-xs shadow-sm transition-shadow hover:shadow-md ${getStatusColor(appointment.status)}`}
                     >
                       <div
                         className="w-full h-full"
@@ -404,33 +440,34 @@ function DayView({
                         }}
                       >
                         {isDraggable && (
-                          <GripVertical className="absolute right-1 top-1 w-4 h-4 text-muted-foreground/50" />
+                          <GripVertical className="absolute right-0.5 top-0.5 h-3 w-3 text-muted-foreground/50" />
                         )}
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="font-medium text-sm truncate">
-                            {getAppointmentTitle(appointment)}
-                          </div>
-                          <div className="text-xs text-muted-foreground font-medium whitespace-nowrap">
-                            {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")}
-                          </div>
+                        <div className="flex items-center gap-1 font-semibold text-[10px]">
+                          <span>{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
+                          {isMultiStaffAppointment ? (
+                            <span className="rounded bg-background/80 px-1 text-[9px]">x{appointmentStaffIds.length}</span>
+                          ) : null}
                         </div>
-                        {position.height >= 40 && (
+                        <div className="truncate text-[10px] font-medium">
+                            {getAppointmentTitle(appointment)}
+                        </div>
+                        {position.height >= 38 && (
                           <>
-                            <div className="text-xs text-muted-foreground truncate mt-1">
+                            <div className="truncate text-[9px] text-muted-foreground">
                               {appointment.service?.name || (appointment.status === "blocked" ? "Indisponible" : "Service")}
                             </div>
-                            {position.height >= 55 && (
-                              <div className="text-xs text-muted-foreground truncate">
-                                {appointment.staff?.first_name || "Prestataire"} {appointment.staff?.last_name || ""}
-                              </div>
-                            )}
+                            <div className="truncate text-[9px] font-medium text-muted-foreground">
+                              {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")} · {durationMinutes}min
+                            </div>
                           </>
                         )}
                       </div>
                     </DraggableAppointment>
                   )
-                })}
-              </div>
+                    })}
+                  </div>
+                )
+              })}
             </div>
           )
         })}
@@ -452,6 +489,7 @@ export default function CalendrierPage() {
     () => salons.find((salon) => salon.id === selectedSalon) || null,
     [salons, selectedSalon]
   )
+  const { data: selectedSalonStaff = [] } = useStaff(selectedSalon !== "all" ? selectedSalon : undefined)
   const selectedOpeningHours = selectedSalonData?.opening_hours || null
   const selectedDayHours = resolveOpeningHoursForDate(selectedOpeningHours, currentDate)
 
@@ -607,7 +645,7 @@ export default function CalendrierPage() {
     if (!over) return
 
     const appointment = active.data.current?.appointment as Appointment
-    const dropData = over.data.current as { hour: number; minute?: number; date: Date }
+    const dropData = over.data.current as { hour: number; minute?: number; date: Date; staffId?: string }
 
     if (!appointment || !dropData) return
 
@@ -623,15 +661,37 @@ export default function CalendrierPage() {
     // Calculate duration to determine new end time
     const duration = getAppointmentDurationMinutes(appointment)
     const newEndTime = addMinutes(newStartTime, duration)
-    const targetStaffIds = getAppointmentStaffIds(appointment)
+    const assignedStaffIds = getAppointmentStaffIds(appointment)
+    const primaryStaffId = assignedStaffIds[0] || appointment.staff_id || appointment.staff?.id
+    const isMultiStaffMove = assignedStaffIds.length > 1
+    const targetStaffId = dropData.staffId || primaryStaffId
+    const targetStaffIds = isMultiStaffMove
+      ? assignedStaffIds
+      : targetStaffId
+        ? [targetStaffId]
+        : assignedStaffIds
 
     // Don't update if dropped in the same position
     const oldStart = new Date(appointment.start_time)
+    const staffChanged = Boolean(dropData.staffId && (
+      isMultiStaffMove ? !assignedStaffIds.includes(dropData.staffId) : dropData.staffId !== primaryStaffId
+    ))
+    const timeChanged = oldStart.getHours() !== newHour ||
+      oldStart.getMinutes() !== newMinute ||
+      format(oldStart, "yyyy-MM-dd") !== format(newDate, "yyyy-MM-dd")
+
     if (
-      oldStart.getHours() === newHour &&
-      oldStart.getMinutes() === newMinute &&
-      format(oldStart, "yyyy-MM-dd") === format(newDate, "yyyy-MM-dd")
+      !staffChanged &&
+      !timeChanged
     ) {
+      return
+    }
+
+    if (isMultiStaffMove && staffChanged) {
+      toast.error("Déplacement multi-masseuses bloqué", {
+        description: "Un rendez-vous à plusieurs masseuses se déplace seulement en heure. Pour changer l'équipe, ouvrez les détails du rendez-vous.",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
       return
     }
 
@@ -647,7 +707,7 @@ export default function CalendrierPage() {
 
     if (overlap) {
       toast.error("Créneau indisponible", {
-        description: "Ce déplacement chevauche un autre rendez-vous pour au moins un praticien assigné.",
+        description: "Ce déplacement chevauche un autre rendez-vous pour au moins une masseuse assignée.",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
       })
       return
@@ -660,12 +720,51 @@ export default function CalendrierPage() {
       staffIds: targetStaffIds,
     }
 
-    if (targetStaffIds.length > 1) {
+    if (isMultiStaffMove) {
       setPendingMove(move)
       return
     }
 
-    await moveAppointment(move)
+    setIsMovingAppointment(true)
+    try {
+      const updateData: Record<string, any> = {
+        start_time: newStartTime.toISOString(),
+        end_time: newEndTime.toISOString(),
+      }
+
+      if (dropData.staffId && dropData.staffId !== primaryStaffId) {
+        updateData.staff_id = dropData.staffId
+        updateData.staff_ids = [dropData.staffId]
+      }
+
+      const response = await fetch(`/api/appointments/${appointment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updateData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Erreur lors du déplacement")
+      }
+
+      const staffMember = dropData.staffId ? selectedSalonStaff.find((member) => member.id === dropData.staffId) : null
+      toast.success("Rendez-vous déplacé", {
+        description: staffChanged
+          ? `Nouveau créneau: ${format(newStartTime, "HH:mm")} avec ${staffMember ? getStaffDisplayName(staffMember) : "la masseuse"}`
+          : `Nouveau créneau: ${format(newStartTime, "HH:mm")} - ${format(newEndTime, "HH:mm")}`,
+        icon: <Icon icon="solar:calendar-bold" className="w-5 h-5 text-green-500" />,
+      })
+
+      fetchAppointments()
+    } catch (error: any) {
+      toast.error("Impossible de déplacer le rendez-vous", {
+        description: error.message || "Le créneau est peut-être déjà occupé",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+    } finally {
+      setIsMovingAppointment(false)
+    }
   }
 
   // Fetch appointments function (extracted for reuse)
@@ -785,7 +884,7 @@ export default function CalendrierPage() {
               <div className="flex items-center gap-2 text-sm text-blue-800">
                 <GripVertical className="w-4 h-4" />
                 <span>
-                  <strong>Glisser-déposer:</strong> déplace tout le rendez-vous et tous ses praticiens. Pour remplacer un seul praticien, ouvrez le rendez-vous puis utilisez Modifier.
+                  <strong>Glisser-déposer:</strong> déplace tout le rendez-vous et toute l'équipe. Pour remplacer une seule masseuse, ouvrez le rendez-vous.
                 </span>
               </div>
             </CardContent>
@@ -896,7 +995,7 @@ export default function CalendrierPage() {
                                 onClick={() => handleAppointmentClick(appointment)}
                                 title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}
 Service: ${appointment.service?.name || (appointment.status === "blocked" ? 'Créneau bloqué' : 'Service Inconnu')}
-Thérapeute : ${appointment.staff?.first_name || 'Inconnu'} ${appointment.staff?.last_name || ''}
+Masseuse : ${appointment.staff?.first_name || 'Inconnu'} ${appointment.staff?.last_name || ''}
 Salon: ${appointment.salon?.name || 'Salon Inconnu'}
 Statut: ${getStatusLabel(appointment.status)}`}
                               >
@@ -940,6 +1039,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
                   <DayView
                     currentDate={currentDate}
                     appointments={appointments}
+                    staffMembers={selectedSalon !== "all" ? selectedSalonStaff : []}
                     activeAppointment={activeAppointment}
                     openingHours={selectedOpeningHours}
                     onAppointmentClick={handleAppointmentClick}
@@ -1021,9 +1121,9 @@ Statut: ${getStatusLabel(appointment.status)}`}
         <Dialog open={Boolean(pendingMove)} onOpenChange={(open) => !open && setPendingMove(null)}>
           <DialogContent className="sm:max-w-[460px]">
             <DialogHeader>
-              <DialogTitle>Déplacer un rendez-vous multi-praticiens ?</DialogTitle>
+              <DialogTitle>Déplacer un rendez-vous multi-masseuses ?</DialogTitle>
               <DialogDescription>
-                Ce rendez-vous mobilise {pendingMove?.staffIds.length || 0} praticiens. Le déplacement changera le créneau pour tous les praticiens assignés.
+                Ce rendez-vous mobilise {pendingMove?.staffIds.length || 0} masseuses. Le déplacement changera le créneau pour toute l'équipe assignée.
               </DialogDescription>
             </DialogHeader>
             {pendingMove ? (
@@ -1035,7 +1135,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
                   {format(pendingMove.start, "dd/MM/yyyy HH:mm")} - {format(pendingMove.end, "HH:mm")}
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">
-                  Pour changer seulement un praticien sans déplacer le rendez-vous, annulez puis ouvrez Modifier.
+                  Pour changer seulement une masseuse sans déplacer le rendez-vous, annulez puis ouvrez les détails.
                 </div>
               </div>
             ) : null}

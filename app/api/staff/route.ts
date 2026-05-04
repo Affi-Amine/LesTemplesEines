@@ -26,6 +26,10 @@ function mapStaff(staff: any) {
   }
 }
 
+function normalizeSalonValue(value?: string | null) {
+  return value?.trim().toLowerCase() || ""
+}
+
 export async function GET(request: NextRequest) {
   try {
     const salonIdOrSlug = request.nextUrl.searchParams.get("salon_id")
@@ -34,6 +38,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createAdminClient()
     let targetSalonId: string | null = null
+    let targetSalon: { id: string; slug: string | null; name: string | null } | null = null
 
     let query = supabase
       .from("staff")
@@ -60,11 +65,22 @@ export async function GET(request: NextRequest) {
       
       if (isUUID) {
         targetSalonId = salonIdOrSlug
+        const { data: salon, error: salonError } = await supabase
+          .from("salons")
+          .select("id, slug, name")
+          .eq("id", salonIdOrSlug)
+          .single()
+
+        if (salonError || !salon) {
+          return NextResponse.json({ error: "Salon not found" }, { status: 404 })
+        }
+
+        targetSalon = salon
       } else {
         // It's a slug, need to convert to UUID first
         const { data: salon, error: salonError } = await supabase
           .from("salons")
-          .select("id")
+          .select("id, slug, name")
           .eq("slug", salonIdOrSlug)
           .single()
 
@@ -73,6 +89,7 @@ export async function GET(request: NextRequest) {
         }
 
         targetSalonId = salon.id
+        targetSalon = salon
       }
     }
     
@@ -93,9 +110,32 @@ export async function GET(request: NextRequest) {
 
       if (salonServicesError) throw salonServicesError
 
+      const staffSalonIds = Array.from(new Set(filteredStaff.map((member) => member.salon_id).filter(Boolean)))
+      const { data: staffSalons, error: staffSalonsError } = staffSalonIds.length > 0
+        ? await supabase
+            .from("salons")
+            .select("id, slug, name")
+            .in("id", staffSalonIds)
+        : { data: [], error: null }
+
+      if (staffSalonsError) throw staffSalonsError
+
+      const salonsById = new Map((staffSalons || []).map((salon) => [salon.id, salon]))
       const salonServiceIds = new Set((salonServices || []).map((relation) => relation.service_id))
       filteredStaff = filteredStaff.filter((member) => {
         if (member.salon_id === targetSalonId) {
+          return true
+        }
+
+        const memberSalon = salonsById.get(member.salon_id)
+        if (
+          targetSalon &&
+          memberSalon &&
+          (
+            normalizeSalonValue(memberSalon.slug) === normalizeSalonValue(targetSalon.slug) ||
+            normalizeSalonValue(memberSalon.name) === normalizeSalonValue(targetSalon.name)
+          )
+        ) {
           return true
         }
 

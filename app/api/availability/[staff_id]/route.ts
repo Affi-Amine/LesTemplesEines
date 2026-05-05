@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { resolveOpeningHoursForDate } from "@/lib/calendar/scheduling"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes } from "date-fns"
-import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
+import { fromZonedTime } from "date-fns-tz"
 
 const TIMEZONE = "Europe/Paris"
 
@@ -191,7 +191,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const todayInParis = getTodayInParis()
     const isTodayInParis = dateParam === todayInParis
-    const nowInParis = toZonedTime(new Date(), TIMEZONE)
+    const now = new Date()
 
     // Generate time slots (every 15 minutes)
     const slotInterval = 15 // minutes
@@ -208,8 +208,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
       let currentSlot = periodStart
 
-      if (isTodayInParis && currentSlot < nowInParis) {
-        currentSlot = ceilToNextQuarter(nowInParis)
+      if (isTodayInParis && currentSlot < now) {
+        currentSlot = ceilToNextQuarter(now)
       }
 
       while (currentSlot < periodEnd) {

@@ -28,8 +28,9 @@ import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
-import { fromZonedTime, formatInTimeZone } from "date-fns-tz"
+import { formatInTimeZone } from "date-fns-tz"
 import { getPaymentMethodLabel, getPaymentStatusClass, getPaymentStatusLabel } from "@/lib/payments"
+import { dateTimeInScheduleTimezone } from "@/lib/calendar/scheduling"
 import type { Client } from "@/lib/types/database"
 
 import { SalonFilter } from "@/components/salon-filter"
@@ -80,7 +81,7 @@ export default function AppointmentsPage() {
     time: "",
   })
 
-  const { data: salons } = useSalons()
+  const { data: salons } = useSalons({ includeInactive: true })
   const { data: services } = useServices(form.salon_id || undefined)
   const { data: staff } = useStaff(form.salon_id || undefined)
   const { data: clientSuggestions, isFetching: isFetchingClientSuggestions } = useClientSearch(
@@ -202,8 +203,14 @@ export default function AppointmentsPage() {
       return
     }
 
-    // Convert Paris time to UTC ISO string
-    const parisTime = fromZonedTime(`${form.date} ${form.time}:00`, "Europe/Paris")
+    const parisTime = dateTimeInScheduleTimezone(new Date(`${form.date}T00:00:00`), form.time)
+    if (!parisTime) {
+      toast.error("Horaire invalide", {
+        description: "Veuillez choisir une heure valide",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+      return
+    }
     const start_time = parisTime.toISOString()
 
     // Handle backward compatibility and multi-select
@@ -300,8 +307,10 @@ export default function AppointmentsPage() {
     }
 
     try {
-      // Construct start_time from date and time
-      const parisTime = fromZonedTime(`${editForm.date} ${editForm.time}:00`, "Europe/Paris")
+      const parisTime = dateTimeInScheduleTimezone(new Date(`${editForm.date}T00:00:00`), editForm.time)
+      if (!parisTime) {
+        throw new Error("Horaire invalide")
+      }
       const start_time = parisTime.toISOString()
 
       const response = await fetch(`/api/appointments/${selectedAppointment.id}`, {

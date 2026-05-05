@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { X, Calendar, Clock, User } from "lucide-react"
 import { format } from "date-fns"
-import { formatInTimeZone, toZonedTime } from "date-fns-tz"
+import { formatInTimeZone } from "date-fns-tz"
 import { useServices } from "@/lib/hooks/use-services"
 import { useStaff } from "@/lib/hooks/use-staff"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
@@ -21,6 +21,7 @@ import {
   quarterOptionsBetween,
   resolveOpeningHoursForDate,
   snapMinuteToQuarter,
+  dateTimeInScheduleTimezone,
   toQuarterTimeOptions,
   type CalendarAppointmentLike,
   type SalonOpeningHours,
@@ -145,6 +146,7 @@ export function QuickCreateModal({
     () => services?.find((service) => service.id === form.service_id),
     [services, form.service_id]
   )
+  const selectedServiceRequiredStaffCount = selectedService?.required_staff_count || 1
   const eligibleStaff = useMemo(() => {
     if (!staff) {
       return []
@@ -165,9 +167,7 @@ export function QuickCreateModal({
     if (Number.isNaN(hour) || Number.isNaN(minute)) {
       return null
     }
-    const startDateTime = new Date(selectedDate)
-    startDateTime.setHours(hour, minute, 0, 0)
-    return startDateTime
+    return dateTimeInScheduleTimezone(selectedDate, `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`)
   }, [selectedDate, startTime])
 
   const selectedEnd = useMemo(() => {
@@ -212,7 +212,7 @@ export function QuickCreateModal({
     const current = form.staff_ids
     if (current.includes(staffId)) {
       setForm({ ...form, staff_ids: current.filter((id) => id !== staffId) })
-    } else {
+    } else if (mode === "blocked" || current.length < selectedServiceRequiredStaffCount) {
       setForm({ ...form, staff_ids: [...current, staffId] })
     }
   }
@@ -240,7 +240,7 @@ export function QuickCreateModal({
   const hasRequiredFields = Boolean(
     selectedStart &&
       timeOptions.length > 0 &&
-      form.staff_ids.length > 0 &&
+      (mode === "blocked" ? form.staff_ids.length > 0 : form.staff_ids.length === selectedServiceRequiredStaffCount) &&
       (
         mode === "blocked"
           ? selectedEnd
@@ -257,9 +257,7 @@ export function QuickCreateModal({
       toast.error("Veuillez remplir tous les champs obligatoires")
       return
     }
-    const nowInParis = toZonedTime(new Date(), "Europe/Paris")
-    const selectedStartInParis = toZonedTime(selectedStart, "Europe/Paris")
-    if (selectedStartInParis.getTime() < nowInParis.getTime()) {
+    if (selectedStart.getTime() < Date.now()) {
       toast.error("Impossible de créer un rendez-vous dans le passé")
       return
     }
@@ -407,7 +405,7 @@ export function QuickCreateModal({
                 <Label>Service *</Label>
                 <Select
                   value={form.service_id}
-                  onValueChange={(val) => setForm({ ...form, service_id: val })}
+                  onValueChange={(val) => setForm({ ...form, service_id: val, staff_ids: [] })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Choisir un service" />
@@ -442,7 +440,10 @@ export function QuickCreateModal({
                 )
               })}
             </div>
-            <Select onValueChange={(val) => toggleStaffSelection(val)}>
+            <Select
+              onValueChange={(val) => toggleStaffSelection(val)}
+              disabled={mode === "appointment" && form.staff_ids.length >= selectedServiceRequiredStaffCount}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Ajouter une masseuse" />
               </SelectTrigger>
@@ -457,6 +458,11 @@ export function QuickCreateModal({
                   ))}
               </SelectContent>
             </Select>
+            {mode === "appointment" && form.service_id ? (
+              <p className="text-xs text-muted-foreground">
+                Cette prestation nécessite {selectedServiceRequiredStaffCount} masseuse{selectedServiceRequiredStaffCount > 1 ? "s" : ""}.
+              </p>
+            ) : null}
           </div>
 
           {conflict && (

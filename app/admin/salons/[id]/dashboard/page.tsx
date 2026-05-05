@@ -12,7 +12,7 @@ import { useSalons } from "@/lib/hooks/use-salons"
 import { useParams } from "next/navigation"
 import { format, addMinutes } from "date-fns"
 import { fr } from "date-fns/locale"
-import { toZonedTime, formatInTimeZone, fromZonedTime } from "date-fns-tz"
+import { formatInTimeZone } from "date-fns-tz"
 import { Clock, CheckCircle, Ban, Calendar as CalendarIcon, User, Plus, X, GripVertical } from "lucide-react"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
@@ -39,6 +39,8 @@ import {
   getScheduleHourRange,
   minutesToTimeLabel,
   resolveOpeningHoursForDate,
+  dateTimeInScheduleTimezone,
+  slotDateTimeInScheduleTimezone,
   timeToMinutes,
 } from "@/lib/calendar/scheduling"
 import type { Client } from "@/lib/types/database"
@@ -381,13 +383,13 @@ export default function SalonDashboardPage() {
        return
     }
 
-    const startDateTime = new Date(date)
-    const [startHour, startMinute] = blockingForm.startTime.split(':')
-    startDateTime.setHours(parseInt(startHour), parseInt(startMinute))
+    const startDateTime = dateTimeInScheduleTimezone(date, blockingForm.startTime)
+    const endDateTime = dateTimeInScheduleTimezone(date, blockingForm.endTime)
 
-    const endDateTime = new Date(date)
-    const [endHour, endMinute] = blockingForm.endTime.split(':')
-    endDateTime.setHours(parseInt(endHour), parseInt(endMinute))
+    if (!startDateTime || !endDateTime) {
+      toast.error("Horaires invalides")
+      return
+    }
 
     try {
       const response = await fetch("/api/appointments", {
@@ -449,7 +451,11 @@ export default function SalonDashboardPage() {
       return
     }
 
-    const startDateTime = fromZonedTime(`${createForm.date} ${createForm.startTime}:00`, "Europe/Paris")
+    const startDateTime = dateTimeInScheduleTimezone(new Date(`${createForm.date}T00:00:00`), createForm.startTime)
+    if (!startDateTime) {
+      toast.error("Horaire invalide")
+      return
+    }
 
     createAppointment.mutate({
       salon_id: salonId,
@@ -675,8 +681,7 @@ export default function SalonDashboardPage() {
     const newMinute = dropData.minute || 0
 
     // Create new start time
-    const newStartTime = new Date(newDate)
-    newStartTime.setHours(newHour, newMinute, 0, 0)
+    const newStartTime = slotDateTimeInScheduleTimezone(newDate, newHour, newMinute)
 
     // Calculate duration to determine new end time
     const durationMinutes = getAppointmentDurationMinutes(appointment)
@@ -781,8 +786,7 @@ export default function SalonDashboardPage() {
   const isInvalidSlotForActive = (slotDate: Date, slotStaffId: string, hour: number, minute: number) => {
     if (!activeAppointment) return false
 
-    const targetStart = new Date(slotDate)
-    targetStart.setHours(hour, minute, 0, 0)
+    const targetStart = slotDateTimeInScheduleTimezone(slotDate, hour, minute)
     const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
 
     const activeStaffIds = getAppointmentStaffIds(activeAppointment)

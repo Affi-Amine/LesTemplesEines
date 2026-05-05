@@ -11,11 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, Clock, User, MapPin, Scissors, Phone, Mail, FileText, Edit, Trash2, X } from "lucide-react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
-import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
+import { formatInTimeZone } from "date-fns-tz"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { fetchAPI } from "@/lib/api/client"
+import { dateTimeInScheduleTimezone } from "@/lib/calendar/scheduling"
 
 interface BookingDetailsModalProps {
   isOpen: boolean
@@ -75,8 +76,8 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
 
   // Fetch salons
   const { data: salons } = useQuery({
-    queryKey: ["salons"],
-    queryFn: () => fetchAPI<any[]>("/salons"),
+    queryKey: ["salons", { includeInactive: true }],
+    queryFn: () => fetchAPI<any[]>("/salons?include_inactive=true"),
   })
 
   // Fetch services for selected salon
@@ -132,8 +133,10 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
 
   const handleSaveEdit = async () => {
     try {
-      // Construct start_time from date and time
-      const parisTime = fromZonedTime(`${editForm.date} ${editForm.time}:00`, "Europe/Paris")
+      const parisTime = dateTimeInScheduleTimezone(new Date(`${editForm.date}T00:00:00`), editForm.time)
+      if (!parisTime) {
+        throw new Error("Horaire invalide")
+      }
       const start_time = parisTime.toISOString()
 
       const response = await fetch(`/api/appointments/${appointment.id}`, {

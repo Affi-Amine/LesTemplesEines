@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizeGiftCardCode } from "@/lib/gift-cards"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
 import { ClientDataSchema, createBookableAppointment } from "@/lib/appointments/create"
+import { resolveSalonGroup } from "@/lib/salons/resolve"
 import { after, type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -65,16 +66,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "La prestation sélectionnée ne correspond pas à la carte cadeau" }, { status: 400 })
     }
 
-    const { data: serviceSalon, error: serviceSalonError } = await supabase
+    const salonGroup = await resolveSalonGroup(supabase, payload.salon_id)
+    const salonIds = salonGroup?.salonIds || [payload.salon_id]
+    const { data: serviceSalons, error: serviceSalonError } = await supabase
       .from("service_salons")
       .select("service_id")
       .eq("service_id", payload.service_id)
-      .eq("salon_id", payload.salon_id)
-      .maybeSingle()
+      .in("salon_id", salonIds)
 
     if (serviceSalonError) throw serviceSalonError
 
-    if (!serviceSalon) {
+    if (!serviceSalons || serviceSalons.length === 0) {
       return NextResponse.json({ error: "Cette prestation n'est pas disponible dans le salon sélectionné" }, { status: 400 })
     }
 

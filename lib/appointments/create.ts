@@ -2,8 +2,9 @@ import type { createAdminClient } from "@/lib/supabase/admin"
 import { z } from "zod"
 import { canUseClientPackStatus } from "@/lib/packs"
 import { findClientByEmail, findClientByPhone } from "@/lib/client-auth"
-import { formatInTimeZone, toZonedTime } from "date-fns-tz"
+import { formatInTimeZone } from "date-fns-tz"
 import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
+import { resolveSalonGroup } from "@/lib/salons/resolve"
 
 const APPOINTMENT_TIMEZONE = "Europe/Paris"
 
@@ -65,10 +66,7 @@ export function assertAppointmentStartIsNotInPast(startTime: string) {
     throw new Error("Date de rendez-vous invalide")
   }
 
-  const nowInParis = toZonedTime(new Date(), APPOINTMENT_TIMEZONE)
-  const appointmentStartInParis = toZonedTime(appointmentStart, APPOINTMENT_TIMEZONE)
-
-  if (appointmentStartInParis.getTime() < nowInParis.getTime()) {
+  if (appointmentStart.getTime() < Date.now()) {
     throw new Error("Impossible de créer un rendez-vous dans le passé")
   }
 }
@@ -128,19 +126,20 @@ export async function validateAppointmentScheduling(
 ) {
   assertAppointmentStartIsNotInPast(input.start_time)
   const { endTime, service } = await resolveAppointmentTiming(supabase, input)
+  const salonGroup = await resolveSalonGroup(supabase, input.salon_id)
+  const salonIds = salonGroup?.salonIds || [input.salon_id]
 
-  const { data: serviceSalon, error: serviceSalonError } = await supabase
+  const { data: serviceSalons, error: serviceSalonError } = await supabase
     .from("service_salons")
     .select("service_id")
     .eq("service_id", input.service_id)
-    .eq("salon_id", input.salon_id)
-    .maybeSingle()
+    .in("salon_id", salonIds)
 
   if (serviceSalonError) {
     throw new Error(serviceSalonError.message)
   }
 
-  if (!serviceSalon) {
+  if (!serviceSalons || serviceSalons.length === 0) {
     throw new Error("Ce service n'est pas disponible dans le salon selectionne")
   }
 

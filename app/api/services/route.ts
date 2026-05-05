@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
+import { resolveSalonGroup } from "@/lib/salons/resolve"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -73,28 +74,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (salonIdOrSlug) {
-      // Check if it's a UUID or a slug
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonIdOrSlug)
-      
-      if (isUUID) {
-        // It's already a UUID; filter through service_salons so multi-salon
-        // services are visible outside their legacy primary salon_id.
-        query = query.eq("service_salons.salon_id", salonIdOrSlug)
-      } else {
-        // It's a slug, need to convert to UUID first
-        const { data: salon, error: salonError } = await supabase
-          .from("salons")
-          .select("id")
-          .eq("slug", salonIdOrSlug)
-          .single()
-
-        if (salonError || !salon) {
-          return NextResponse.json({ error: "Salon not found" }, { status: 404 })
-        }
-
-        query = query.eq("service_salons.salon_id", salon.id)
+      const salonGroup = await resolveSalonGroup(supabase, salonIdOrSlug)
+      if (!salonGroup) {
+        return NextResponse.json({ error: "Salon not found" }, { status: 404 })
       }
-
+      query = query.in("service_salons.salon_id", salonGroup.salonIds)
     }
 
     const { data: services, error } = await query.order("category_order").order("category").order("name")

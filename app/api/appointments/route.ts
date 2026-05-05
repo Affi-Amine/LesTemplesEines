@@ -9,6 +9,7 @@ import {
 import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { findClientByPhone } from "@/lib/client-auth"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
+import { isUUID, resolveSalonGroup } from "@/lib/salons/resolve"
 import { after, type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { fromZonedTime } from "date-fns-tz"
@@ -76,14 +77,15 @@ export async function GET(request: NextRequest) {
     const endDate = request.nextUrl.searchParams.get("end_date")
     const status = request.nextUrl.searchParams.get("status")
 
-    // Helper to validate UUID
-    const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-
-    if (salonId && !isValidUUID(salonId)) return NextResponse.json([])
-    if (staffId && !isValidUUID(staffId)) return NextResponse.json([])
-    if (clientId && !isValidUUID(clientId)) return NextResponse.json([])
+    if (staffId && !isUUID(staffId)) return NextResponse.json([])
+    if (clientId && !isUUID(clientId)) return NextResponse.json([])
 
     const supabase = await createAdminClient()
+    const salonGroup = salonId ? await resolveSalonGroup(supabase, salonId) : null
+
+    if (salonId && !salonGroup) {
+      return NextResponse.json([])
+    }
 
     let query = supabase.from("appointments").select(
       `*,
@@ -97,7 +99,7 @@ export async function GET(request: NextRequest) {
         salon:salons(id, name, city, address)`,
     )
 
-    if (salonId) query = query.eq("salon_id", salonId)
+    if (salonGroup) query = query.in("salon_id", salonGroup.salonIds)
     if (staffId) query = query.eq("staff_id", staffId)
     if (clientId) query = query.eq("client_id", clientId)
     
@@ -272,18 +274,19 @@ export async function POST(request: NextRequest) {
 
     if (appointmentData.service_id) {
       const serviceSalonStartedAt = Date.now()
-      const { data: serviceSalon, error: serviceSalonError } = await supabase
+      const createSalonGroup = await resolveSalonGroup(supabase, appointmentData.salon_id)
+      const createSalonIds = createSalonGroup?.salonIds || [appointmentData.salon_id]
+      const { data: serviceSalons, error: serviceSalonError } = await supabase
         .from("service_salons")
         .select("service_id")
         .eq("service_id", appointmentData.service_id)
-        .eq("salon_id", appointmentData.salon_id)
-        .maybeSingle()
+        .in("salon_id", createSalonIds)
 
       if (serviceSalonError) {
         throw serviceSalonError
       }
 
-      if (!serviceSalon) {
+      if (!serviceSalons || serviceSalons.length === 0) {
         return NextResponse.json({ error: "Ce service n'est pas disponible dans le salon sélectionné" }, { status: 400 })
       }
       console.log("[appointments] Verified service salon mapping", {

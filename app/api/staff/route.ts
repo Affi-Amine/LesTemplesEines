@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { hashPassword } from "@/lib/auth/password"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
+import { resolveSalonGroup } from "@/lib/salons/resolve"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -26,10 +27,6 @@ function mapStaff(staff: any) {
   }
 }
 
-function normalizeSalonValue(value?: string | null) {
-  return value?.trim().toLowerCase() || ""
-}
-
 export async function GET(request: NextRequest) {
   try {
     const salonIdOrSlug = request.nextUrl.searchParams.get("salon_id")
@@ -37,8 +34,7 @@ export async function GET(request: NextRequest) {
     const isActive = request.nextUrl.searchParams.get("is_active")
 
     const supabase = await createAdminClient()
-    let targetSalonId: string | null = null
-    let targetSalon: { id: string; slug: string | null; name: string | null } | null = null
+    let targetSalonIds: string[] = []
 
     let query = supabase
       .from("staff")
@@ -60,37 +56,11 @@ export async function GET(request: NextRequest) {
       `)
 
     if (salonIdOrSlug) {
-      // Check if it's a UUID or a slug
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonIdOrSlug)
-      
-      if (isUUID) {
-        targetSalonId = salonIdOrSlug
-        const { data: salon, error: salonError } = await supabase
-          .from("salons")
-          .select("id, slug, name")
-          .eq("id", salonIdOrSlug)
-          .single()
-
-        if (salonError || !salon) {
-          return NextResponse.json({ error: "Salon not found" }, { status: 404 })
-        }
-
-        targetSalon = salon
-      } else {
-        // It's a slug, need to convert to UUID first
-        const { data: salon, error: salonError } = await supabase
-          .from("salons")
-          .select("id, slug, name")
-          .eq("slug", salonIdOrSlug)
-          .single()
-
-        if (salonError || !salon) {
-          return NextResponse.json({ error: "Salon not found" }, { status: 404 })
-        }
-
-        targetSalonId = salon.id
-        targetSalon = salon
+      const salonGroup = await resolveSalonGroup(supabase, salonIdOrSlug)
+      if (!salonGroup) {
+        return NextResponse.json({ error: "Salon not found" }, { status: 404 })
       }
+      targetSalonIds = salonGroup.salonIds
     }
     
     if (role) query = query.eq("role", role)
@@ -102,40 +72,18 @@ export async function GET(request: NextRequest) {
 
     let filteredStaff = staff || []
 
-    if (targetSalonId) {
+    if (targetSalonIds.length > 0) {
       const { data: salonServices, error: salonServicesError } = await supabase
         .from("service_salons")
         .select("service_id")
-        .eq("salon_id", targetSalonId)
+        .in("salon_id", targetSalonIds)
 
       if (salonServicesError) throw salonServicesError
 
-      const staffSalonIds = Array.from(new Set(filteredStaff.map((member) => member.salon_id).filter(Boolean)))
-      const { data: staffSalons, error: staffSalonsError } = staffSalonIds.length > 0
-        ? await supabase
-            .from("salons")
-            .select("id, slug, name")
-            .in("id", staffSalonIds)
-        : { data: [], error: null }
-
-      if (staffSalonsError) throw staffSalonsError
-
-      const salonsById = new Map((staffSalons || []).map((salon) => [salon.id, salon]))
+      const salonIdSet = new Set(targetSalonIds)
       const salonServiceIds = new Set((salonServices || []).map((relation) => relation.service_id))
       filteredStaff = filteredStaff.filter((member) => {
-        if (member.salon_id === targetSalonId) {
-          return true
-        }
-
-        const memberSalon = salonsById.get(member.salon_id)
-        if (
-          targetSalon &&
-          memberSalon &&
-          (
-            normalizeSalonValue(memberSalon.slug) === normalizeSalonValue(targetSalon.slug) ||
-            normalizeSalonValue(memberSalon.name) === normalizeSalonValue(targetSalon.name)
-          )
-        ) {
+        if (salonIdSet.has(member.salon_id)) {
           return true
         }
 

@@ -1,6 +1,9 @@
 import { blocksAppointmentSchedule } from "@/lib/appointments/status"
+import { format } from "date-fns"
+import { fromZonedTime } from "date-fns-tz"
 
 export const QUARTER_MINUTES = 15
+export const SCHEDULE_TIMEZONE = "Europe/Paris"
 export const DEFAULT_SCHEDULE_START_HOUR = 8
 export const DEFAULT_SCHEDULE_END_HOUR = 20
 export const BOOKABLE_STAFF_ROLES = ["therapist", "assistant", "manager", "admin"] as const
@@ -106,6 +109,22 @@ export function minutesToTimeLabel(minutes: number): string {
   const hour = Math.floor(minutes / 60)
   const minute = minutes % 60
   return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`
+}
+
+export function dateTimeInScheduleTimezone(date: Date, time: string): Date | null {
+  const [hour, minute] = time.split(":").map((value) => Number.parseInt(value, 10))
+  if (Number.isNaN(hour) || Number.isNaN(minute)) {
+    return null
+  }
+
+  return fromZonedTime(`${format(date, "yyyy-MM-dd")} ${time}:00`, SCHEDULE_TIMEZONE)
+}
+
+export function slotDateTimeInScheduleTimezone(date: Date, hour: number, minute: number): Date {
+  return fromZonedTime(
+    `${format(date, "yyyy-MM-dd")} ${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}:00`,
+    SCHEDULE_TIMEZONE
+  )
 }
 
 export function getScheduleHourRange(

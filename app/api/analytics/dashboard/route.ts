@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 import { startOfDay, endOfDay, format } from "date-fns"
 import { fromZonedTime } from "date-fns-tz"
+import { resolveSalonGroup } from "@/lib/salons/resolve"
 
 const TIMEZONE = "Europe/Paris"
 
@@ -40,6 +41,11 @@ export async function GET(request: NextRequest) {
        }
     }
     // -----------------------------------------
+    const salonGroup = salonId ? await resolveSalonGroup(supabase, salonId) : null
+    if (salonId && !salonGroup) {
+      return NextResponse.json({ error: "Salon not found" }, { status: 404 })
+    }
+    const salonIds = salonGroup?.salonIds || []
 
     // Default to last 30 days if no dates provided
     let start: Date
@@ -70,7 +76,7 @@ export async function GET(request: NextRequest) {
         .gte("start_time", start.toISOString())
         .lte("start_time", end.toISOString())
 
-      if (salonId) query = query.eq("salon_id", salonId)
+      if (salonIds.length > 0) query = query.in("salon_id", salonIds)
       if (staffId) query = query.eq("staff_id", staffId)
       if (paymentMethod) query = query.eq("payment_method", paymentMethod)
 
@@ -126,7 +132,7 @@ export async function GET(request: NextRequest) {
       .eq("status", "pending")
       .gte("start_time", new Date().toISOString())
 
-    if (salonId) pendingQuery = pendingQuery.eq("salon_id", salonId)
+    if (salonIds.length > 0) pendingQuery = pendingQuery.in("salon_id", salonIds)
     if (staffId) pendingQuery = pendingQuery.eq("staff_id", staffId)
 
     const { count: pendingBookings } = await pendingQuery
@@ -155,7 +161,7 @@ export async function GET(request: NextRequest) {
       .order("start_time", { ascending: true })
       .limit(10)
 
-    if (salonId) upcomingQuery = upcomingQuery.eq("salon_id", salonId)
+    if (salonIds.length > 0) upcomingQuery = upcomingQuery.in("salon_id", salonIds)
     if (staffId) upcomingQuery = upcomingQuery.eq("staff_id", staffId)
 
     const { data: upcomingAppointments } = await upcomingQuery

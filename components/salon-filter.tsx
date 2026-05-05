@@ -18,7 +18,7 @@ interface SalonFilterProps {
 }
 
 export function SalonFilter({ selectedSalonId, onSelectSalon, className, salons: providedSalons }: SalonFilterProps) {
-  const { data: fetchedSalons } = useSalons({ enabled: !providedSalons })
+  const { data: fetchedSalons } = useSalons({ includeInactive: true, enabled: !providedSalons })
   const salons = providedSalons ?? fetchedSalons
 
   return (

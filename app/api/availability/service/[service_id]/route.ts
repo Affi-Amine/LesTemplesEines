@@ -7,8 +7,9 @@ import {
 import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes, format, areIntervalsOverlapping } from "date-fns"
-import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
+import { fromZonedTime } from "date-fns-tz"
 import { BOOKABLE_STAFF_ROLES, resolveOpeningHoursForDate } from "@/lib/calendar/scheduling"
+import { resolveSalonGroup } from "@/lib/salons/resolve"
 
 const TIMEZONE = "Europe/Paris"
 
@@ -67,22 +68,26 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const duration = service.duration_minutes
     const requiredStaffCount = service.required_staff_count || 1
-    const targetSalonId = salonId
 
-    if (!targetSalonId) {
+    if (!salonId) {
       return NextResponse.json({ error: "salon_id is required for multi-salon services" }, { status: 400 })
     }
 
-    const { data: serviceSalon, error: serviceSalonError } = await supabase
+    const salonGroup = await resolveSalonGroup(supabase, salonId)
+    if (!salonGroup) {
+      return NextResponse.json({ error: "Salon not found" }, { status: 404 })
+    }
+
+    const targetSalonId = salonGroup.salon.id
+    const { data: serviceSalons, error: serviceSalonError } = await supabase
       .from("service_salons")
       .select("service_id")
       .eq("service_id", service_id)
-      .eq("salon_id", targetSalonId)
-      .maybeSingle()
+      .in("salon_id", salonGroup.salonIds)
 
     if (serviceSalonError) throw serviceSalonError
 
-    if (!serviceSalon) {
+    if (!serviceSalons || serviceSalons.length === 0) {
       return NextResponse.json({
         service_id,
         date: dateParam,
@@ -121,7 +126,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     let query = supabase
       .from("staff")
       .select("id, first_name, last_name, role")
-      .eq("salon_id", targetSalonId)
+      .in("salon_id", salonGroup.salonIds)
       .eq("is_active", true)
       .in("role", [...BOOKABLE_STAFF_ROLES])
 
@@ -251,11 +256,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
     
     const todayInParis = getTodayInParis()
     const isTodayInParis = dateParam === todayInParis
-    const nowInParis = toZonedTime(new Date(), TIMEZONE)
+    const now = new Date()
 
     let currentTime = dayStart
-    if (isTodayInParis && currentTime < nowInParis) {
-      currentTime = ceilToNextQuarter(nowInParis)
+    if (isTodayInParis && currentTime < now) {
+      currentTime = ceilToNextQuarter(now)
     }
     // Step by 15 minutes (or 30?)
     const stepMinutes = 15

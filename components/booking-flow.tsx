@@ -15,12 +15,12 @@ import { useServices } from "@/lib/hooks/use-services"
 import { useStaff } from "@/lib/hooks/use-staff"
 import { useAvailability } from "@/lib/hooks/use-availability"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
-import { canStaffTakeBookings } from "@/lib/calendar/scheduling"
+import { canStaffTakeBookings, dateTimeInScheduleTimezone } from "@/lib/calendar/scheduling"
 import { t } from "@/lib/i18n/get-translations"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz"
+import { formatInTimeZone } from "date-fns-tz"
 import type { Locale } from "@/i18n.config"
 import { fetchAPI } from "@/lib/api/client"
 import { createClient } from "@/lib/supabase/client"
@@ -442,13 +442,14 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       return
     }
 
-    // Convert Paris time to UTC ISO string
-    const parisTime = fromZonedTime(`${data.date} ${data.time}:00`, "Europe/Paris")
+    const parisTime = dateTimeInScheduleTimezone(new Date(`${data.date}T00:00:00`), data.time)
+    if (!parisTime) {
+      toast.error("Horaire invalide")
+      return
+    }
     const startTime = parisTime.toISOString()
-    const nowInParis = toZonedTime(new Date(), "Europe/Paris")
-    const selectedStartInParis = toZonedTime(new Date(startTime), "Europe/Paris")
 
-    if (selectedStartInParis.getTime() < nowInParis.getTime()) {
+    if (parisTime.getTime() < Date.now()) {
       toast.error("Impossible de réserver un créneau dans le passé")
       return
     }

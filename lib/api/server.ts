@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server"
+import { isUUID, resolveSalonGroup } from "@/lib/salons/resolve"
 
 // Types
 export type Salon = {
@@ -86,7 +87,7 @@ export async function getSalon(idOrSlug: string): Promise<Salon | null> {
     .eq('is_active', true)
 
   // Check if it's a UUID
-  if (idOrSlug.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+  if (isUUID(idOrSlug)) {
     query = query.eq('id', idOrSlug)
   } else {
     query = query.eq('slug', idOrSlug)
@@ -107,6 +108,7 @@ export async function getSalon(idOrSlug: string): Promise<Salon | null> {
  */
 export async function getServices(salonId?: string): Promise<Service[]> {
   const supabase = await createClient()
+  const salonGroup = salonId ? await resolveSalonGroup(supabase, salonId) : null
   const selectClause = salonId
     ? `
       *,
@@ -127,7 +129,8 @@ export async function getServices(salonId?: string): Promise<Service[]> {
     .eq('is_active', true)
 
   if (salonId) {
-    query = query.eq('service_salons.salon_id', salonId)
+    if (!salonGroup) return []
+    query = query.in('service_salons.salon_id', salonGroup.salonIds)
   }
 
   const { data, error } = await query.order('category_order').order('category').order('name')
@@ -148,6 +151,7 @@ export async function getServices(salonId?: string): Promise<Service[]> {
  */
 export async function getStaff(salonId?: string, role?: string): Promise<Staff[]> {
   const supabase = await createClient()
+  const salonGroup = salonId ? await resolveSalonGroup(supabase, salonId) : null
 
   let query = supabase
     .from('staff')
@@ -155,7 +159,8 @@ export async function getStaff(salonId?: string, role?: string): Promise<Staff[]
     .eq('is_active', true)
 
   if (salonId) {
-    query = query.eq('salon_id', salonId)
+    if (!salonGroup) return []
+    query = query.in('salon_id', salonGroup.salonIds)
   }
 
   if (role) {

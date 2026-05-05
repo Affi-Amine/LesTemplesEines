@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, GripVertical, Plus } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, subDays, addMinutes } from "date-fns"
 import { fr } from "date-fns/locale"
-import { formatInTimeZone, toZonedTime } from "date-fns-tz"
+import { formatInTimeZone } from "date-fns-tz"
 import { getStatusColor, getStatusLabel, getStatusDescription } from "@/lib/utils"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
@@ -27,6 +27,7 @@ import {
   getDefaultStartTimeForDate,
   getScheduleHourRange,
   resolveOpeningHoursForDate,
+  slotDateTimeInScheduleTimezone,
   type SalonOpeningHours,
 } from "@/lib/calendar/scheduling"
 import type { Staff } from "@/lib/types/database"
@@ -147,8 +148,7 @@ function WeekView({
     const targetStaffIds = getAppointmentStaffIds(activeAppointment)
     if (targetStaffIds.length === 0) return false
 
-    const targetStart = new Date(day)
-    targetStart.setHours(hour, minute, 0, 0)
+    const targetStart = slotDateTimeInScheduleTimezone(day, hour, minute)
     const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
 
     return targetStaffIds.some((staffId) =>
@@ -340,8 +340,7 @@ function DayView({
     const targetStaffIds = activeStaffIds.length > 1 ? activeStaffIds : staffId ? [staffId] : activeStaffIds
     if (targetStaffIds.length === 0) return false
 
-    const targetStart = new Date(currentDate)
-    targetStart.setHours(hour, minute, 0, 0)
+    const targetStart = slotDateTimeInScheduleTimezone(currentDate, hour, minute)
     const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
 
     return targetStaffIds.some((staffId) =>
@@ -524,7 +523,7 @@ export default function CalendrierPage() {
   useEffect(() => {
     const fetchSalons = async () => {
       try {
-        const response = await fetch("/api/salons")
+        const response = await fetch("/api/salons?include_inactive=true")
         if (response.ok) {
           const data = await response.json()
           setSalons(data)
@@ -655,8 +654,7 @@ export default function CalendrierPage() {
     const newMinute = dropData.minute || 0
 
     // Create new start time
-    const newStartTime = new Date(newDate)
-    newStartTime.setHours(newHour, newMinute, 0, 0)
+    const newStartTime = slotDateTimeInScheduleTimezone(newDate, newHour, newMinute)
 
     // Calculate duration to determine new end time
     const duration = getAppointmentDurationMinutes(appointment)
@@ -808,8 +806,9 @@ export default function CalendrierPage() {
   })
 
   const getAppointmentsForDay = (day: Date) => {
+    const dayDateStr = format(day, "yyyy-MM-dd")
     return appointments.filter(appointment =>
-      isSameDay(new Date(appointment.start_time), day)
+      formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === dayDateStr
     )
   }
 

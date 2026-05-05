@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
+import { isUUID } from "@/lib/salons/resolve"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -34,7 +35,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const { id } = await context.params
     const supabase = await createAdminClient()
 
-    const { data: salon, error } = await supabase.from("salons").select("*").eq("id", id).single()
+    let query = supabase.from("salons").select("*")
+    query = isUUID(id) ? query.eq("id", id) : query.eq("slug", id)
+
+    const { data: salon, error } = await query.single()
 
     if (error) throw error
 

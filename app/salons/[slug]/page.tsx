@@ -5,6 +5,7 @@ import { SalonHours } from "@/components/salon-hours"
 import { Footer } from "@/components/footer"
 import { Navbar } from "@/components/navbar"
 import { createClient } from "@/lib/supabase/server"
+import { resolveSalonGroup } from "@/lib/salons/resolve"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
@@ -53,6 +54,8 @@ export default async function SalonPage({ params }: SalonPageProps) {
       </main>
     )
   }
+  const salonGroup = await resolveSalonGroup(supabase, salon.id)
+  const salonIds = salonGroup?.salonIds || [salon.id]
 
   // Fetch services for this salon
   const { data: services } = await supabase
@@ -63,7 +66,7 @@ export default async function SalonPage({ params }: SalonPageProps) {
         salon_id
       )
     `)
-    .eq("service_salons.salon_id", salon.id)
+    .in("service_salons.salon_id", salonIds)
     .eq("is_active", true)
     .order("category")
 
@@ -71,7 +74,7 @@ export default async function SalonPage({ params }: SalonPageProps) {
   const { data: staff } = await supabase
     .from("staff")
     .select("*")
-    .eq("salon_id", salon.id)
+    .in("salon_id", salonIds)
     .eq("is_active", true)
     .order("first_name")
 

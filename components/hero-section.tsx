@@ -102,7 +102,7 @@ export function HeroSection() {
           <div className="home-reveal inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-background/35 px-3 py-2 backdrop-blur-sm sm:px-4">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
             <span className="truncate text-[0.67rem] font-semibold uppercase tracking-[0.18em] text-primary sm:text-sm">
-              Massage traditionnel de Thaïlande
+              Massage traditionnel Thaïlandais
             </span>
           </div>
 

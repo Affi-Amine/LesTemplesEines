@@ -36,6 +36,7 @@ function resolveFetchOptions(options?: RequestInit): RequestInit {
   }
 
   return {
+    credentials: "same-origin",
     ...options,
     headers,
   }

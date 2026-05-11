@@ -7,20 +7,11 @@ import type { Service } from "@/lib/types/database"
 export function useServices(salonId?: string, enabledByDefault: boolean = false, includeInactive: boolean = false) {
   return useQuery({
     queryKey: ["services", salonId, includeInactive],
-    queryFn: async () => {
+    queryFn: () => {
       const params = new URLSearchParams()
+      if (salonId) params.append("salon_id", salonId)
       if (includeInactive) params.append("include_inactive", "true")
-
-      const services = await fetchAPI<Service[]>(`/services?${params.toString()}`)
-      if (!salonId) return services
-
-      return services.filter((service: Service & { salons?: Array<{ id?: string; slug?: string }> }) => {
-        const salonIds = service.salon_ids?.length ? service.salon_ids : (service.salon_id ? [service.salon_id] : [])
-        return (
-          salonIds.includes(salonId) ||
-          (service.salons || []).some((salon) => salon.id === salonId || salon.slug === salonId)
-        )
-      })
+      return fetchAPI<Service[]>(`/services?${params.toString()}`)
     },
     enabled: salonId ? true : enabledByDefault, // Fetch if salonId is provided or enabledByDefault is true
   })

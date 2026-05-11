@@ -71,39 +71,30 @@ export async function GET(request: NextRequest) {
       query = query.eq("is_active", true)
     }
 
+    let targetSalonIds: string[] = []
     if (salonIdOrSlug) {
       const salonGroup = await resolveSalonGroup(supabase, salonIdOrSlug)
       if (!salonGroup && !isUUID(salonIdOrSlug)) {
         return NextResponse.json({ error: "Salon not found" }, { status: 404 })
       }
-      const salonIds = salonGroup?.salonIds || [salonIdOrSlug]
-
-      const { data: serviceSalonRows, error: serviceSalonRowsError } = await supabase
-        .from("service_salons")
-        .select("service_id")
-        .in("salon_id", salonIds)
-
-      if (serviceSalonRowsError) throw serviceSalonRowsError
-
-      const serviceIdsFromRelations = Array.from(new Set(
-        (serviceSalonRows || [])
-          .map((row: any) => row.service_id)
-          .filter(Boolean)
-      ))
-
-      const filters = [`salon_id.in.(${salonIds.join(",")})`]
-      if (serviceIdsFromRelations.length > 0) {
-        filters.push(`id.in.(${serviceIdsFromRelations.join(",")})`)
-      }
-
-      query = query.or(filters.join(","))
+      targetSalonIds = salonGroup?.salonIds || [salonIdOrSlug]
     }
 
     const { data: services, error } = await query.order("category_order").order("category").order("name")
 
     if (error) throw error
 
-    return NextResponse.json((services || []).map(mapService))
+    const mappedServices = (services || []).map(mapService)
+    if (targetSalonIds.length === 0) {
+      return NextResponse.json(mappedServices)
+    }
+
+    const targetSalonIdSet = new Set(targetSalonIds)
+    return NextResponse.json(
+      mappedServices.filter((service: any) =>
+        (service.salon_ids || []).some((salonId: string) => targetSalonIdSet.has(salonId))
+      )
+    )
   } catch (error) {
     console.error("[v0] Get services error:", error)
     return NextResponse.json({ error: "Failed to fetch services" }, { status: 500 })

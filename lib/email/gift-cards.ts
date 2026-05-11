@@ -2,6 +2,7 @@ import { sendEmail, isEmailEnabled } from "./resend"
 import { giftCardBuyerHtml, giftCardBuyerSubject } from "./templates/gift-card-buyer"
 import { giftCardRecipientHtml, giftCardRecipientSubject } from "./templates/gift-card-recipient"
 import { generateGiftCardAttachment } from "./gift-card-attachment"
+import { getPaymentMethodLabel } from "@/lib/payments"
 
 export async function sendGiftCardEmails(params: {
   buyerName: string
@@ -11,6 +12,9 @@ export async function sendGiftCardEmails(params: {
   personalMessage?: string | null
   serviceName: string
   code: string
+  paymentMethod?: string | null
+  purchaseSource?: "online" | "counter"
+  sendRecipientEmail?: boolean
 }) {
   if (!isEmailEnabled) {
     console.warn("[email] Gift card emails skipped because RESEND_API_KEY is not configured")
@@ -34,11 +38,13 @@ export async function sendGiftCardEmails(params: {
       code: params.code,
       recipientName: params.recipientName,
       recipientEmail: params.recipientEmail,
+      paymentMethodLabel: params.paymentMethod ? getPaymentMethodLabel(params.paymentMethod) : undefined,
+      purchaseSource: params.purchaseSource,
     }),
     attachments: [attachment],
   })
 
-  if (params.recipientEmail) {
+  if (params.recipientEmail && params.sendRecipientEmail !== false) {
     await sendEmail({
       to: params.recipientEmail,
       subject: giftCardRecipientSubject({ serviceName: params.serviceName }),

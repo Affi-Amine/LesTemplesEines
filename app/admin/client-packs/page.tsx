@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { fetchAPI } from "@/lib/api/client"
+import { getPaymentMethodLabel } from "@/lib/payments"
 import type { ClientPack, Pack } from "@/lib/types/database"
 import { Plus } from "lucide-react"
 import { toast } from "sonner"
@@ -84,6 +85,7 @@ export default function AdminClientPacksPage() {
     client_email: "",
     installment_count: 1,
     paid_installments: 1,
+    payment_method: "card",
     send_email: true,
   })
 
@@ -129,6 +131,7 @@ export default function AdminClientPacksPage() {
       client_email: "",
       installment_count: 1,
       paid_installments: 1,
+      payment_method: "card",
       send_email: true,
     })
   }
@@ -231,6 +234,14 @@ export default function AdminClientPacksPage() {
                     <p className="text-sm text-muted-foreground">
                       Achat: {new Date(clientPack.purchase_date).toLocaleDateString("fr-FR")} • Échéances payées: {clientPack.paid_installments || 0} / {clientPack.installment_count || 1}
                     </p>
+                    <p className="text-sm text-muted-foreground">
+                      Paiement: {getPaymentMethodLabel(clientPack.payment_method)}
+                    </p>
+                    {clientPack.sold_by && (
+                      <p className="text-sm text-muted-foreground">
+                        Vendu par: {[clientPack.sold_by.first_name, clientPack.sold_by.last_name].filter(Boolean).join(" ") || clientPack.sold_by.email}
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <div className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-sm font-medium ${getPaymentStatusClass(clientPack.payment_status)}`}>
@@ -391,6 +402,22 @@ export default function AdminClientPacksPage() {
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pack-payment-method">Moyen de paiement</Label>
+              <select
+                id="pack-payment-method"
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                value={saleForm.payment_method}
+                onChange={(event) => updateSaleForm("payment_method", event.target.value)}
+              >
+                <option value="card">Carte bancaire</option>
+                <option value="cash">Especes</option>
+                <option value="check">Cheque</option>
+                <option value="on_site">Sur place</option>
+                <option value="other">Autre</option>
+              </select>
             </div>
 
             <label className="flex items-center gap-2 text-sm">

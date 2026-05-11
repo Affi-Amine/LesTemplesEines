@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
-import { resolveSalonGroup } from "@/lib/salons/resolve"
+import { isUUID, resolveSalonGroup } from "@/lib/salons/resolve"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -29,9 +29,15 @@ function normalizeSalonIds(serviceData: z.infer<typeof ServiceSchema>) {
 }
 
 function mapService(service: any) {
+  const relationSalonIds = service.service_salons?.map((relation: any) => relation.salon_id).filter(Boolean) || []
+  const salonIds = Array.from(new Set([
+    ...relationSalonIds,
+    ...(service.salon_id ? [service.salon_id] : []),
+  ]))
+
   return {
     ...service,
-    salon_ids: service.service_salons?.map((relation: any) => relation.salon_id) || [],
+    salon_ids: salonIds,
     salons: service.service_salons?.map((relation: any) => relation.salon).filter(Boolean) || [],
   }
 }
@@ -49,15 +55,7 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await createAdminClient()
-    const selectClause = salonIdOrSlug
-      ? `
-        *,
-        service_salons!inner(
-          salon_id,
-          salon:salons(id, name, slug, city)
-        )
-      `
-      : `
+    const selectClause = `
         *,
         service_salons!left(
           salon_id,
@@ -75,10 +73,30 @@ export async function GET(request: NextRequest) {
 
     if (salonIdOrSlug) {
       const salonGroup = await resolveSalonGroup(supabase, salonIdOrSlug)
-      if (!salonGroup) {
+      if (!salonGroup && !isUUID(salonIdOrSlug)) {
         return NextResponse.json({ error: "Salon not found" }, { status: 404 })
       }
-      query = query.in("service_salons.salon_id", salonGroup.salonIds)
+      const salonIds = salonGroup?.salonIds || [salonIdOrSlug]
+
+      const { data: serviceSalonRows, error: serviceSalonRowsError } = await supabase
+        .from("service_salons")
+        .select("service_id")
+        .in("salon_id", salonIds)
+
+      if (serviceSalonRowsError) throw serviceSalonRowsError
+
+      const serviceIdsFromRelations = Array.from(new Set(
+        (serviceSalonRows || [])
+          .map((row: any) => row.service_id)
+          .filter(Boolean)
+      ))
+
+      const filters = [`salon_id.in.(${salonIds.join(",")})`]
+      if (serviceIdsFromRelations.length > 0) {
+        filters.push(`id.in.(${serviceIdsFromRelations.join(",")})`)
+      }
+
+      query = query.or(filters.join(","))
     }
 
     const { data: services, error } = await query.order("category_order").order("category").order("name")

@@ -14,12 +14,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { useServices } from "@/lib/hooks/use-services"
 import { fetchAPI } from "@/lib/api/client"
 import { formatGiftCardCode } from "@/lib/gift-cards"
+import { getPaymentMethodLabel } from "@/lib/payments"
 import { Ban, CalendarDays, CheckCircle2, Clock3, Gift, Mail, Plus, Search } from "lucide-react"
 import { toast } from "sonner"
 
 type GiftCardRow = {
   id: string
   code: string
+  buyer_name: string | null
   buyer_email: string
   recipient_email: string | null
   recipient_name: string | null
@@ -27,6 +29,12 @@ type GiftCardRow = {
   amount_cents: number
   status: "active" | "used" | "cancelled"
   payment_status: "paid" | "unpaid"
+  payment_method: string | null
+  sold_by?: {
+    first_name: string | null
+    last_name: string | null
+    email: string | null
+  } | null
   purchased_at: string
   paid_at: string | null
   used_at: string | null
@@ -68,7 +76,8 @@ export default function AdminGiftCardsPage() {
     recipient_name: "",
     recipient_email: "",
     personal_message: "",
-    send_email: true,
+    payment_method: "card",
+    send_recipient_email: false,
   })
 
   const { data: services } = useServices(undefined, true)
@@ -126,7 +135,8 @@ export default function AdminGiftCardsPage() {
       recipient_name: "",
       recipient_email: "",
       personal_message: "",
-      send_email: true,
+      payment_method: "card",
+      send_recipient_email: false,
     })
   }
 
@@ -265,6 +275,7 @@ export default function AdminGiftCardsPage() {
                     <div className="grid sm:grid-cols-2 gap-3 text-sm">
                       <div>
                         <p className="text-muted-foreground">Acheteur</p>
+                        {giftCard.buyer_name && <p>{giftCard.buyer_name}</p>}
                         <p>{giftCard.buyer_email}</p>
                       </div>
                       <div>
@@ -289,10 +300,20 @@ export default function AdminGiftCardsPage() {
                     <div className="text-sm">
                       <p className="text-muted-foreground">Paiement</p>
                       <p>{giftCard.payment_status === "paid" ? "Paye" : "Non paye"}</p>
+                      <p className="text-muted-foreground">{getPaymentMethodLabel(giftCard.payment_method)}</p>
                       {giftCard.paid_at && (
                         <p className="text-muted-foreground">{new Date(giftCard.paid_at).toLocaleString("fr-FR")}</p>
                       )}
                     </div>
+                    {giftCard.sold_by && (
+                      <div className="text-sm">
+                        <p className="text-muted-foreground">Vendu par</p>
+                        <p>
+                          {[giftCard.sold_by.first_name, giftCard.sold_by.last_name].filter(Boolean).join(" ") ||
+                            giftCard.sold_by.email}
+                        </p>
+                      </div>
+                    )}
                     {giftCard.used_at ? (
                       <div className="text-sm">
                         <p className="text-muted-foreground">Utilisée le</p>
@@ -407,6 +428,22 @@ export default function AdminGiftCardsPage() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="gift-payment-method">Moyen de paiement</Label>
+              <select
+                id="gift-payment-method"
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                value={saleForm.payment_method}
+                onChange={(event) => updateSaleForm("payment_method", event.target.value)}
+              >
+                <option value="card">Carte bancaire</option>
+                <option value="cash">Especes</option>
+                <option value="check">Cheque</option>
+                <option value="on_site">Sur place</option>
+                <option value="other">Autre</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="gift-message">Message</Label>
               <Textarea
                 id="gift-message"
@@ -417,10 +454,10 @@ export default function AdminGiftCardsPage() {
 
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
-                checked={saleForm.send_email}
-                onCheckedChange={(checked) => updateSaleForm("send_email", checked === true)}
+                checked={saleForm.send_recipient_email}
+                onCheckedChange={(checked) => updateSaleForm("send_recipient_email", checked === true)}
               />
-              Envoyer les emails de carte cadeau
+              Envoyer aussi la carte cadeau au destinataire
             </label>
 
             <div className="flex justify-end gap-2">

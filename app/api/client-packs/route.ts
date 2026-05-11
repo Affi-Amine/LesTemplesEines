@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { ensureClientAuthUser, findClientByEmail, findClientByPhone } from "@/lib/client-auth"
 import { sendPackReadyEmail } from "@/lib/email/packs"
+import { sendCounterSaleAdminEmail } from "@/lib/email/sale-notifications"
 import { getPackPaymentStatus } from "@/lib/packs"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
@@ -14,6 +15,7 @@ const CounterPackSaleSchema = z.object({
   client_email: z.string().trim().email().optional().or(z.literal("")),
   installment_count: z.number().int().min(1).max(3),
   paid_installments: z.number().int().min(0).max(3),
+  payment_method: z.enum(["cash", "card", "check", "other", "on_site"]),
   send_email: z.boolean().optional(),
 })
 
@@ -116,6 +118,12 @@ export async function GET(request: NextRequest) {
         *,
         client:clients(*),
         pack:packs(*),
+        sold_by:staff(
+          id,
+          first_name,
+          last_name,
+          email
+        ),
         usages:client_pack_usages(
           *,
           appointment:appointments(
@@ -205,6 +213,12 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString()
     const paymentStatus = getCounterPackStatus(payload.installment_count, payload.paid_installments)
+    const { data: seller } = await supabase
+      .from("staff")
+      .select("id, first_name, last_name, email")
+      .eq("id", auth.payload.staffId)
+      .maybeSingle()
+
     const { data: clientPack, error: insertError } = await supabase
       .from("client_packs")
       .insert([{
@@ -216,6 +230,8 @@ export async function POST(request: NextRequest) {
         paid_installments: payload.paid_installments,
         purchase_date: now,
         payment_status: paymentStatus,
+        payment_method: payload.payment_method,
+        sold_by_staff_id: auth.payload.staffId,
         stripe_subscription_id: null,
         stripe_subscription_schedule_id: null,
         stripe_checkout_session_id: null,
@@ -224,6 +240,12 @@ export async function POST(request: NextRequest) {
         *,
         client:clients(*),
         pack:packs(*),
+        sold_by:staff(
+          id,
+          first_name,
+          last_name,
+          email
+        ),
         usages:client_pack_usages(
           *,
           appointment:appointments(
@@ -241,6 +263,26 @@ export async function POST(request: NextRequest) {
       throw new Error(insertError?.message || "Failed to create client pack")
     }
 
+    try {
+      await supabase.from("activity_logs").insert([{
+        salon_id: auth.payload.salonId,
+        actor_id: auth.payload.staffId,
+        action_type: "counter_pack_sale",
+        entity_type: "client_pack",
+        entity_id: clientPack.id,
+        changes: {
+          client_id: client.id,
+          pack_id: pack.id,
+          price: Number(pack.price),
+          installment_count: payload.installment_count,
+          paid_installments: payload.paid_installments,
+          payment_method: payload.payment_method,
+        },
+      }])
+    } catch (logError) {
+      console.error("[client-packs] Counter sale activity log error:", logError)
+    }
+
     if (normalizedEmail && payload.send_email !== false) {
       try {
         await sendPackReadyEmail({
@@ -249,10 +291,29 @@ export async function POST(request: NextRequest) {
           totalSessions: pack.number_of_sessions,
           purchaseDate: clientPack.purchase_date,
           price: Number(pack.price),
+          paymentMethod: payload.payment_method,
         })
       } catch (emailError) {
         console.error("[client-packs] Counter sale email error:", emailError)
       }
+    }
+
+    try {
+      const sellerName = seller ? `${seller.first_name || ""} ${seller.last_name || ""}`.trim() : auth.payload.email
+      await sendCounterSaleAdminEmail({
+        saleType: "pack",
+        itemName: pack.name,
+        amountLabel: `${Number(pack.price).toFixed(2)} EUR`,
+        customerName: `${client.first_name || ""} ${client.last_name || ""}`.trim(),
+        customerEmail: client.email,
+        customerPhone: client.phone,
+        paymentMethod: payload.payment_method,
+        soldByName: sellerName,
+        soldByEmail: seller?.email || auth.payload.email,
+        purchasedAt: clientPack.purchase_date,
+      })
+    } catch (emailError) {
+      console.error("[client-packs] Counter sale admin email error:", emailError)
     }
 
     return NextResponse.json(clientPack, { status: 201 })

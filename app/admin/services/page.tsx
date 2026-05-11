@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useServices } from "@/lib/hooks/use-services"
 import { useSalons } from "@/lib/hooks/use-salons"
-import { Plus, Edit, Clock, Tags, Search, ListFilter, Power, RotateCcw, CheckCircle2, XCircle, ArrowUp, ArrowDown } from "lucide-react"
+import { AlertCircle, Plus, Edit, Clock, Tags, Search, ListFilter, Power, RotateCcw, CheckCircle2, XCircle, ArrowUp, ArrowDown } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { useMemo, useState } from "react"
@@ -36,7 +36,7 @@ import { useRoleProtection } from "@/lib/hooks/use-role-protection"
 export default function ServicesPage() {
   const isAuthorized = useRoleProtection(["admin", "manager"])
   const { t } = useTranslations()
-  const { data: services, isLoading, refetch } = useServices(undefined, true, true)
+  const { data: services, isLoading, error: servicesError, refetch } = useServices(undefined, isAuthorized === true, true)
   const { data: salons } = useSalons()
   const [selectedSalonId, setSelectedSalonId] = useState("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -515,12 +515,24 @@ export default function ServicesPage() {
           </div>
         ) : null}
 
-        {isLoading ? (
+        {isAuthorized !== true || isLoading ? (
           <div className="space-y-2 rounded-lg border bg-card p-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="h-14 animate-pulse rounded-md bg-muted" />
             ))}
           </div>
+        ) : servicesError ? (
+          <Card className="rounded-2xl border-destructive/30 bg-destructive/5 p-5 text-destructive shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="font-semibold">Impossible de charger les prestations.</p>
+                <p className="mt-1 text-sm text-destructive/80">
+                  La session admin n'est plus valide côté API. Reconnectez-vous pour récupérer les services actifs et désactivés.
+                </p>
+              </div>
+            </div>
+          </Card>
         ) : (
           <Tabs defaultValue="list" className="space-y-4">
             <TabsList className="grid w-full max-w-md grid-cols-2">

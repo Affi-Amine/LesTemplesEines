@@ -1,5 +1,6 @@
 import { sendEmail } from "@/lib/email/resend"
 import { getBaseUrl } from "@/lib/gift-cards"
+import { getPaymentMethodLabel } from "@/lib/payments"
 import { formatEuroAmount } from "@/lib/packs"
 
 export async function sendPackReadyEmail(params: {
@@ -9,6 +10,7 @@ export async function sendPackReadyEmail(params: {
   purchaseDate: string
   appOrigin?: string
   price: number
+  paymentMethod?: string | null
 }) {
   const accountUrl = `${getBaseUrl(params.appOrigin)}/mes-forfaits`
 
@@ -23,6 +25,7 @@ export async function sendPackReadyEmail(params: {
           <p style="margin: 0 0 8px 0;"><strong>${params.packName}</strong></p>
           <p style="margin: 0;">${params.totalSessions} séance(s)</p>
           <p style="margin: 6px 0 0 0;">Montant: ${formatEuroAmount(params.price)}</p>
+          ${params.paymentMethod ? `<p style="margin: 6px 0 0 0;">Paiement: ${getPaymentMethodLabel(params.paymentMethod)}</p>` : ""}
           <p style="margin: 6px 0 0 0;">Date d'achat: ${new Date(params.purchaseDate).toLocaleString("fr-FR")}</p>
         </div>
         <p style="margin: 24px 0;">

@@ -90,6 +90,7 @@ async function handleGiftCardCheckout(
     .insert([{
       code,
       service_id: service.id,
+      buyer_name: payload.buyer_name,
       buyer_email: payload.buyer_email,
       recipient_email: payload.recipient_email || null,
       recipient_name: payload.recipient_name || null,
@@ -98,6 +99,7 @@ async function handleGiftCardCheckout(
       status: "active",
       purchased_at: new Date().toISOString(),
       payment_status: "paid",
+      payment_method: "stripe",
       paid_at: new Date().toISOString(),
       stripe_checkout_session_id: checkoutSession.id,
       stripe_payment_intent_id: typeof checkoutSession.payment_intent === "string" ? checkoutSession.payment_intent : null,
@@ -118,6 +120,7 @@ async function handleGiftCardCheckout(
       personalMessage: giftCard.personal_message,
       serviceName: service.name,
       code: giftCard.code,
+      paymentMethod: "stripe",
     })
   } catch (emailError) {
     console.error("[stripe] Failed to send gift card emails:", emailError)
@@ -265,6 +268,7 @@ async function handlePackCheckout(
       paid_installments: paidInstallments,
       purchase_date: new Date().toISOString(),
       payment_status: paymentStatus === "pending" ? "active" : paymentStatus,
+      payment_method: "stripe",
       stripe_subscription_id: subscriptionId,
       stripe_subscription_schedule_id: null,
       stripe_checkout_session_id: checkoutSession.id,
@@ -291,6 +295,7 @@ async function handlePackCheckout(
       totalSessions: pack.number_of_sessions,
       purchaseDate: clientPack.purchase_date,
       price: Number(pack.price),
+      paymentMethod: "stripe",
     })
   } catch (emailError) {
     console.error("[stripe] Failed to send pack ready email:", emailError)

@@ -19,6 +19,8 @@ export function giftCardBuyerHtml(params: {
   code: string
   recipientName?: string | null
   recipientEmail?: string | null
+  paymentMethodLabel?: string | null
+  purchaseSource?: "online" | "counter"
 }) {
   const code = formatGiftCardCode(params.code)
   const giftUrl = `${getBaseUrl()}/jai-une-carte-cadeau`
@@ -26,6 +28,11 @@ export function giftCardBuyerHtml(params: {
   const recipientName = escapeHtml(params.recipientName)
   const recipientEmail = escapeHtml(params.recipientEmail)
   const serviceName = escapeHtml(params.serviceName)
+  const paymentMethodLabel = escapeHtml(params.paymentMethodLabel)
+  const sourceSentence =
+    params.purchaseSource === "counter"
+      ? "Votre carte cadeau a bien ete achetee au comptoir et peut maintenant etre transmise a la personne de votre choix."
+      : "Votre carte cadeau a bien ete preparee et peut maintenant etre transmise a la personne de votre choix."
 
   return `
   <div style="margin:0; padding:32px 20px; background:#f7f1e8; font-family:Georgia, 'Times New Roman', serif; color:#20150e;">
@@ -34,7 +41,7 @@ export function giftCardBuyerHtml(params: {
         <div style="font-size:12px; letter-spacing:0.28em; text-transform:uppercase; opacity:0.78;">Les Temples</div>
         <h1 style="margin:18px 0 10px; font-size:34px; line-height:1.15;">Votre cadeau est prêt</h1>
         <p style="margin:0; font-size:17px; line-height:1.6; color:rgba(255,247,236,0.88);">
-          Merci ${buyerName}. Votre carte cadeau a bien été préparée et peut maintenant être transmise à la personne de votre choix.
+          Merci ${buyerName}. ${sourceSentence}
         </p>
       </div>
 
@@ -71,6 +78,7 @@ export function giftCardBuyerHtml(params: {
           <div style="font-size:12px; letter-spacing:0.14em; text-transform:uppercase; color:#8b6b46; margin-bottom:10px;">Détails de la carte</div>
           <p style="margin:0 0 10px; font-size:18px;"><strong>Prestation offerte :</strong> ${serviceName}</p>
           <p style="margin:0 0 10px; font-size:18px;"><strong>Code cadeau :</strong> <span style="letter-spacing:0.14em;">${code}</span></p>
+          ${paymentMethodLabel ? `<p style="margin:0 0 10px; font-size:18px;"><strong>Paiement :</strong> ${paymentMethodLabel}</p>` : ""}
           <p style="margin:0; font-size:16px; line-height:1.7; color:#5f4a36;">
             Ce code peut être utilisé sur la page dédiée pour réserver le soin :
             <a href="${giftUrl}" style="color:#8d6734; text-decoration:none;">${giftUrl}</a>

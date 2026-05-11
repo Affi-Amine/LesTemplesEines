@@ -150,6 +150,7 @@ export interface GiftCard {
   code: string
   service_id: string
   service?: Service | null
+  buyer_name: string | null
   buyer_email: string
   recipient_email: string | null
   recipient_name: string | null
@@ -157,6 +158,9 @@ export interface GiftCard {
   amount_cents: number
   status: "active" | "used" | "cancelled"
   payment_status: "paid" | "unpaid"
+  payment_method: string | null
+  sold_by_staff_id: string | null
+  sold_by?: Partial<Staff> | null
   purchased_at: string
   paid_at: string | null
   used_at: string | null
@@ -190,6 +194,8 @@ export interface ClientPack {
   paid_installments?: number
   purchase_date: string
   payment_status: "pending" | "active" | "partially_paid" | "paid" | "failed" | "cancelled"
+  payment_method?: string | null
+  sold_by_staff_id?: string | null
   stripe_subscription_id: string | null
   stripe_subscription_schedule_id?: string | null
   stripe_checkout_session_id?: string | null
@@ -197,6 +203,7 @@ export interface ClientPack {
   updated_at?: string
   pack?: Pack | null
   client?: Client | null
+  sold_by?: Partial<Staff> | null
   usages?: ClientPackUsage[]
 }
 

@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { generateGiftCardCode } from "@/lib/gift-cards"
 import { sendGiftCardEmails } from "@/lib/email/gift-cards"
+import { sendCounterSaleAdminEmail } from "@/lib/email/sale-notifications"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -12,7 +13,9 @@ const CounterGiftCardSchema = z.object({
   recipient_email: z.string().trim().email().optional().or(z.literal("")),
   recipient_name: z.string().trim().optional(),
   personal_message: z.string().trim().optional(),
+  payment_method: z.enum(["cash", "card", "check", "other", "on_site"]),
   send_email: z.boolean().optional(),
+  send_recipient_email: z.boolean().optional(),
 })
 
 async function generateUniqueGiftCardCode(supabase: ReturnType<typeof createAdminClient>) {
@@ -52,6 +55,12 @@ export async function GET(request: NextRequest) {
           id,
           start_time,
           salon:salons(id, name, city)
+        ),
+        sold_by:staff(
+          id,
+          first_name,
+          last_name,
+          email
         )
       `)
       .order("created_at", { ascending: false })
@@ -98,12 +107,19 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString()
+    const { data: seller } = await supabase
+      .from("staff")
+      .select("id, first_name, last_name, email")
+      .eq("id", auth.payload.staffId)
+      .maybeSingle()
+
     const code = await generateUniqueGiftCardCode(supabase)
     const { data: giftCard, error: insertError } = await supabase
       .from("gift_cards")
       .insert([{
         code,
         service_id: service.id,
+        buyer_name: payload.buyer_name,
         buyer_email: payload.buyer_email.toLowerCase(),
         recipient_email: payload.recipient_email ? payload.recipient_email.toLowerCase() : null,
         recipient_name: payload.recipient_name || null,
@@ -112,7 +128,9 @@ export async function POST(request: NextRequest) {
         status: "active",
         purchased_at: now,
         payment_status: "paid",
+        payment_method: payload.payment_method,
         paid_at: now,
+        sold_by_staff_id: auth.payload.staffId,
         stripe_checkout_session_id: null,
         stripe_payment_intent_id: null,
       }])
@@ -128,6 +146,12 @@ export async function POST(request: NextRequest) {
           id,
           start_time,
           salon:salons(id, name, city)
+        ),
+        sold_by:staff(
+          id,
+          first_name,
+          last_name,
+          email
         )
       `)
       .single()
@@ -136,20 +160,56 @@ export async function POST(request: NextRequest) {
       throw new Error(insertError?.message || "Failed to create gift card")
     }
 
-    if (payload.send_email !== false) {
-      try {
-        await sendGiftCardEmails({
-          buyerName: payload.buyer_name,
-          buyerEmail: giftCard.buyer_email,
-          recipientEmail: giftCard.recipient_email,
-          recipientName: giftCard.recipient_name,
-          personalMessage: giftCard.personal_message,
-          serviceName: service.name,
-          code: giftCard.code,
-        })
-      } catch (emailError) {
-        console.error("[gift-cards] Counter sale email error:", emailError)
-      }
+    try {
+      await supabase.from("activity_logs").insert([{
+        salon_id: auth.payload.salonId,
+        actor_id: auth.payload.staffId,
+        action_type: "counter_gift_card_sale",
+        entity_type: "gift_card",
+        entity_id: giftCard.id,
+        changes: {
+          buyer_email: giftCard.buyer_email,
+          service_id: service.id,
+          amount_cents: service.price_cents,
+          payment_method: payload.payment_method,
+        },
+      }])
+    } catch (logError) {
+      console.error("[gift-cards] Counter sale activity log error:", logError)
+    }
+
+    try {
+      await sendGiftCardEmails({
+        buyerName: payload.buyer_name,
+        buyerEmail: giftCard.buyer_email,
+        recipientEmail: giftCard.recipient_email,
+        recipientName: giftCard.recipient_name,
+        personalMessage: giftCard.personal_message,
+        serviceName: service.name,
+        code: giftCard.code,
+        paymentMethod: payload.payment_method,
+        purchaseSource: "counter",
+        sendRecipientEmail: payload.send_recipient_email !== false,
+      })
+    } catch (emailError) {
+      console.error("[gift-cards] Counter sale email error:", emailError)
+    }
+
+    try {
+      const sellerName = seller ? `${seller.first_name || ""} ${seller.last_name || ""}`.trim() : auth.payload.email
+      await sendCounterSaleAdminEmail({
+        saleType: "gift_card",
+        itemName: service.name,
+        amountLabel: `${(service.price_cents / 100).toFixed(2)} EUR`,
+        customerName: payload.buyer_name,
+        customerEmail: giftCard.buyer_email,
+        paymentMethod: payload.payment_method,
+        soldByName: sellerName,
+        soldByEmail: seller?.email || auth.payload.email,
+        purchasedAt: giftCard.purchased_at,
+      })
+    } catch (emailError) {
+      console.error("[gift-cards] Counter sale admin email error:", emailError)
     }
 
     return NextResponse.json(giftCard, { status: 201 })

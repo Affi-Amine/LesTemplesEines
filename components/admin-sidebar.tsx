@@ -25,12 +25,14 @@ export function AdminSidebar() {
   const role = userInfo?.role
   const isAdmin = role === 'admin'
   const isManager = role === 'manager'
+  const isReceptionist = role === 'receptionist'
   
   // Access control helpers
   const canViewAnalytics = isAdmin
   const canViewSettings = isAdmin || isManager
   const canViewStaff = isAdmin || isManager
   const canViewServices = isAdmin || isManager
+  const canSellCounterProducts = isAdmin || isManager || isReceptionist
 
   const navItems = [
     { href: "/admin", label: mounted ? t("admin.dashboard") : "Dashboard", icon: BarChart3 },
@@ -41,9 +43,9 @@ export function AdminSidebar() {
     ...(canViewStaff ? [{ href: "/admin/staff", label: mounted ? t("admin.staff") : "Staff", icon: UserCheck }] : []),
     { href: "/admin/salons", label: "Salons", icon: Building2 },
     ...(canViewServices ? [{ href: "/admin/services", label: "Services", icon: Scissors }] : []),
-    ...(canViewServices ? [{ href: "/admin/gift-cards", label: "Cartes cadeaux", icon: Gift }] : []),
+    ...(canSellCounterProducts ? [{ href: "/admin/gift-cards", label: "Cartes cadeaux", icon: Gift }] : []),
     ...(canViewServices ? [{ href: "/admin/packs", label: "Packs", icon: Package }] : []),
-    ...(canViewServices ? [{ href: "/admin/client-packs", label: "Packs clients", icon: Wallet }] : []),
+    ...(canSellCounterProducts ? [{ href: "/admin/client-packs", label: "Packs clients", icon: Wallet }] : []),
     ...(canViewSettings ? [{ href: "/admin/settings", label: mounted ? t("admin.settings") : "Settings", icon: Settings }] : []),
   ]
 

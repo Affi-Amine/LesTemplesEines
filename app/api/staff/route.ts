@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { hashPassword } from "@/lib/auth/password"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
-import { resolveSalonGroup } from "@/lib/salons/resolve"
+import { isUUID, resolveSalonGroup } from "@/lib/salons/resolve"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -57,10 +57,10 @@ export async function GET(request: NextRequest) {
 
     if (salonIdOrSlug) {
       const salonGroup = await resolveSalonGroup(supabase, salonIdOrSlug)
-      if (!salonGroup) {
+      if (!salonGroup && !isUUID(salonIdOrSlug)) {
         return NextResponse.json({ error: "Salon not found" }, { status: 404 })
       }
-      targetSalonIds = salonGroup.salonIds
+      targetSalonIds = salonGroup?.salonIds || [salonIdOrSlug]
     }
     
     if (role) query = query.eq("role", role)

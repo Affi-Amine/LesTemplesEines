@@ -7,9 +7,15 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { useServices } from "@/lib/hooks/use-services"
 import { fetchAPI } from "@/lib/api/client"
 import { formatGiftCardCode } from "@/lib/gift-cards"
-import { Gift, Search, Mail, CalendarDays, CheckCircle2, Clock3, Ban } from "lucide-react"
+import { Ban, CalendarDays, CheckCircle2, Clock3, Gift, Mail, Plus, Search } from "lucide-react"
+import { toast } from "sonner"
 
 type GiftCardRow = {
   id: string
@@ -53,6 +59,19 @@ export default function AdminGiftCardsPage() {
   const [searchInput, setSearchInput] = useState("")
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState("all")
+  const [saleOpen, setSaleOpen] = useState(false)
+  const [isSelling, setIsSelling] = useState(false)
+  const [saleForm, setSaleForm] = useState({
+    service_id: "",
+    buyer_name: "",
+    buyer_email: "",
+    recipient_name: "",
+    recipient_email: "",
+    personal_message: "",
+    send_email: true,
+  })
+
+  const { data: services } = useServices(undefined, true)
 
   const { data: giftCards, isLoading, refetch } = useQuery({
     queryKey: ["gift-cards", search, status],
@@ -93,11 +112,59 @@ export default function AdminGiftCardsPage() {
     return <Badge variant="secondary">Non payee</Badge>
   }
 
+  const selectedService = services?.find((service) => service.id === saleForm.service_id)
+
+  const updateSaleForm = (field: keyof typeof saleForm, value: string | boolean) => {
+    setSaleForm((current) => ({ ...current, [field]: value }))
+  }
+
+  const resetSaleForm = () => {
+    setSaleForm({
+      service_id: "",
+      buyer_name: "",
+      buyer_email: "",
+      recipient_name: "",
+      recipient_email: "",
+      personal_message: "",
+      send_email: true,
+    })
+  }
+
+  const sellGiftCard = async () => {
+    if (!saleForm.service_id) {
+      toast.error("Choisis une prestation.")
+      return
+    }
+
+    try {
+      setIsSelling(true)
+      await fetchAPI("/gift-cards", {
+        method: "POST",
+        body: JSON.stringify(saleForm),
+      })
+      toast.success("Carte cadeau vendue.")
+      resetSaleForm()
+      setSaleOpen(false)
+      refetch()
+    } catch (error: any) {
+      toast.error(error.message || "Impossible de vendre cette carte cadeau.")
+    } finally {
+      setIsSelling(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <AdminHeader title="Cartes cadeaux" description="Suivi des cartes cadeaux achetées et utilisées" />
 
       <div className="p-6 space-y-6">
+        <div className="flex justify-end">
+          <Button onClick={() => setSaleOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Vendre une carte cadeau
+          </Button>
+        </div>
+
         <div className="grid md:grid-cols-4 gap-4">
           <Card className="p-5">
             <div className="flex items-center gap-3">
@@ -268,6 +335,105 @@ export default function AdminGiftCardsPage() {
           </Card>
         )}
       </div>
+
+      <Dialog open={saleOpen} onOpenChange={setSaleOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Vendre une carte cadeau</DialogTitle>
+            <DialogDescription>Création immédiate en statut payé, utilisable pour une réservation.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="gift-service">Prestation</Label>
+              <select
+                id="gift-service"
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                value={saleForm.service_id}
+                onChange={(event) => updateSaleForm("service_id", event.target.value)}
+              >
+                <option value="">Choisir une prestation</option>
+                {services?.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.name} - {(service.price_cents / 100).toFixed(2)} EUR
+                  </option>
+                ))}
+              </select>
+              {selectedService && (
+                <p className="text-sm text-muted-foreground">
+                  {selectedService.duration_minutes} min - {(selectedService.price_cents / 100).toFixed(2)} EUR
+                </p>
+              )}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="buyer-name">Nom acheteur</Label>
+                <Input
+                  id="buyer-name"
+                  value={saleForm.buyer_name}
+                  onChange={(event) => updateSaleForm("buyer_name", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="buyer-email">Email acheteur</Label>
+                <Input
+                  id="buyer-email"
+                  type="email"
+                  value={saleForm.buyer_email}
+                  onChange={(event) => updateSaleForm("buyer_email", event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="recipient-name">Nom destinataire</Label>
+                <Input
+                  id="recipient-name"
+                  value={saleForm.recipient_name}
+                  onChange={(event) => updateSaleForm("recipient_name", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="recipient-email">Email destinataire</Label>
+                <Input
+                  id="recipient-email"
+                  type="email"
+                  value={saleForm.recipient_email}
+                  onChange={(event) => updateSaleForm("recipient_email", event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="gift-message">Message</Label>
+              <Textarea
+                id="gift-message"
+                value={saleForm.personal_message}
+                onChange={(event) => updateSaleForm("personal_message", event.target.value)}
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={saleForm.send_email}
+                onCheckedChange={(checked) => updateSaleForm("send_email", checked === true)}
+              />
+              Envoyer les emails de carte cadeau
+            </label>
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setSaleOpen(false)}>
+                Annuler
+              </Button>
+              <Button type="button" onClick={sellGiftCard} disabled={isSelling}>
+                {isSelling ? "Vente..." : "Créer la carte"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

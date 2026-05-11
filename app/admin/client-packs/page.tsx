@@ -6,8 +6,12 @@ import { AdminHeader } from "@/components/admin-header"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 import { fetchAPI } from "@/lib/api/client"
-import type { ClientPack } from "@/lib/types/database"
+import type { ClientPack, Pack } from "@/lib/types/database"
+import { Plus } from "lucide-react"
 import { toast } from "sonner"
 
 const statusOptions = [
@@ -70,6 +74,18 @@ export default function AdminClientPacksPage() {
   const [status, setStatus] = useState<(typeof statusOptions)[number]["value"]>("all")
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [statusDrafts, setStatusDrafts] = useState<Record<string, ClientPack["payment_status"]>>({})
+  const [saleOpen, setSaleOpen] = useState(false)
+  const [isSelling, setIsSelling] = useState(false)
+  const [saleForm, setSaleForm] = useState({
+    pack_id: "",
+    client_first_name: "",
+    client_last_name: "",
+    client_phone: "",
+    client_email: "",
+    installment_count: 1,
+    paid_installments: 1,
+    send_email: true,
+  })
 
   const { data: clientPacks, isLoading } = useQuery({
     queryKey: ["admin-client-packs", search, status],
@@ -81,6 +97,64 @@ export default function AdminClientPacksPage() {
         }).toString()}`
       ),
   })
+
+  const { data: packs } = useQuery({
+    queryKey: ["packs", "active"],
+    queryFn: () => fetchAPI<Pack[]>("/packs?active=true"),
+  })
+
+  const selectedPack = packs?.find((pack) => pack.id === saleForm.pack_id)
+
+  const updateSaleForm = (field: keyof typeof saleForm, value: string | number | boolean) => {
+    setSaleForm((current) => ({ ...current, [field]: value }))
+  }
+
+  const selectPack = (packId: string) => {
+    const nextPack = packs?.find((pack) => pack.id === packId)
+    const nextInstallmentCount = nextPack?.allowed_installments?.[0] || 1
+    setSaleForm((current) => ({
+      ...current,
+      pack_id: packId,
+      installment_count: nextInstallmentCount,
+      paid_installments: nextInstallmentCount,
+    }))
+  }
+
+  const resetSaleForm = () => {
+    setSaleForm({
+      pack_id: "",
+      client_first_name: "",
+      client_last_name: "",
+      client_phone: "",
+      client_email: "",
+      installment_count: 1,
+      paid_installments: 1,
+      send_email: true,
+    })
+  }
+
+  const sellClientPack = async () => {
+    if (!saleForm.pack_id) {
+      toast.error("Choisis un pack.")
+      return
+    }
+
+    try {
+      setIsSelling(true)
+      await fetchAPI("/client-packs", {
+        method: "POST",
+        body: JSON.stringify(saleForm),
+      })
+      toast.success("Pack vendu au client.")
+      resetSaleForm()
+      setSaleOpen(false)
+      queryClient.invalidateQueries({ queryKey: ["admin-client-packs"] })
+    } catch (error: any) {
+      toast.error(error.message || "Impossible de vendre ce pack.")
+    } finally {
+      setIsSelling(false)
+    }
+  }
 
   const saveClientPack = async (clientPack: ClientPack) => {
     try {
@@ -106,6 +180,13 @@ export default function AdminClientPacksPage() {
     <div className="min-h-screen bg-background">
       <AdminHeader title="Packs clients" description="Suivi des forfaits vendus, restants et consommés" />
       <div className="p-6 space-y-6">
+        <div className="flex justify-end">
+          <Button onClick={() => setSaleOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Vendre un pack
+          </Button>
+        </div>
+
         {failedCount > 0 && (
           <Card className="border-red-200 bg-red-50 p-4">
             <p className="font-semibold text-red-700">Alerte impayés</p>
@@ -205,6 +286,132 @@ export default function AdminClientPacksPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={saleOpen} onOpenChange={setSaleOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Vendre un pack</DialogTitle>
+            <DialogDescription>Ajoute le pack directement au compte client, sans paiement Stripe.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="pack-sale-pack">Pack</Label>
+              <select
+                id="pack-sale-pack"
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                value={saleForm.pack_id}
+                onChange={(event) => selectPack(event.target.value)}
+              >
+                <option value="">Choisir un pack</option>
+                {packs?.map((pack) => (
+                  <option key={pack.id} value={pack.id}>
+                    {pack.name} - {Number(pack.price).toFixed(2)} EUR
+                  </option>
+                ))}
+              </select>
+              {selectedPack && (
+                <p className="text-sm text-muted-foreground">
+                  {selectedPack.number_of_sessions} séance(s) - échéances autorisées: {selectedPack.allowed_installments.join(", ")}
+                </p>
+              )}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="client-first-name">Prénom</Label>
+                <Input
+                  id="client-first-name"
+                  value={saleForm.client_first_name}
+                  onChange={(event) => updateSaleForm("client_first_name", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client-last-name">Nom</Label>
+                <Input
+                  id="client-last-name"
+                  value={saleForm.client_last_name}
+                  onChange={(event) => updateSaleForm("client_last_name", event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="client-phone">Téléphone</Label>
+                <Input
+                  id="client-phone"
+                  value={saleForm.client_phone}
+                  onChange={(event) => updateSaleForm("client_phone", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client-email">Email</Label>
+                <Input
+                  id="client-email"
+                  type="email"
+                  value={saleForm.client_email}
+                  onChange={(event) => updateSaleForm("client_email", event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="installments">Échéances prévues</Label>
+                <select
+                  id="installments"
+                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  value={saleForm.installment_count}
+                  onChange={(event) => {
+                    const installmentCount = Number(event.target.value)
+                    updateSaleForm("installment_count", installmentCount)
+                    updateSaleForm("paid_installments", installmentCount)
+                  }}
+                >
+                  {(selectedPack?.allowed_installments || [1]).map((count) => (
+                    <option key={count} value={count}>
+                      {count}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="paid-installments">Échéances encaissées</Label>
+                <select
+                  id="paid-installments"
+                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  value={saleForm.paid_installments}
+                  onChange={(event) => updateSaleForm("paid_installments", Number(event.target.value))}
+                >
+                  {Array.from({ length: saleForm.installment_count + 1 }, (_, index) => (
+                    <option key={index} value={index}>
+                      {index}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={saleForm.send_email}
+                onCheckedChange={(checked) => updateSaleForm("send_email", checked === true)}
+              />
+              Envoyer l'email de confirmation si un email est renseigné
+            </label>
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setSaleOpen(false)}>
+                Annuler
+              </Button>
+              <Button type="button" onClick={sellClientPack} disabled={isSelling}>
+                {isSelling ? "Vente..." : "Créer le pack client"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

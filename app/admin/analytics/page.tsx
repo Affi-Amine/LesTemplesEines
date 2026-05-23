@@ -42,7 +42,7 @@ export default function AnalyticsPage() {
     <div className="min-h-screen bg-background">
       <AdminHeader title="Analytiques" description="Performance commerciale et insights" />
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-4 p-3 sm:p-6 md:space-y-6">
         {/* Filters */}
         <AnalyticsFilters
           filters={filters}
@@ -52,7 +52,7 @@ export default function AnalyticsPage() {
         />
 
         {/* Key Metrics */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-6 lg:grid-cols-4">
           <StatCard
             title="Chiffre d'affaires total"
             value={analyticsData ? formatCurrency(analyticsData.kpis?.total_revenue_cents || 0) : "€0"}
@@ -80,13 +80,13 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Charts */}
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
           <RevenueChart data={analyticsData ? {
             total_revenue_cents: analyticsData.kpis?.total_revenue_cents || 0,
             total_appointments: analyticsData.kpis?.total_appointments || 0,
             period: analyticsData.period
           } : undefined} />
-          <div className="grid grid-rows-2 gap-6">
+          <div className="grid gap-4 lg:grid-rows-2 lg:gap-6">
             <ServiceDistributionChart data={analyticsData?.popular_services} />
             <PaymentMethodChart data={analyticsData?.payment_methods} />
           </div>
@@ -97,24 +97,24 @@ export default function AnalyticsPage() {
         } : undefined} />
 
         {/* Additional Insights */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card className="p-6">
+        <div className="grid gap-4 md:grid-cols-2 md:gap-6">
+          <Card className="p-4 sm:p-6">
             <h3 className="font-semibold text-lg mb-4">Rendez-vous à venir</h3>
             <div className="space-y-3">
               {analyticsData?.upcoming_appointments?.length ? (
                 analyticsData.upcoming_appointments.slice(0, 5).map((appointment: any) => (
-                  <div key={appointment.id} className="flex justify-between items-center pb-3 border-b last:border-0">
-                    <div>
-                      <p className="font-medium">
+                  <div key={appointment.id} className="flex min-w-0 items-center justify-between gap-3 border-b pb-3 last:border-0">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">
                         {appointment.client?.first_name} {appointment.client?.last_name}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(appointment.start_time), 'd MMM, HH:mm', { locale: fr })}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="min-w-0 shrink-0 text-right">
                       <p className="font-semibold">{formatCurrency(appointment.service?.price_cents || 0)}</p>
-                      <p className="text-xs text-muted-foreground">{appointment.service?.name}</p>
+                      <p className="max-w-[9rem] truncate text-xs text-muted-foreground">{appointment.service?.name}</p>
                     </div>
                   </div>
                 ))
@@ -124,7 +124,7 @@ export default function AnalyticsPage() {
             </div>
           </Card>
 
-          <Card className="p-6">
+          <Card className="p-4 sm:p-6">
             <h3 className="font-semibold text-lg mb-4">Services populaires</h3>
             <div className="space-y-3">
               {analyticsData?.popular_services?.length ? (
@@ -133,9 +133,9 @@ export default function AnalyticsPage() {
                   const percentage = (service.booking_count / maxCount) * 100
                   return (
                     <div key={service.service_name}>
-                      <div className="flex justify-between mb-1">
-                        <p className="text-sm font-medium">{service.service_name}</p>
-                        <p className="text-sm text-muted-foreground">{service.booking_count} réservations</p>
+                      <div className="mb-1 flex min-w-0 justify-between gap-3">
+                        <p className="truncate text-sm font-medium">{service.service_name}</p>
+                        <p className="shrink-0 text-sm text-muted-foreground">{service.booking_count}</p>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2">
                         <div className="bg-primary h-2 rounded-full" style={{ width: `${percentage}%` }} />

@@ -217,7 +217,7 @@ export default function SalonsPage() {
     <div className="min-h-screen bg-background">
       <AdminHeader title="Gestion des salons" description="Gérez vos établissements Les Temples" />
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-4 p-3 sm:p-6 md:space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">Mes salons</h2>
           <Button onClick={handleCreate} className="gap-2 cursor-pointer">
@@ -231,7 +231,7 @@ export default function SalonsPage() {
             {[1, 2, 3].map((i) => (
               <Card key={i} className="overflow-hidden animate-pulse">
                 <div className="h-48 bg-muted" />
-                <div className="p-6 space-y-3">
+                <div className="space-y-3 p-4 sm:p-6">
                   <div className="h-6 bg-muted rounded w-2/3" />
                   <div className="h-4 bg-muted rounded w-1/2" />
                   <div className="h-4 bg-muted rounded w-full" />
@@ -276,7 +276,7 @@ export default function SalonsPage() {
                     </Badge>
                   </div>
                 </div>
-                <div className="p-6 space-y-4">
+                <div className="space-y-4 p-4 sm:p-6">
                   <div>
                     <h3 className="text-xl font-bold">{salon.name}</h3>
                     <p className="text-sm text-muted-foreground">{salon.city}</p>

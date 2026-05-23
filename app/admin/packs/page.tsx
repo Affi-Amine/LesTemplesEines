@@ -106,8 +106,8 @@ export default function AdminPacksPage() {
   return (
     <div className="min-h-screen bg-background">
       <AdminHeader title="Packs" description="Créer et gérer les forfaits vendus aux clients" />
-      <div className="p-6 space-y-6">
-        <Card className="p-6 space-y-5">
+      <div className="space-y-4 p-3 sm:p-6 md:space-y-6">
+        <Card className="space-y-5 p-4 sm:p-6">
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Nom</Label>
@@ -186,9 +186,9 @@ export default function AdminPacksPage() {
 
         <div className="grid gap-4">
           {isLoading ? (
-            [1, 2].map((item) => <Card key={item} className="p-6 animate-pulse h-28" />)
+            [1, 2].map((item) => <Card key={item} className="h-28 animate-pulse p-4 sm:p-6" />)
           ) : packs?.map((pack) => (
-            <Card key={pack.id} className="p-6">
+            <Card key={pack.id} className="p-4 sm:p-6">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-semibold">{pack.name}</h2>

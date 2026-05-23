@@ -231,7 +231,7 @@ export default function StaffPage() {
     <div className="min-h-screen bg-background">
       <AdminHeader title={t("admin.staff")} description={t("admin.staff")} />
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-4 p-3 sm:p-6 md:space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">{t("admin.staff")}</h2>
           <div className="flex items-center gap-4">

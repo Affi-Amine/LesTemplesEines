@@ -350,9 +350,9 @@ export default function AppointmentsPage() {
   return (
     <div className="min-h-screen bg-background">
       <AdminHeader title="Rendez-vous" description="Gérer les rendez-vous du salon" />
-      <div className="container mx-auto p-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-          <h1 className="text-3xl font-bold">Rendez-vous</h1>
+      <div className="container mx-auto p-3 sm:p-6">
+        <div className="mb-4 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-bold sm:text-3xl">Rendez-vous</h1>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
             <SalonFilter selectedSalonId={selectedSalonId} onSelectSalon={setSelectedSalonId} />
             <Button onClick={handleCreate} className="flex items-center justify-center gap-2 cursor-pointer">
@@ -397,7 +397,7 @@ export default function AppointmentsPage() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>Nouveau rendez-vous</DialogTitle>
               <DialogDescription>
@@ -405,7 +405,7 @@ export default function AppointmentsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="salon">Salon</Label>
                   <Select value={form.salon_id} onValueChange={(value) => setForm({ ...form, salon_id: value, service_id: "", staff_id: "", staff_ids: [] })}>
@@ -470,7 +470,7 @@ export default function AppointmentsPage() {
                   })}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="date">Date</Label>
                   <Input
@@ -490,7 +490,7 @@ export default function AppointmentsPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="phone">Téléphone *</Label>
                   <Input
@@ -550,7 +550,7 @@ export default function AppointmentsPage() {
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="last_name">Nom *</Label>
                   <Input
@@ -594,7 +594,7 @@ export default function AppointmentsPage() {
 
         {/* View Appointment Dialog */}
         <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Détails du rendez-vous</DialogTitle>
               <DialogDescription>
@@ -603,7 +603,7 @@ export default function AppointmentsPage() {
             </DialogHeader>
             {selectedAppointment && (
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Client</Label>
                     <p className="text-sm">{selectedAppointment.clientName}</p>
@@ -613,7 +613,7 @@ export default function AppointmentsPage() {
                     <p className="text-sm">{selectedAppointment.service}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Salon</Label>
                     <p className="text-sm">{selectedAppointment.salon}</p>
@@ -623,7 +623,7 @@ export default function AppointmentsPage() {
                     <p className="text-sm">{selectedAppointment.therapist}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Date</Label>
                     <p className="text-sm">{selectedAppointment.date}</p>
@@ -674,7 +674,7 @@ export default function AppointmentsPage() {
 
         {/* Edit Appointment Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>Modifier le rendez-vous</DialogTitle>
               <DialogDescription>
@@ -683,7 +683,7 @@ export default function AppointmentsPage() {
             </DialogHeader>
             {selectedAppointment && (
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="edit-salon">Salon</Label>
                     <Select value={editForm.salon_id} onValueChange={(value) => setEditForm({ ...editForm, salon_id: value, service_id: "", staff_ids: [] })}>
@@ -751,7 +751,7 @@ export default function AppointmentsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="edit-date">Date</Label>
                     <Input

@@ -167,7 +167,7 @@ export default function AdminGiftCardsPage() {
     <div className="min-h-screen bg-background">
       <AdminHeader title="Cartes cadeaux" description="Suivi des cartes cadeaux achetées et utilisées" />
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-4 p-3 sm:p-6 md:space-y-6">
         <div className="flex justify-end">
           <Button onClick={() => setSaleOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
@@ -248,7 +248,7 @@ export default function AdminGiftCardsPage() {
         {isLoading ? (
           <div className="grid gap-4">
             {[1, 2, 3].map((item) => (
-              <Card key={item} className="p-6 animate-pulse">
+              <Card key={item} className="animate-pulse p-4 sm:p-6">
                 <div className="h-5 w-40 bg-muted rounded mb-3" />
                 <div className="h-4 w-full bg-muted rounded mb-2" />
                 <div className="h-4 w-2/3 bg-muted rounded" />
@@ -258,7 +258,7 @@ export default function AdminGiftCardsPage() {
         ) : giftCards && giftCards.length > 0 ? (
           <div className="grid gap-4">
             {giftCards.map((giftCard) => (
-              <Card key={giftCard.id} className="p-6">
+              <Card key={giftCard.id} className="p-4 sm:p-6">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="space-y-3">
                     <div className="flex items-center gap-3 flex-wrap">

@@ -7,9 +7,9 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Ba
 export function RevenueChart({ data }: { data?: { total_revenue_cents: number; total_appointments: number; period: { start: string; end: string } } }) {
   if (!data) {
     return (
-      <Card className="p-6 h-full flex flex-col">
+      <Card className="flex h-full flex-col p-4 sm:p-6">
         <h3 className="font-semibold text-lg mb-4">Chiffre d'affaires et réservations</h3>
-        <div className="flex-1 min-h-[300px] flex items-center justify-center bg-muted/20 rounded-lg">
+        <div className="flex min-h-[220px] flex-1 items-center justify-center rounded-lg bg-muted/20 sm:min-h-[300px]">
           <div className="text-center">
             <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">Chargement des données de chiffre d'affaires...</p>
@@ -28,9 +28,9 @@ export function RevenueChart({ data }: { data?: { total_revenue_cents: number; t
   ]
 
   return (
-    <Card className="p-6 h-full flex flex-col">
+    <Card className="flex h-full flex-col p-4 sm:p-6">
       <h3 className="font-semibold text-lg mb-4">Chiffre d'affaires et réservations</h3>
-      <div className="flex-1 min-h-[300px]">
+      <div className="min-h-[220px] flex-1 sm:min-h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} barGap={10} barCategoryGap="20%">
             <CartesianGrid strokeDasharray="3 3" />
@@ -57,9 +57,9 @@ export function RevenueChart({ data }: { data?: { total_revenue_cents: number; t
 export function ServiceDistributionChart({ data }: { data?: Array<{ service_name: string; booking_count: number; revenue_cents: number }> }) {
   if (!data || data.length === 0) {
     return (
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <h3 className="font-semibold text-lg mb-4">Répartition des services</h3>
-        <div className="flex items-center justify-center h-[300px] bg-muted/20 rounded-lg">
+        <div className="flex h-[220px] items-center justify-center rounded-lg bg-muted/20 sm:h-[300px]">
           <div className="text-center">
             <PieChartIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">Aucune donnée de service disponible</p>
@@ -77,9 +77,9 @@ export function ServiceDistributionChart({ data }: { data?: Array<{ service_name
   }))
 
   return (
-    <Card className="p-6">
+    <Card className="p-4 sm:p-6">
       <h3 className="font-semibold text-lg mb-4">Répartition des services</h3>
-      <div className="h-[300px]">
+      <div className="h-[220px] sm:h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -114,9 +114,9 @@ export function ServiceDistributionChart({ data }: { data?: Array<{ service_name
 export function PaymentMethodChart({ data }: { data?: Array<{ method: string; count: number; revenue_cents: number }> }) {
   if (!data || data.length === 0) {
     return (
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <h3 className="font-semibold text-lg mb-4">Modes de Paiement</h3>
-        <div className="flex items-center justify-center h-[300px] bg-muted/20 rounded-lg">
+        <div className="flex h-[220px] items-center justify-center rounded-lg bg-muted/20 sm:h-[300px]">
           <div className="text-center">
             <PieChartIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">Aucune donnée de paiement disponible</p>
@@ -144,9 +144,9 @@ export function PaymentMethodChart({ data }: { data?: Array<{ method: string; co
   }))
 
   return (
-    <Card className="p-6">
+    <Card className="p-4 sm:p-6">
       <h3 className="font-semibold text-lg mb-4">Modes de Paiement</h3>
-      <div className="h-[300px]">
+      <div className="h-[220px] sm:h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -180,9 +180,9 @@ export function PaymentMethodChart({ data }: { data?: Array<{ method: string; co
 export function ClientRetentionChart({ data }: { data?: { total_clients: number } }) {
   if (!data) {
     return (
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <h3 className="font-semibold text-lg mb-4">Aperçu Clients</h3>
-        <div className="flex items-center justify-center h-[300px] bg-muted/20 rounded-lg">
+        <div className="flex h-[220px] items-center justify-center rounded-lg bg-muted/20 sm:h-[300px]">
           <div className="text-center">
             <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">Chargement des données clients...</p>
@@ -202,22 +202,22 @@ export function ClientRetentionChart({ data }: { data?: { total_clients: number 
   ]
 
   return (
-    <Card className="p-6 border-l-4 border-l-primary">
-      <div className="flex items-start justify-between mb-4">
-        <div>
+    <Card className="border-l-4 border-l-primary p-4 sm:p-6">
+      <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
           <h3 className="font-semibold text-lg">Aperçu Clients</h3>
           <p className="text-xs text-muted-foreground mt-1">
             Nombre de clients uniques sur la période sélectionnée
           </p>
         </div>
-        <div className="bg-primary/10 px-3 py-1 rounded-full">
+        <div className="shrink-0 rounded-full bg-primary/10 px-3 py-1">
           <span className="text-sm font-semibold text-primary">
             {data.total_clients} client{data.total_clients > 1 ? 's' : ''}
           </span>
         </div>
       </div>
 
-      <div className="h-[250px]">
+      <div className="h-[220px] sm:h-[250px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
             <CartesianGrid strokeDasharray="3 3" />

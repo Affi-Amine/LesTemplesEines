@@ -72,16 +72,25 @@ export function AdminSidebar() {
 
   return (
     <>
-      {/* Mobile Menu Button */}
-      <div className="md:hidden fixed top-4 left-4 z-50">
-        <Button variant="outline" size="icon" onClick={() => setIsOpen(!isOpen)} className="bg-card">
+      <div className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-3 border-b bg-card/95 px-3 backdrop-blur md:hidden">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setIsOpen(!isOpen)}
+          className="h-9 w-9 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+          aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
+        >
           {isOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
         </Button>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-bold text-primary">Les Temples</div>
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Admin</div>
+        </div>
       </div>
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-screen w-64 bg-card border-r transition-transform duration-300 z-40 md:translate-x-0 ${
+        className={`fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] w-64 overflow-y-auto border-r bg-card transition-transform duration-300 md:top-0 md:h-screen md:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -122,7 +131,7 @@ export function AdminSidebar() {
       </aside>
 
       {/* Mobile Overlay */}
-      {isOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setIsOpen(false)} />}
+      {isOpen && <div className="fixed inset-x-0 bottom-0 top-14 z-30 bg-black/50 md:hidden" onClick={() => setIsOpen(false)} />}
     </>
   )
 }

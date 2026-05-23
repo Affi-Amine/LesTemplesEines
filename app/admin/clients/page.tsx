@@ -206,58 +206,58 @@ export default function ClientsPage() {
     <div className="min-h-screen bg-background">
       <AdminHeader title={t("admin.clients")} description={t("admin.clients")} />
 
-      <div className="p-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">{t("admin.clients")}</h2>
-          <Button onClick={handleCreate} className="gap-2 cursor-pointer">
+      <div className="space-y-4 p-3 sm:p-6 md:space-y-6">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="min-w-0 text-xl font-bold sm:text-2xl">{t("admin.clients")}</h2>
+          <Button onClick={handleCreate} className="shrink-0 gap-2 cursor-pointer">
             <Plus className="w-4 h-4" />
             {t("common.add")}
           </Button>
         </div>
 
         {/* Stats */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          <Card className="p-6">
-            <div className="flex items-start justify-between">
-              <div>
+        <div className="grid gap-3 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
+          <Card className="p-4 sm:p-6">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
                 <p className="text-sm text-muted-foreground mb-1">{t("admin.total_clients")}</p>
                 {isLoading ? (
                   <div className="h-9 w-16 bg-muted rounded animate-pulse" />
                 ) : (
-                  <p className="text-3xl font-bold">{totalClients}</p>
+                  <p className="text-2xl font-bold sm:text-3xl">{totalClients}</p>
                 )}
               </div>
-              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 sm:h-12 sm:w-12">
                 <TrendingUp className="w-6 h-6 text-primary" />
               </div>
             </div>
           </Card>
-          <Card className="p-6">
-            <div className="flex items-start justify-between">
-              <div>
+          <Card className="p-4 sm:p-6">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
                 <p className="text-sm text-muted-foreground mb-1">{t("admin.total_revenue")}</p>
                 {isLoading ? (
                   <div className="h-9 w-20 bg-muted rounded animate-pulse" />
                 ) : (
-                  <p className="text-3xl font-bold">€{totalRevenue}</p>
+                  <p className="text-2xl font-bold sm:text-3xl">€{totalRevenue}</p>
                 )}
               </div>
-              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 sm:h-12 sm:w-12">
                 <TrendingUp className="w-6 h-6 text-primary" />
               </div>
             </div>
           </Card>
-          <Card className="p-6">
-            <div className="flex items-start justify-between">
-              <div>
+          <Card className="p-4 sm:p-6">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
                 <p className="text-sm text-muted-foreground mb-1">Dépense moyenne</p>
                 {isLoading ? (
                   <div className="h-9 w-16 bg-muted rounded animate-pulse" />
                 ) : (
-                  <p className="text-3xl font-bold">€{avgSpent}</p>
+                  <p className="text-2xl font-bold sm:text-3xl">€{avgSpent}</p>
                 )}
               </div>
-              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 sm:h-12 sm:w-12">
                 <TrendingUp className="w-6 h-6 text-primary" />
               </div>
             </div>
@@ -270,7 +270,16 @@ export default function ClientsPage() {
         {/* Liste des clients */}
         {isLoading ? (
           <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="divide-y md:hidden">
+              {[1,2,3,4,5].map((i) => (
+                <div key={i} className="space-y-2 p-4">
+                  <div className="h-5 w-32 animate-pulse rounded bg-muted" />
+                  <div className="h-4 w-48 animate-pulse rounded bg-muted" />
+                  <div className="h-8 w-full animate-pulse rounded bg-muted" />
+                </div>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full">
                 <thead className="bg-muted border-b">
                   <tr>
@@ -299,7 +308,44 @@ export default function ClientsPage() {
           </Card>
         ) : (
           <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="divide-y md:hidden">
+              {filteredClients.map((client: any) => (
+                <button
+                  key={client.id}
+                  type="button"
+                  className="w-full space-y-3 p-4 text-left transition-colors hover:bg-muted/50"
+                  onClick={() => handleClientClick(client)}
+                >
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold">{client.first_name} {client.last_name}</div>
+                      <div className="mt-1 truncate text-sm text-muted-foreground">{client.phone || "Téléphone manquant"}</div>
+                      <div className="truncate text-xs text-muted-foreground">{client.email || "E-mail manquant"}</div>
+                    </div>
+                    <div className="shrink-0 rounded-md border px-2 py-1 text-center">
+                      <div className="text-sm font-bold">{client.visit_count ?? 0}</div>
+                      <div className="text-[10px] text-muted-foreground">visites</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>Dernière visite</span>
+                    <span>{client.last_visit_date ? new Date(client.last_visit_date).toLocaleDateString("fr-FR") : "—"}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="outline" size="sm" className="gap-2" onClick={(e) => handleEdit(client, e)}>
+                      <Edit className="h-4 w-4" /> Modifier
+                    </Button>
+                    <Button variant="destructive" size="sm" className="gap-2" onClick={(e) => handleDelete(client, e)}>
+                      <Trash2 className="h-4 w-4" /> Supprimer
+                    </Button>
+                  </div>
+                </button>
+              ))}
+              {filteredClients.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">Aucun client</div>
+              ) : null}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full">
                 <thead className="bg-muted border-b">
                   <tr>

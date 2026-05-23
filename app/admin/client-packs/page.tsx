@@ -182,7 +182,7 @@ export default function AdminClientPacksPage() {
   return (
     <div className="min-h-screen bg-background">
       <AdminHeader title="Packs clients" description="Suivi des forfaits vendus, restants et consommés" />
-      <div className="p-6 space-y-6">
+      <div className="space-y-4 p-3 sm:p-6 md:space-y-6">
         <div className="flex justify-end">
           <Button onClick={() => setSaleOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
@@ -217,11 +217,11 @@ export default function AdminClientPacksPage() {
         </Card>
 
         {isLoading ? (
-          [1, 2].map((item) => <Card key={item} className="p-6 animate-pulse h-32" />)
+          [1, 2].map((item) => <Card key={item} className="h-32 animate-pulse p-4 sm:p-6" />)
         ) : (
           <div className="grid gap-4">
             {clientPacks?.map((clientPack) => (
-              <Card key={clientPack.id} className="p-6 space-y-4">
+              <Card key={clientPack.id} className="space-y-4 p-4 sm:p-6">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-semibold">{clientPack.pack?.name || "Pack"}</h2>

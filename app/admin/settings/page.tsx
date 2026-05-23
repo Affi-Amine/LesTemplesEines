@@ -17,9 +17,9 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-background">
       <AdminHeader title="Paramètres" description="Gérer les paramètres de votre entreprise" />
 
-      <div className="p-6 max-w-2xl space-y-6">
+      <div className="max-w-2xl space-y-4 p-3 sm:p-6 md:space-y-6">
         {/* Business Info */}
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <h2 className="text-xl font-semibold mb-4">Informations de l'entreprise</h2>
           <div className="space-y-4">
             <div>
@@ -48,7 +48,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Notification Settings */}
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <h2 className="text-xl font-semibold mb-4">Notifications</h2>
           <div className="space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">

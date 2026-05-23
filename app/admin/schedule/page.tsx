@@ -30,7 +30,7 @@ export default function SchedulePage() {
     <div className="min-h-screen bg-background">
       <AdminHeader title="Planification" description="Gérez les rendez-vous et la disponibilité des thérapeutes" />
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-4 p-3 sm:p-6 md:space-y-6">
         <Tabs defaultValue="calendar" className="w-full">
           <TabsList>
             <TabsTrigger value="calendar">Calendrier</TabsTrigger>

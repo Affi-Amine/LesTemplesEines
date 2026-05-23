@@ -30,7 +30,62 @@ export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: Ap
 
   return (
     <Card className="overflow-hidden">
-      <div className="overflow-x-auto">
+      <div className="divide-y md:hidden">
+        {appointments.map((apt) => (
+          <div key={apt.id} className="space-y-3 p-4">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate font-semibold">{apt.clientName}</div>
+                <div className="mt-1 truncate text-sm text-muted-foreground">{apt.service}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {apt.date} à {apt.time}
+                </div>
+              </div>
+              <Badge className={`shrink-0 ${getStatusColor(apt.status)}`}>
+                {getStatusLabel(apt.status)}
+              </Badge>
+            </div>
+
+            <div className="grid gap-2 text-sm text-muted-foreground">
+              <div className="flex min-w-0 justify-between gap-3">
+                <span className="shrink-0">Salon</span>
+                <span className="truncate text-right text-foreground">{apt.salon}</span>
+              </div>
+              <div className="flex min-w-0 justify-between gap-3">
+                <span className="shrink-0">Thérapeute</span>
+                <span className="truncate text-right text-foreground">{apt.therapist}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span>Paiement</span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <Badge variant="outline" className={getPaymentStatusClass(apt.payment_status)}>
+                    {getPaymentStatusLabel(apt.payment_status)}
+                  </Badge>
+                  <span className="truncate text-xs">{getPaymentMethodLabel(apt.payment_method)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <Button variant="outline" size="sm" onClick={() => onView?.(apt)}>
+                <Eye className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => onEdit?.(apt)}>
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => onDelete?.(apt)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
+
+        {appointments.length === 0 ? (
+          <div className="p-6 text-center text-sm text-muted-foreground">Aucun rendez-vous</div>
+        ) : null}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full">
           <thead className="bg-muted border-b">
             <tr>

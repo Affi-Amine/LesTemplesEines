@@ -93,8 +93,8 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
   const hasActiveFilters = filters.salonId || filters.staffId || filters.startHour || filters.endHour
 
   return (
-    <Card className="p-4 mb-6">
-      <div className="flex items-center justify-between mb-4">
+    <Card className="mb-4 p-4 sm:mb-6">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Filter className="h-5 w-5" />
           <h3 className="font-semibold">Filtres</h3>
@@ -104,7 +104,7 @@ export function AnalyticsFilters({ filters, onFiltersChange, salons, staff }: An
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
               <X className="h-4 w-4 mr-1" />

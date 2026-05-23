@@ -411,11 +411,11 @@ export default function ServicesPage() {
     <div className="min-h-screen bg-background">
       <AdminHeader title="Gestion des services" description="Gérez les prestations de vos salons" />
 
-      <div className="p-6 space-y-6">
-        <div className="rounded-2xl border bg-card p-5 shadow-sm">
+      <div className="space-y-4 p-3 sm:p-6 md:space-y-6">
+        <div className="rounded-lg border bg-card p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Prestations</h2>
+            <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Prestations</h2>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
               Tous les services sont visibles ici, même désactivés. Sélectionnez plusieurs lignes pour gérer les catégories ou les statuts en masse.
             </p>
@@ -429,11 +429,11 @@ export default function ServicesPage() {
           </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="mt-4 grid gap-2 sm:mt-5 sm:grid-cols-3 sm:gap-3">
             <button
               type="button"
               onClick={() => setStatusFilter("all")}
-              className={`rounded-xl border p-3 text-left transition ${statusFilter === "all" ? "border-[#123f38] bg-[#eef8f4]" : "bg-background hover:bg-muted/40"}`}
+              className={`rounded-lg border p-3 text-left transition ${statusFilter === "all" ? "border-[#123f38] bg-[#eef8f4]" : "bg-background hover:bg-muted/40"}`}
             >
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total</p>
               <p className="mt-1 text-2xl font-bold">{serviceCounts.all}</p>
@@ -441,7 +441,7 @@ export default function ServicesPage() {
             <button
               type="button"
               onClick={() => setStatusFilter("active")}
-              className={`rounded-xl border p-3 text-left transition ${statusFilter === "active" ? "border-[#0e7f63] bg-[#e8f8ef]" : "bg-background hover:bg-muted/40"}`}
+              className={`rounded-lg border p-3 text-left transition ${statusFilter === "active" ? "border-[#0e7f63] bg-[#e8f8ef]" : "bg-background hover:bg-muted/40"}`}
             >
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#0b4936]">
                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -452,7 +452,7 @@ export default function ServicesPage() {
             <button
               type="button"
               onClick={() => setStatusFilter("inactive")}
-              className={`rounded-xl border p-3 text-left transition ${statusFilter === "inactive" ? "border-[#d99a65] bg-[#fff3e8]" : "bg-background hover:bg-muted/40"}`}
+              className={`rounded-lg border p-3 text-left transition ${statusFilter === "inactive" ? "border-[#d99a65] bg-[#fff3e8]" : "bg-background hover:bg-muted/40"}`}
             >
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#8b3f12]">
                 <XCircle className="h-3.5 w-3.5" />
@@ -463,7 +463,7 @@ export default function ServicesPage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 rounded-2xl border bg-card p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 rounded-lg border bg-card p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <div className="relative max-w-xl flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -480,7 +480,7 @@ export default function ServicesPage() {
         </div>
 
         {selectedServiceIds.length > 0 ? (
-          <div className="sticky top-3 z-20 flex flex-col gap-3 rounded-2xl border border-[#123f38]/20 bg-[#f6f7f2]/95 p-3 shadow-lg backdrop-blur lg:flex-row lg:items-center lg:justify-between">
+          <div className="sticky top-16 z-20 flex flex-col gap-3 rounded-lg border border-[#123f38]/20 bg-[#f6f7f2]/95 p-3 shadow-lg backdrop-blur md:top-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="font-semibold text-[#102d28]">
                 {selectedServiceIds.length} prestation{selectedServiceIds.length > 1 ? "s" : ""} sélectionnée{selectedServiceIds.length > 1 ? "s" : ""}
@@ -529,8 +529,8 @@ export default function ServicesPage() {
             </TabsList>
 
             <TabsContent value="list">
-              <div className="overflow-x-auto rounded-2xl border bg-card shadow-sm">
-                <div className="grid grid-cols-[44px_minmax(280px,1.5fr)_150px_110px_130px_190px_116px] items-center border-b bg-[#f6f7f2] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+                <div className="hidden grid-cols-[44px_minmax(280px,1.5fr)_150px_110px_130px_190px_116px] items-center border-b bg-[#f6f7f2] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid">
                   <Checkbox
                     checked={Boolean(filteredServices?.length && filteredServices.every((service) => selectedServiceIds.includes(service.id)))}
                     onCheckedChange={(checked) => toggleAllFilteredServices(checked === true)}
@@ -546,14 +546,16 @@ export default function ServicesPage() {
                   {filteredServices?.map((service: Service) => (
                     <div
                       key={service.id}
-                      className={`grid grid-cols-[44px_minmax(280px,1.5fr)_150px_110px_130px_190px_116px] items-center px-3 py-3 text-sm transition-colors hover:bg-muted/35 ${service.is_active ? "" : "bg-[#fff8f2] text-muted-foreground"}`}
+                      className={`grid gap-3 px-3 py-3 text-sm transition-colors hover:bg-muted/35 md:grid-cols-[44px_minmax(280px,1.5fr)_150px_110px_130px_190px_116px] md:items-center ${service.is_active ? "" : "bg-[#fff8f2] text-muted-foreground"}`}
                     >
-                      <Checkbox
-                        checked={selectedServiceIds.includes(service.id)}
-                        onCheckedChange={(checked) => toggleServiceSelection(service.id, checked === true)}
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-start gap-3 md:contents">
+                        <Checkbox
+                          checked={selectedServiceIds.includes(service.id)}
+                          onCheckedChange={(checked) => toggleServiceSelection(service.id, checked === true)}
+                          className="mt-1 md:mt-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <p className="truncate font-semibold">{service.name}</p>
                           <Badge
                             variant="outline"
@@ -568,8 +570,9 @@ export default function ServicesPage() {
                         {service.description ? (
                           <p className="mt-1 truncate text-xs text-muted-foreground">{service.description}</p>
                         ) : null}
+                        </div>
                       </div>
-                      <div>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2 md:block">
                         {service.category ? (
                           <Badge variant="outline">{service.category}</Badge>
                         ) : (

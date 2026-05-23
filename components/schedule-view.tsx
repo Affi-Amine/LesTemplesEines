@@ -66,16 +66,16 @@ export function ScheduleView({ appointments }: ScheduleViewProps) {
   }
 
   return (
-    <Card className="p-6">
+    <Card className="p-4 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="mb-4 flex items-center justify-between gap-3 sm:mb-6">
+        <div className="min-w-0">
           <h3 className="text-lg font-semibold">Planning hebdomadaire</h3>
-          <p className="text-sm text-muted-foreground">
+          <p className="truncate text-sm text-muted-foreground">
             {weekDates[0].toLocaleDateString()} - {weekDates[6].toLocaleDateString()}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           <Button variant="outline" size="sm" onClick={previousWeek}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
@@ -86,35 +86,35 @@ export function ScheduleView({ appointments }: ScheduleViewProps) {
       </div>
 
       {/* Schedule Grid */}
-      <div className="overflow-x-auto">
-        <div className="min-w-max">
+      <div className="overflow-x-hidden md:overflow-x-auto">
+        <div className="min-w-0 md:min-w-max">
           {/* Day Headers */}
-          <div className="flex gap-2 mb-4">
-            <div className="w-20 flex-shrink-0" />
+          <div className="mb-2 grid grid-cols-8 gap-0.5 sm:mb-4 sm:gap-2">
+            <div className="min-w-0" />
             {weekDates.map((date, idx) => (
-              <div key={idx} className="w-32 flex-shrink-0 text-center">
-                <p className="text-sm font-semibold">{date.toLocaleDateString("fr-FR", { weekday: "short" })}</p>
-                <p className="text-xs text-muted-foreground">{date.toLocaleDateString("fr-FR")}</p>
+              <div key={idx} className="min-w-0 text-center">
+                <p className="truncate text-[10px] font-semibold sm:text-sm">{date.toLocaleDateString("fr-FR", { weekday: "short" })}</p>
+                <p className="hidden text-xs text-muted-foreground sm:block">{date.toLocaleDateString("fr-FR")}</p>
               </div>
             ))}
           </div>
 
           {/* Time Slots */}
           {timeSlots.map((time) => (
-            <div key={time} className="flex gap-2 mb-2">
-              <div className="w-20 flex-shrink-0 text-sm font-medium text-muted-foreground pt-2">{time}</div>
+            <div key={time} className="mb-1 grid grid-cols-8 gap-0.5 sm:mb-2 sm:gap-2">
+              <div className="pt-2 text-right text-[9px] font-medium text-muted-foreground sm:text-sm">{time}</div>
               {weekDates.map((date, idx) => {
                 const apt = getAppointmentForSlot(date, time)
                 return (
-                  <div key={idx} className="w-32 flex-shrink-0">
+                  <div key={idx} className="min-w-0">
                     {apt ? (
-                      <div className={`p-2 rounded border text-xs ${getStatusColor(apt.status)}`}>
+                      <div className={`overflow-hidden rounded border p-1 text-[9px] sm:p-2 sm:text-xs ${getStatusColor(apt.status)}`}>
                         <p className="font-semibold truncate">{apt.clientName}</p>
-                        <p className="truncate">{apt.service}</p>
+                        <p className="hidden truncate sm:block">{apt.service}</p>
                       </div>
                     ) : (
-                      <div className="p-2 rounded border border-dashed border-muted-foreground/30 text-xs text-muted-foreground text-center">
-                        Disponible
+                      <div className="rounded border border-dashed border-muted-foreground/30 p-1 text-center text-[8px] text-muted-foreground sm:p-2 sm:text-xs">
+                        <span className="hidden sm:inline">Disponible</span>
                       </div>
                     )}
                   </div>

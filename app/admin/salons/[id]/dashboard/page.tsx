@@ -50,9 +50,8 @@ import { useRouter } from "next/navigation"
 const SCHEDULE_HOUR_HEIGHT = 76
 const STAFF_COLUMN_MIN_WIDTH = 152
 const TIME_COLUMN_WIDTH = 84
-const MOBILE_SCHEDULE_HOUR_HEIGHT = 58
-const MOBILE_STAFF_COLUMN_WIDTH = 104
-const MOBILE_TIME_COLUMN_WIDTH = 54
+const MOBILE_SCHEDULE_HOUR_HEIGHT = 64
+const MOBILE_TIME_COLUMN_WIDTH = 42
 
 export default function SalonDashboardPage() {
   const params = useParams()
@@ -165,7 +164,31 @@ export default function SalonDashboardPage() {
     getStaffDisplayName(a).localeCompare(getStaffDisplayName(b), "fr")
   )
   const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * STAFF_COLUMN_MIN_WIDTH
-  const mobileScheduleMinWidth = MOBILE_TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * MOBILE_STAFF_COLUMN_WIDTH
+  const selectedOpenMinutes = selectedDayHours ? timeToMinutes(selectedDayHours.open) : null
+  const selectedCloseMinutes = selectedDayHours ? timeToMinutes(selectedDayHours.close) : null
+  const appointmentHourBounds = sortedDayAppointments.reduce(
+    (bounds, appointment: any) => {
+      const startHour = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"), 10)
+      const endHour = parseInt(formatInTimeZone(appointment.end_time, "Europe/Paris", "H"), 10)
+
+      if (Number.isNaN(startHour) || Number.isNaN(endHour)) return bounds
+
+      return {
+        start: Math.min(bounds.start, startHour),
+        end: Math.max(bounds.end, endHour + 1),
+      }
+    },
+    {
+      start: selectedOpenMinutes !== null ? Math.floor(selectedOpenMinutes / 60) : 9,
+      end: selectedCloseMinutes !== null ? Math.ceil(selectedCloseMinutes / 60) : 20,
+    }
+  )
+  const mobileTimelineStartHour = Math.max(0, appointmentHourBounds.start - (selectedDayHours ? 1 : 0))
+  const mobileTimelineEndHour = Math.min(24, appointmentHourBounds.end + (selectedDayHours ? 1 : 0))
+  const mobileTimelineHours = Array.from(
+    { length: Math.max(0, mobileTimelineEndHour - mobileTimelineStartHour) },
+    (_, index) => mobileTimelineStartHour + index
+  )
   const confirmedAppointments = dayAppointments.filter((apt: any) => apt.status === "confirmed" || apt.status === "pending")
   const inProgressAppointments = dayAppointments.filter((apt: any) => apt.status === "in_progress")
   const completedAppointments = dayAppointments.filter((apt: any) => apt.status === "completed")
@@ -1093,42 +1116,59 @@ export default function SalonDashboardPage() {
                         </Badge>
                       </div>
                     </div>
-                    <div className="max-h-[68vh] overflow-auto overscroll-contain p-2">
-                      <div style={{ minWidth: mobileScheduleMinWidth }}>
-                        <div className="sticky top-0 z-20 mb-1 flex border-b bg-card/95 pb-1 backdrop-blur">
-                          <div className="shrink-0" style={{ width: MOBILE_TIME_COLUMN_WIDTH }} />
+                    <div className="max-h-[70vh] overflow-y-auto overflow-x-hidden overscroll-contain bg-[#f6f8f7]">
+                      <div className="w-full">
+                        <div
+                          className="sticky top-0 z-20 grid border-b border-[#b8c0bd] bg-card/95 backdrop-blur"
+                          style={{
+                            gridTemplateColumns: `${MOBILE_TIME_COLUMN_WIDTH}px repeat(${Math.max(bookableStaff.length, 1)}, minmax(0, 1fr))`,
+                          }}
+                        >
+                          <div />
                           {bookableStaff.map((member) => (
                             <div
                               key={member.id}
-                              className="shrink-0 border-l px-1 text-center"
-                              style={{ width: MOBILE_STAFF_COLUMN_WIDTH }}
+                              className="min-w-0 border-l border-[#b8c0bd] px-0.5 py-1 text-center"
                             >
-                              <div className="truncate text-[11px] font-semibold leading-tight">
+                              <div className="truncate text-[10px] font-bold leading-tight text-[#3b4b46]">
                                 {getStaffDisplayName(member)}
                               </div>
-                              <div className="text-[8px] uppercase tracking-wide text-muted-foreground">Masseuse</div>
                             </div>
                           ))}
                         </div>
 
-                        <div className="space-y-0.5">
+                        <div>
                           {bookableStaff.length === 0 ? (
                             <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
                               {isStaffLoading || isAllStaffLoading ? "Chargement des masseuses..." : "Aucune masseuse active"}
                             </div>
-                          ) : scheduleHours.length === 0 ? (
+                          ) : mobileTimelineHours.length === 0 ? (
                             <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
                               Salon fermé ce jour.
                             </div>
-                          ) : scheduleHours.map((hour) => (
+                          ) : mobileTimelineHours.map((hour) => {
+                            const hourStartMinutes = hour * 60
+                            const hourEndMinutes = hourStartMinutes + 60
+                            const isClosedHour =
+                              selectedOpenMinutes === null ||
+                              selectedCloseMinutes === null ||
+                              hourEndMinutes <= selectedOpenMinutes ||
+                              hourStartMinutes >= selectedCloseMinutes
+                            const isPartialClosedHour =
+                              !isClosedHour &&
+                              (hourStartMinutes < selectedOpenMinutes || hourEndMinutes > selectedCloseMinutes)
+
+                            return (
                             <div
                               key={`mobile-${hour}`}
-                              className="relative flex border-t border-border"
-                              style={{ height: MOBILE_SCHEDULE_HOUR_HEIGHT }}
+                              className="relative grid border-t border-[#b8c0bd]"
+                              style={{
+                                height: MOBILE_SCHEDULE_HOUR_HEIGHT,
+                                gridTemplateColumns: `${MOBILE_TIME_COLUMN_WIDTH}px repeat(${bookableStaff.length}, minmax(0, 1fr))`,
+                              }}
                             >
                               <div
-                                className="sticky left-0 z-10 shrink-0 bg-card pr-2 pt-1 text-right text-[11px] font-semibold text-muted-foreground"
-                                style={{ width: MOBILE_TIME_COLUMN_WIDTH }}
+                                className="sticky left-0 z-10 bg-card pr-1 pt-1 text-right text-[10px] font-bold text-[#6e7d78]"
                               >
                                 {hour.toString().padStart(2, "0")}:00
                               </div>
@@ -1141,8 +1181,13 @@ export default function SalonDashboardPage() {
                                 return (
                                   <div
                                     key={`mobile-${member.id}-${hour}`}
-                                    className="relative shrink-0 border-l bg-background/80"
-                                    style={{ width: MOBILE_STAFF_COLUMN_WIDTH }}
+                                    className={`relative min-w-0 border-l border-[#b8c0bd] ${
+                                      isClosedHour
+                                        ? "bg-[repeating-linear-gradient(135deg,#e5e9e7_0,#e5e9e7_8px,#d9dfdc_8px,#d9dfdc_10px)]"
+                                        : isPartialClosedHour
+                                          ? "bg-[#eef2f0]"
+                                          : "bg-white"
+                                    }`}
                                     onClick={() =>
                                       handleEmptySlotClick({
                                         date: date || new Date(),
@@ -1156,16 +1201,21 @@ export default function SalonDashboardPage() {
                                       {[0, 15, 30, 45].map((minute, idx) => (
                                         <div
                                           key={`mobile-${member.id}-${hour}-${minute}`}
-                                          className={idx < 3 ? "border-b border-dashed border-border/40" : ""}
+                                          className={idx < 3 ? "border-b border-[#cbd2cf]" : ""}
                                         />
                                       ))}
                                     </div>
+                                    {(isClosedHour || isPartialClosedHour) && member.id === bookableStaff[0]?.id ? (
+                                      <div className="pointer-events-none absolute left-1 top-1 rounded-sm bg-[#7b8883]/90 px-1 py-0.5 text-[8px] font-bold uppercase leading-none text-white">
+                                        {isClosedHour ? "Fermé" : "Ouverture"}
+                                      </div>
+                                    ) : null}
 
                                     {staffApts.map((apt: any) => {
                                       const startMinute = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "m"), 10)
                                       const startHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
                                       const topOffset = startHour === hour ? (startMinute / 60) * MOBILE_SCHEDULE_HOUR_HEIGHT : 0
-                                      const heightPx = Math.max((getAppointmentDurationMinutes(apt) / 60) * MOBILE_SCHEDULE_HOUR_HEIGHT, 18)
+                                      const heightPx = Math.max((getAppointmentDurationMinutes(apt) / 60) * MOBILE_SCHEDULE_HOUR_HEIGHT, 22)
                                       const appointmentStaffIds = getAppointmentStaffIds(apt)
                                       const isMultiStaffAppointment = appointmentStaffIds.length > 1
 
@@ -1179,15 +1229,15 @@ export default function SalonDashboardPage() {
                                               handleValidate(apt)
                                             }
                                           }}
-                                          className={`absolute left-1 right-1 overflow-hidden rounded border px-1 py-0.5 text-left shadow-sm ${getDashboardStatusClass(apt.status)}`}
+                                          className={`absolute left-0.5 right-0.5 overflow-hidden rounded-[4px] border px-1 py-0.5 text-left shadow-sm ${getDashboardStatusClass(apt.status)}`}
                                           style={{ top: `${topOffset}px`, height: `${heightPx}px` }}
                                         >
-                                          <div className="flex items-center gap-1 text-[9px] font-bold leading-tight">
+                                          <div className="flex min-w-0 items-center gap-0.5 text-[8px] font-black leading-tight">
                                             <span>{formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")}</span>
-                                            {isMultiStaffAppointment ? <span className="rounded bg-background/80 px-1">x{appointmentStaffIds.length}</span> : null}
+                                            {isMultiStaffAppointment ? <span className="rounded-sm bg-background/80 px-0.5">x{appointmentStaffIds.length}</span> : null}
                                           </div>
-                                          {heightPx >= 28 ? (
-                                            <div className="truncate text-[8px] font-medium leading-tight">
+                                          {heightPx >= 26 ? (
+                                            <div className="truncate text-[9px] font-bold leading-tight">
                                               {apt.status === "blocked" ? "Bloqué" : `${apt.client?.first_name || "Client"} ${apt.client?.last_name?.[0] || ""}`}
                                             </div>
                                           ) : null}
@@ -1198,7 +1248,7 @@ export default function SalonDashboardPage() {
                                 )
                               })}
                             </div>
-                          ))}
+                          )})}
                         </div>
                       </div>
                     </div>

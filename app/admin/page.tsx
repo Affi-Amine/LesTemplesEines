@@ -207,10 +207,10 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-background">
       <AdminHeader title={t("admin.dashboard")} description="Bienvenue! Voici l'aperçu de votre activité." />
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-5 p-3 sm:p-6 md:space-y-6">
         {/* Stats Grid - Admin Only */}
         {isAdmin && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-6 lg:grid-cols-4">
           <StatCard
             title={t("admin.total_appointments")}
             value={appointmentsLoading ? "..." : stats.thisMonth}
@@ -243,8 +243,8 @@ export default function AdminDashboard() {
         )}
 
         {/* Upcoming Appointments */}
-        <div>
-          <h2 className="text-2xl font-bold mb-4">Rendez-vous à venir</h2>
+        <div className="min-w-0">
+          <h2 className="mb-3 text-xl font-bold sm:mb-4 sm:text-2xl">Rendez-vous à venir</h2>
           {appointmentsLoading ? (
             <div className="text-center py-8 text-muted-foreground">Chargement...</div>
           ) : (
@@ -269,8 +269,8 @@ export default function AdminDashboard() {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card className="p-6">
+        <div className="grid gap-4 md:grid-cols-2 md:gap-6">
+          <Card className="p-4 sm:p-6">
             <h3 className="font-semibold mb-4">Services les plus populaires</h3>
             <div className="space-y-3">
               {appointmentsLoading ? (
@@ -292,8 +292,8 @@ export default function AdminDashboard() {
 
                   return topServices.length > 0 ? (
                     topServices.map((service: any) => (
-                      <div key={service.name} className="flex justify-between items-center">
-                        <span className="text-sm">{service.name}</span>
+                      <div key={service.name} className="flex min-w-0 items-center justify-between gap-3">
+                        <span className="truncate text-sm">{service.name}</span>
                         <span className="font-semibold">{service.count}</span>
                       </div>
                     ))
@@ -305,7 +305,7 @@ export default function AdminDashboard() {
             </div>
           </Card>
 
-          <Card className="p-6">
+          <Card className="p-4 sm:p-6">
             <h3 className="font-semibold mb-4">Performance des salons</h3>
             <div className="space-y-3">
               {appointmentsLoading ? (
@@ -327,8 +327,8 @@ export default function AdminDashboard() {
 
                   return salons.length > 0 ? (
                     salons.map((salon: any) => (
-                      <div key={salon.name} className="flex justify-between items-center">
-                        <span className="text-sm">{salon.name}</span>
+                      <div key={salon.name} className="flex min-w-0 items-center justify-between gap-3">
+                        <span className="truncate text-sm">{salon.name}</span>
                         <span className="font-semibold">{salon.bookings}</span>
                       </div>
                     ))
@@ -344,7 +344,7 @@ export default function AdminDashboard() {
 
       {/* View Appointment Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Détails du rendez-vous</DialogTitle>
           </DialogHeader>
@@ -391,7 +391,7 @@ export default function AdminDashboard() {
 
       {/* Edit Appointment Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Modifier le rendez-vous</DialogTitle>
           </DialogHeader>

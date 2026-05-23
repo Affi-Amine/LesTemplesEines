@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, type CSSProperties } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -163,17 +163,17 @@ function WeekView({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <div className="min-w-[800px]">
+    <div className="overflow-x-hidden md:overflow-x-auto">
+      <div className="min-w-0 md:min-w-[800px]">
         {/* Header with days */}
-        <div className="grid grid-cols-8 gap-1 mb-4">
-          <div className="p-2"></div>
+        <div className="mb-2 grid grid-cols-8 gap-0.5 sm:mb-4 sm:gap-1">
+          <div className="p-1 sm:p-2"></div>
           {weekDays.map((day) => (
-            <div key={day.toISOString()} className="p-2 text-center font-medium">
-              <div className="text-sm text-muted-foreground">
+            <div key={day.toISOString()} className="min-w-0 p-1 text-center font-medium sm:p-2">
+              <div className="truncate text-[10px] text-muted-foreground sm:text-sm">
                 {format(day, "EEE", { locale: fr })}
               </div>
-              <div className={`text-lg ${isSameDay(day, new Date()) ? "text-primary font-bold" : ""}`}>
+              <div className={`text-sm sm:text-lg ${isSameDay(day, new Date()) ? "text-primary font-bold" : ""}`}>
                 {format(day, "d")}
               </div>
             </div>
@@ -187,8 +187,8 @@ function WeekView({
               Le salon est fermé sur cette semaine.
             </div>
           ) : hours.map((hourStart) => (
-            <div key={hourStart} className="grid grid-cols-8 gap-1">
-              <div className="p-2 text-sm text-muted-foreground text-right">
+            <div key={hourStart} className="grid grid-cols-8 gap-0.5 sm:gap-1">
+              <div className="pt-1 pr-0.5 text-right text-[9px] text-muted-foreground sm:p-2 sm:text-sm">
                 {`${hourStart.toString().padStart(2, "0")}:00`}
               </div>
               {weekDays.map((day) => {
@@ -197,7 +197,7 @@ function WeekView({
                 const slotId = `slot-week-${format(day, "yyyy-MM-dd")}-${hourStart}`
 
                 return (
-                  <div className={`h-[60px] border border-border rounded relative overflow-visible ${isOpenHour ? "bg-background" : "bg-muted/30"}`}>
+                  <div className={`relative h-[54px] min-w-0 overflow-hidden rounded border border-border sm:h-[60px] sm:overflow-visible ${isOpenHour ? "bg-background" : "bg-muted/30"}`}>
                     {isOpenHour ? (
                       <div className="absolute inset-0 grid grid-rows-4">
                         {[0, 15, 30, 45].map((minute, idx) => (
@@ -236,7 +236,7 @@ function WeekView({
                             top: `${position.top}px`,
                             height: `${position.height}px`,
                           }}
-                          className={`text-xs p-1 rounded border hover:shadow-md transition-shadow ${getStatusColor(appointment.status)}`}
+                          className={`overflow-hidden rounded border p-0.5 text-[8px] transition-shadow hover:shadow-md sm:p-1 sm:text-xs ${getStatusColor(appointment.status)}`}
                         >
                           <div
                             className="w-full h-full"
@@ -355,15 +355,18 @@ function DayView({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <div className="space-y-1" style={{ minWidth: activeStaffMembers.length > 0 ? scheduleMinWidth : undefined }}>
+    <div className="overflow-x-hidden md:overflow-x-auto">
+      <div
+        className="min-w-0 space-y-1 md:min-w-[var(--schedule-min-width)]"
+        style={{ "--schedule-min-width": activeStaffMembers.length > 0 ? `${scheduleMinWidth}px` : undefined } as CSSProperties}
+      >
         {activeStaffMembers.length > 0 ? (
           <div className="sticky top-0 z-20 mb-3 flex border-b border-border bg-card/95 pb-2 backdrop-blur">
-            <div className="shrink-0" style={{ width: TIME_COLUMN_WIDTH }}></div>
+            <div className="w-10 shrink-0 md:w-[84px]"></div>
             {activeStaffMembers.map((member) => (
-              <div key={member.id} className="min-w-[152px] flex-1 border-l border-border px-2 text-center sm:min-w-[190px]">
-                <div className="truncate text-sm font-semibold sm:text-base">{getStaffDisplayName(member)}</div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Masseuse</div>
+              <div key={member.id} className="min-w-0 flex-1 border-l border-border px-0.5 text-center md:min-w-[152px] md:px-2 lg:min-w-[190px]">
+                <div className="truncate text-[10px] font-semibold md:text-sm lg:text-base">{getStaffDisplayName(member)}</div>
+                <div className="hidden text-[10px] uppercase tracking-wide text-muted-foreground sm:block">Masseuse</div>
               </div>
             ))}
           </div>
@@ -382,14 +385,14 @@ function DayView({
 
           return (
             <div key={hourStart} className="flex border-t border-border" style={{ height: SCHEDULE_HOUR_HEIGHT }}>
-              <div className="shrink-0 bg-card p-2 text-right text-sm font-medium text-muted-foreground" style={{ width: TIME_COLUMN_WIDTH }}>
+              <div className="w-10 shrink-0 bg-card pr-1 pt-1 text-right text-[10px] font-medium text-muted-foreground md:w-[84px] md:p-2 md:text-sm">
                 {`${hourStart.toString().padStart(2, "0")}:00`}
               </div>
               {activeStaffMembers.map((member) => {
                 const hourAppointments = getAppointmentsForHour(hourStart, member.id)
 
                 return (
-                  <div key={`${member.id}-${hourStart}`} className="relative min-w-[152px] flex-1 border-l border-border bg-background/80 sm:min-w-[190px]">
+                  <div key={`${member.id}-${hourStart}`} className="relative min-w-0 flex-1 border-l border-border bg-background/80 md:min-w-[152px] lg:min-w-[190px]">
                     <div className="absolute inset-0 grid grid-rows-4">
                       {[0, 15, 30, 45].map((minute, idx) => (
                         <DroppableSlot
@@ -429,7 +432,7 @@ function DayView({
                         top: `${position.top}px`,
                         height: `${position.height}px`,
                       }}
-                      className={`overflow-hidden rounded-md border-2 p-1 text-xs shadow-sm transition-shadow hover:shadow-md ${getStatusColor(appointment.status)}`}
+                      className={`overflow-hidden rounded-[4px] border p-0.5 text-[9px] shadow-sm transition-shadow hover:shadow-md md:rounded-md md:border-2 md:p-1 md:text-xs ${getStatusColor(appointment.status)}`}
                     >
                       <div
                         className="w-full h-full"
@@ -818,9 +821,9 @@ export default function CalendrierPage() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Calendrier des Rendez-vous</h1>
+      <div className="space-y-4 p-3 sm:space-y-6 sm:p-6">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold leading-tight sm:text-3xl">Calendrier des Rendez-vous</h1>
         </div>
 
         {/* Salon Selector */}
@@ -833,7 +836,7 @@ export default function CalendrierPage() {
           </CardHeader>
           <CardContent>
             <Select value={selectedSalon} onValueChange={setSelectedSalon}>
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="w-full sm:w-64">
                 <SelectValue placeholder="Sélectionner un salon" />
               </SelectTrigger>
               <SelectContent>
@@ -859,7 +862,7 @@ export default function CalendrierPage() {
                   <TabsTrigger value="day">Jour</TabsTrigger>
                 </TabsList>
               </Tabs>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 <Button
                   variant="outline"
                   onClick={() => setCurrentDate(new Date())}
@@ -912,7 +915,7 @@ export default function CalendrierPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4 lg:grid-cols-7">
               {["confirmed", "pending", "in_progress", "completed", "cancelled", "no_show", "blocked"].map((status) => (
                 <div key={status} className="flex items-center gap-2">
                   <Badge variant="outline" className={getStatusColor(status)}>
@@ -930,16 +933,16 @@ export default function CalendrierPage() {
         {/* Calendar Navigation */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <Button
                 variant="outline"
                 size="icon"
                 onClick={() => navigate("prev")}
-                className="cursor-pointer"
+                className="h-9 w-9 shrink-0 cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <CardTitle className="capitalize">
+              <CardTitle className="min-w-0 text-center text-base capitalize sm:text-xl">
                 {viewMode === "month" && format(currentDate, "MMMM yyyy", { locale: fr })}
                 {viewMode === "week" && `${format(startOfWeek(currentDate, { weekStartsOn: 1 }), "d MMM", { locale: fr })} - ${format(endOfWeek(currentDate, { weekStartsOn: 1 }), "d MMM yyyy", { locale: fr })}`}
                 {viewMode === "day" && format(currentDate, "EEEE d MMMM yyyy", { locale: fr })}
@@ -948,79 +951,133 @@ export default function CalendrierPage() {
                 variant="outline"
                 size="icon"
                 onClick={() => navigate("next")}
-                className="cursor-pointer"
+                className="h-9 w-9 shrink-0 cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-2 pb-3 sm:px-6 sm:pb-6">
             {loading ? (
               <div className="text-center py-8">Chargement des rendez-vous...</div>
             ) : (
               <>
                 {viewMode === "month" && (
-                  <div className="grid grid-cols-7 gap-1">
-                    {/* Day headers */}
-                    {["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((day) => (
-                      <div key={day} className="p-3 text-center font-semibold text-muted-foreground bg-muted/50 rounded-t">
-                        {day}
-                      </div>
-                    ))}
+                  <>
+                    <div className="grid grid-cols-7 overflow-hidden rounded-md border border-border md:hidden">
+                      {["Lu", "Ma", "Me", "Je", "Ve", "Sa", "Di"].map((day) => (
+                        <div key={day} className="border-b border-border bg-muted/50 py-2 text-center text-[11px] font-bold text-muted-foreground">
+                          {day}
+                        </div>
+                      ))}
 
-                    {/* Calendar days */}
-                    {calendarDays.map((day) => {
-                      const dayAppointments = getAppointmentsForDay(day)
-                      const isCurrentMonth = isSameMonth(day, currentDate)
-                      const isToday = isSameDay(day, new Date())
+                      {calendarDays.map((day) => {
+                        const dayAppointments = getAppointmentsForDay(day)
+                        const isCurrentMonth = isSameMonth(day, currentDate)
+                        const isToday = isSameDay(day, new Date())
 
-                      return (
-                        <div
-                          key={day.toISOString()}
-                          className={`min-h-[140px] p-2 border border-border ${
-                            isCurrentMonth ? "bg-background" : "bg-muted/30"
-                          } ${isToday ? "ring-2 ring-primary" : ""}`}
-                        >
-                          <div className={`text-sm font-medium mb-2 ${
-                            isCurrentMonth ? "text-foreground" : "text-muted-foreground"
-                          } ${isToday ? "text-primary font-bold" : ""}`}>
-                            {format(day, "d")}
-                          </div>
-                          <div className="space-y-1">
-                            {dayAppointments.slice(0, 4).map((appointment) => (
-                              <div
-                                key={appointment.id}
-                                className={`text-xs p-1.5 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getStatusColor(appointment.status)}`}
-                                onClick={() => handleAppointmentClick(appointment)}
-                                title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}
+                        return (
+                          <button
+                            key={day.toISOString()}
+                            type="button"
+                            className={`min-w-0 border-b border-r border-border p-1 text-left ${
+                              isCurrentMonth ? "bg-background" : "bg-muted/30"
+                            } ${isToday ? "ring-2 ring-inset ring-primary" : ""}`}
+                            onClick={() => {
+                              setCurrentDate(day)
+                              if (dayAppointments[0]) {
+                                handleAppointmentClick(dayAppointments[0])
+                              }
+                            }}
+                          >
+                            <div className={`mb-1 text-[11px] font-bold leading-none ${
+                              isCurrentMonth ? "text-foreground" : "text-muted-foreground"
+                            } ${isToday ? "text-primary" : ""}`}>
+                              {format(day, "d")}
+                            </div>
+                            <div className="flex min-h-[54px] flex-col gap-0.5">
+                              {dayAppointments.slice(0, 3).map((appointment) => (
+                                <div
+                                  key={appointment.id}
+                                  className={`h-4 overflow-hidden rounded-[3px] border px-0.5 text-[8px] font-bold leading-4 ${getStatusColor(appointment.status)}`}
+                                  title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}`}
+                                >
+                                  {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}
+                                </div>
+                              ))}
+                              {dayAppointments.length > 3 && (
+                                <div className="rounded-[3px] bg-muted px-0.5 text-center text-[8px] font-bold leading-4 text-muted-foreground">
+                                  +{dayAppointments.length - 3}
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    <div className="hidden grid-cols-7 gap-1 md:grid">
+                      {/* Day headers */}
+                      {["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((day) => (
+                        <div key={day} className="p-3 text-center font-semibold text-muted-foreground bg-muted/50 rounded-t">
+                          {day}
+                        </div>
+                      ))}
+
+                      {/* Calendar days */}
+                      {calendarDays.map((day) => {
+                        const dayAppointments = getAppointmentsForDay(day)
+                        const isCurrentMonth = isSameMonth(day, currentDate)
+                        const isToday = isSameDay(day, new Date())
+
+                        return (
+                          <div
+                            key={day.toISOString()}
+                            className={`min-h-[140px] p-2 border border-border ${
+                              isCurrentMonth ? "bg-background" : "bg-muted/30"
+                            } ${isToday ? "ring-2 ring-primary" : ""}`}
+                          >
+                            <div className={`text-sm font-medium mb-2 ${
+                              isCurrentMonth ? "text-foreground" : "text-muted-foreground"
+                            } ${isToday ? "text-primary font-bold" : ""}`}>
+                              {format(day, "d")}
+                            </div>
+                            <div className="space-y-1">
+                              {dayAppointments.slice(0, 4).map((appointment) => (
+                                <div
+                                  key={appointment.id}
+                                  className={`text-xs p-1.5 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getStatusColor(appointment.status)}`}
+                                  onClick={() => handleAppointmentClick(appointment)}
+                                  title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}
 Service: ${appointment.service?.name || (appointment.status === "blocked" ? 'Créneau bloqué' : 'Service Inconnu')}
 Masseuse : ${appointment.staff?.first_name || 'Inconnu'} ${appointment.staff?.last_name || ''}
 Salon: ${appointment.salon?.name || 'Salon Inconnu'}
 Statut: ${getStatusLabel(appointment.status)}`}
-                              >
-                                <div className="font-medium">
-                                  {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}
+                                >
+                                  <div className="font-medium">
+                                    {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}
+                                  </div>
+                                  <div className="truncate">
+                                    {appointment.status === "blocked"
+                                      ? "Créneau bloqué"
+                                      : `${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}`}
+                                  </div>
+                                  <div className="truncate text-xs opacity-75">
+                                    {appointment.service?.name || (appointment.status === "blocked" ? "Indisponible" : 'Service Inconnu')}
+                                  </div>
                                 </div>
-                                <div className="truncate">
-                                  {appointment.status === "blocked"
-                                    ? "Créneau bloqué"
-                                    : `${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}`}
+                              ))}
+                              {dayAppointments.length > 4 && (
+                                <div className="text-xs text-muted-foreground font-medium">
+                                  +{dayAppointments.length - 4} autres
                                 </div>
-                                <div className="truncate text-xs opacity-75">
-                                  {appointment.service?.name || (appointment.status === "blocked" ? "Indisponible" : 'Service Inconnu')}
-                                </div>
-                              </div>
-                            ))}
-                            {dayAppointments.length > 4 && (
-                              <div className="text-xs text-muted-foreground font-medium">
-                                +{dayAppointments.length - 4} autres
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+                        )
+                      })}
+                    </div>
+                  </>
                 )}
 
                 {viewMode === "week" && (

@@ -108,6 +108,11 @@ async function ensureCounterClient(params: {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = requireStaffAuth(request, ["admin", "manager", "receptionist", "assistant", "therapist"])
+    if ("response" in auth) {
+      return auth.response
+    }
+
     const search = request.nextUrl.searchParams.get("search")
     const status = request.nextUrl.searchParams.get("status")
     const supabase = createAdminClient()
@@ -155,6 +160,7 @@ export async function GET(request: NextRequest) {
       rows.filter((row: any) =>
         `${row.client?.first_name || ""} ${row.client?.last_name || ""}`.toLowerCase().includes(normalized)
         || String(row.client?.email || "").toLowerCase().includes(normalized)
+        || normalizePhone(String(row.client?.phone || "")).includes(normalizePhone(normalized))
         || String(row.pack?.name || "").toLowerCase().includes(normalized)
       )
     )

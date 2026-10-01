@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -15,6 +16,8 @@ import { useServices } from "@/lib/hooks/use-services"
 import { useStaff } from "@/lib/hooks/use-staff"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
 import { useClientSearch } from "@/lib/hooks/use-client-search"
+import { fetchAPI } from "@/lib/api/client"
+import { canUseClientPackStatus } from "@/lib/packs"
 import {
   findOverlappingAppointment,
   getDefaultStartTimeForDate,
@@ -27,10 +30,24 @@ import {
   type SalonOpeningHours,
 } from "@/lib/calendar/scheduling"
 import { toast } from "sonner"
-import type { Client } from "@/lib/types/database"
+import type { Client, ClientPack } from "@/lib/types/database"
 import { ClientSuggestionList } from "@/components/client-suggestion-list"
 
 type QuickCreateMode = "appointment" | "blocked"
+type QuickPaymentMethod = "on_site" | "pack" | "gift_card"
+
+type ValidatedGiftCard = {
+  id: string
+  code: string
+  amount_cents: number
+  service_id: string
+  service?: {
+    id: string
+    name: string
+    duration_minutes: number
+    price_cents: number
+  } | null
+}
 
 interface QuickCreateModalProps {
   isOpen: boolean
@@ -69,6 +86,7 @@ export function QuickCreateModal({
   const todayInParis = useMemo(() => formatInTimeZone(new Date(), "Europe/Paris", "yyyy-MM-dd"), [])
 
   const [form, setForm] = useState({
+    client_id: "",
     service_id: "",
     staff_ids: [] as string[],
     first_name: "",
@@ -76,7 +94,11 @@ export function QuickCreateModal({
     phone: "",
     email: "",
     notes: "",
+    payment_method: "on_site" as QuickPaymentMethod,
+    client_pack_id: "",
+    gift_card_code: "",
   })
+  const [isRedeemingGiftCard, setIsRedeemingGiftCard] = useState(false)
   const [mode, setMode] = useState<QuickCreateMode>("appointment")
   const [blockedDurationMinutes, setBlockedDurationMinutes] = useState("60")
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
@@ -110,6 +132,7 @@ export function QuickCreateModal({
       }))
     } else {
       setForm({
+        client_id: "",
         service_id: "",
         staff_ids: [],
         first_name: "",
@@ -117,6 +140,9 @@ export function QuickCreateModal({
         phone: "",
         email: "",
         notes: "",
+        payment_method: "on_site",
+        client_pack_id: "",
+        gift_card_code: "",
       })
       setMode("appointment")
       setBlockedDurationMinutes("60")
@@ -220,6 +246,8 @@ export function QuickCreateModal({
   const handleClientFieldChange = (field: "phone" | "first_name" | "last_name", value: string) => {
     setForm((current) => ({
       ...current,
+      client_id: "",
+      client_pack_id: "",
       [field]: value,
     }))
     setClientSearchTerm(value)
@@ -228,6 +256,8 @@ export function QuickCreateModal({
   const handleSelectClientSuggestion = (client: Client) => {
     setForm((current) => ({
       ...current,
+      client_id: client.id,
+      client_pack_id: "",
       first_name: client.first_name || "",
       last_name: client.last_name || "",
       phone: client.phone || "",
@@ -235,6 +265,69 @@ export function QuickCreateModal({
     }))
     setClientSearchTerm("")
     setDebouncedClientSearchTerm("")
+  }
+
+  const normalizePhone = (phone: string) => phone.replace(/[\s\u00A0\-\.\(\)\/]/g, "").trim()
+  const normalizedPhone = normalizePhone(form.phone)
+  const normalizedEmail = form.email.trim().toLowerCase()
+  const clientPackSearchTerm = normalizedEmail || normalizedPhone || `${form.first_name} ${form.last_name}`.trim()
+
+  const { data: clientPacks, isFetching: isFetchingClientPacks } = useQuery({
+    queryKey: ["quick-create-client-packs", form.client_id, clientPackSearchTerm, form.service_id],
+    queryFn: () => fetchAPI<ClientPack[]>(`/client-packs?search=${encodeURIComponent(clientPackSearchTerm)}`),
+    enabled:
+      mode === "appointment" &&
+      form.payment_method === "pack" &&
+      Boolean(form.service_id) &&
+      Boolean(form.client_id || clientPackSearchTerm),
+    staleTime: 20 * 1000,
+  })
+
+  const eligibleClientPacks = useMemo(() => {
+    if (!clientPacks || !form.service_id) {
+      return []
+    }
+
+    return clientPacks.filter((clientPack) => {
+      const client = clientPack.client
+      const sameClient =
+        (form.client_id && client?.id === form.client_id) ||
+        (normalizedEmail && client?.email?.toLowerCase() === normalizedEmail) ||
+        (normalizedPhone && normalizePhone(client?.phone || "") === normalizedPhone)
+
+      return Boolean(
+        sameClient &&
+          clientPack.remaining_sessions > 0 &&
+          canUseClientPackStatus(clientPack.payment_status) &&
+          clientPack.pack?.allowed_services?.includes(form.service_id)
+      )
+    })
+  }, [clientPacks, form.client_id, form.service_id, normalizedEmail, normalizedPhone])
+
+  const { data: validatedGiftCard, isFetching: isValidatingGiftCard, isError: giftCardHasError } = useQuery({
+    queryKey: ["quick-create-gift-card", form.gift_card_code],
+    queryFn: () => fetchAPI<ValidatedGiftCard>(`/gift-cards/validate?code=${encodeURIComponent(form.gift_card_code)}`),
+    enabled:
+      mode === "appointment" &&
+      form.payment_method === "gift_card" &&
+      form.gift_card_code.replace(/[^a-zA-Z0-9]/g, "").length >= 6,
+    retry: false,
+    staleTime: 10 * 1000,
+  })
+
+  const giftCardMatchesService = Boolean(
+    validatedGiftCard &&
+      form.service_id &&
+      validatedGiftCard.service_id === form.service_id
+  )
+
+  const updatePaymentMethod = (payment_method: QuickPaymentMethod) => {
+    setForm((current) => ({
+      ...current,
+      payment_method,
+      client_pack_id: payment_method === "pack" ? current.client_pack_id : "",
+      gift_card_code: payment_method === "gift_card" ? current.gift_card_code : "",
+    }))
   }
 
   const hasRequiredFields = Boolean(
@@ -247,10 +340,15 @@ export function QuickCreateModal({
           : form.service_id &&
             form.first_name &&
             form.last_name &&
-            form.phone
+            form.phone &&
+            (
+              form.payment_method === "on_site" ||
+              (form.payment_method === "pack" && form.client_pack_id) ||
+              (form.payment_method === "gift_card" && giftCardMatchesService)
+            )
       )
   )
-  const canSubmit = hasRequiredFields && !conflict && !createAppointment.isPending
+  const canSubmit = hasRequiredFields && !conflict && !createAppointment.isPending && !isRedeemingGiftCard
 
   const handleSubmit = async () => {
     if (!selectedStart || !hasRequiredFields) {
@@ -263,6 +361,42 @@ export function QuickCreateModal({
     }
     if (conflict) {
       toast.error("Conflit détecté: ce créneau chevauche un rendez-vous existant")
+      return
+    }
+
+    if (mode === "appointment" && form.payment_method === "gift_card") {
+      if (!giftCardMatchesService) {
+        toast.error("La carte cadeau ne correspond pas à cette prestation")
+        return
+      }
+
+      setIsRedeemingGiftCard(true)
+      try {
+        await fetchAPI("/gift-cards/redeem", {
+          method: "POST",
+          body: JSON.stringify({
+            code: form.gift_card_code,
+            salon_id: salonId,
+            service_id: form.service_id,
+            start_time: selectedStart.toISOString(),
+            staff_ids: form.staff_ids,
+            client_data: {
+              first_name: form.first_name,
+              last_name: form.last_name,
+              phone: form.phone,
+              email: form.email || undefined,
+            },
+            client_notes: form.notes || undefined,
+          }),
+        })
+        toast.success("Rendez-vous créé avec la carte cadeau")
+        onClose()
+        onSuccess?.()
+      } catch (error: any) {
+        toast.error(error.message || "Impossible d'utiliser cette carte cadeau")
+      } finally {
+        setIsRedeemingGiftCard(false)
+      }
       return
     }
 
@@ -293,6 +427,10 @@ export function QuickCreateModal({
             },
             client_notes: form.notes,
             status: "confirmed",
+            payment_method: form.payment_method === "pack" ? "pack" : "on_site",
+            payment_status: form.payment_method === "pack" ? "paid" : "unpaid",
+            amount_paid_cents: form.payment_method === "pack" ? selectedService?.price_cents || 0 : 0,
+            client_pack_id: form.payment_method === "pack" ? form.client_pack_id : undefined,
             booking_source: "admin",
           },
       {
@@ -405,7 +543,7 @@ export function QuickCreateModal({
                 <Label>Service *</Label>
                 <Select
                   value={form.service_id}
-                  onValueChange={(val) => setForm({ ...form, service_id: val, staff_ids: [] })}
+                  onValueChange={(val) => setForm({ ...form, service_id: val, staff_ids: [], client_pack_id: "" })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Choisir un service" />
@@ -525,6 +663,77 @@ export function QuickCreateModal({
                 isLoading={isFetchingClientSuggestions}
                 onSelect={handleSelectClientSuggestion}
               />
+
+              <div className="space-y-3 rounded-lg border border-primary/10 bg-muted/30 p-3">
+                <Label>Paiement</Label>
+                <Select value={form.payment_method} onValueChange={(value: QuickPaymentMethod) => updatePaymentMethod(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir un mode de paiement" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="on_site">Paiement sur place</SelectItem>
+                    <SelectItem value="pack">Utiliser un forfait / abonnement</SelectItem>
+                    <SelectItem value="gift_card">Utiliser une carte cadeau</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {form.payment_method === "pack" ? (
+                  <div className="space-y-2">
+                    <Label>Forfait client</Label>
+                    <Select
+                      value={form.client_pack_id}
+                      onValueChange={(value) => setForm({ ...form, client_pack_id: value })}
+                      disabled={!form.service_id || eligibleClientPacks.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={
+                            isFetchingClientPacks
+                              ? "Recherche des forfaits..."
+                              : eligibleClientPacks.length > 0
+                                ? "Choisir le forfait à consommer"
+                                : "Aucun forfait compatible trouvé"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {eligibleClientPacks.map((clientPack) => (
+                          <SelectItem key={clientPack.id} value={clientPack.id}>
+                            {clientPack.pack?.name || "Forfait"} - {clientPack.remaining_sessions}/{clientPack.total_sessions} séance(s)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Sélectionnez le client et la prestation. Le rendez-vous consommera automatiquement une séance.
+                    </p>
+                  </div>
+                ) : null}
+
+                {form.payment_method === "gift_card" ? (
+                  <div className="space-y-2">
+                    <Label>Code carte cadeau</Label>
+                    <Input
+                      value={form.gift_card_code}
+                      onChange={(e) => setForm({ ...form, gift_card_code: e.target.value })}
+                      placeholder="XXXX-XXXX-XXXX"
+                    />
+                    {isValidatingGiftCard ? (
+                      <p className="text-xs text-muted-foreground">Vérification de la carte...</p>
+                    ) : validatedGiftCard ? (
+                      <p className={giftCardMatchesService ? "text-xs text-green-700" : "text-xs text-destructive"}>
+                        {giftCardMatchesService
+                          ? `Carte valide pour ${validatedGiftCard.service?.name || "cette prestation"}.`
+                          : `Carte valide, mais prévue pour ${validatedGiftCard.service?.name || "une autre prestation"}.`}
+                      </p>
+                    ) : giftCardHasError ? (
+                      <p className="text-xs text-destructive">Carte cadeau introuvable ou déjà utilisée.</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Le rendez-vous sera créé et la carte sera marquée comme utilisée.</p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </>
           ) : (
             <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
@@ -551,7 +760,7 @@ export function QuickCreateModal({
             disabled={!canSubmit}
             className="cursor-pointer"
           >
-            {createAppointment.isPending
+            {createAppointment.isPending || isRedeemingGiftCard
               ? "Création..."
               : mode === "blocked"
                 ? "Bloquer le créneau"

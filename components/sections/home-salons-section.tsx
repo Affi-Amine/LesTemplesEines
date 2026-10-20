@@ -141,13 +141,6 @@ export function HomeSalonsSection() {
                     </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
-                  {/* Show image count badge if multiple images */}
-                  {(salon.images && salon.images.length > 1) && (
-                    <div className="absolute top-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                      <Icon icon="solar:gallery-bold" className="w-3 h-3" />
-                      {salon.images.length}
-                    </div>
-                  )}
                 </div>
                 <div className="p-5 sm:p-6">
                   <div className="mb-4">

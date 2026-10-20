@@ -14,7 +14,7 @@ import { fr } from "date-fns/locale"
 import { formatInTimeZone } from "date-fns-tz"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { fetchAPI } from "@/lib/api/client"
 import { dateTimeInScheduleTimezone } from "@/lib/calendar/scheduling"
 
@@ -63,6 +63,8 @@ interface BookingDetailsModalProps {
 
 export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }: BookingDetailsModalProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const [isCancelling, setIsCancelling] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [editForm, setEditForm] = useState({
     salon_id: "",
@@ -163,6 +165,11 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
       })
 
       setIsEditMode(false)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
+        queryClient.invalidateQueries({ queryKey: ["staff-appointments"] }),
+        queryClient.invalidateQueries({ queryKey: ["availability"] }),
+      ])
       onRefetch?.()
       onClose()
     } catch (error) {
@@ -183,10 +190,12 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
   }
 
   const handleCancelAppointment = async () => {
+    if (isCancelling) return
     if (!confirm("Êtes-vous sûr de vouloir annuler ce rendez-vous ?")) {
       return
     }
 
+    setIsCancelling(true)
     try {
       const response = await fetch(`/api/appointments/${appointment.id}`, {
         method: "PATCH",
@@ -195,19 +204,27 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
       })
 
       if (!response.ok) {
-        throw new Error("Échec de l'annulation")
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Échec de l'annulation")
       }
 
       toast.success("Rendez-vous annulé", {
         description: "Le rendez-vous a été annulé avec succès.",
       })
 
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
+        queryClient.invalidateQueries({ queryKey: ["staff-appointments"] }),
+        queryClient.invalidateQueries({ queryKey: ["availability"] }),
+      ])
       onRefetch?.()
       onClose()
     } catch (error) {
       toast.error("Erreur", {
-        description: "Impossible d'annuler le rendez-vous. Veuillez réessayer.",
+        description: error instanceof Error ? error.message : "Impossible d'annuler le rendez-vous. Veuillez réessayer.",
       })
+    } finally {
+      setIsCancelling(false)
     }
   }
 
@@ -550,7 +567,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
               variant="outline"
               className="flex-1 cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50"
               onClick={handleCancelAppointment}
-              disabled={appointment.status === "cancelled"}
+              disabled={isCancelling || appointment.status === "cancelled"}
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Annuler

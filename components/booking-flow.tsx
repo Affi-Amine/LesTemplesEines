@@ -126,14 +126,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   }
 
   const handleDateChange = (date: string) => {
-    if (date && date < todayInParis) {
-      toast.error("Impossible de réserver dans le passé")
-      return
-    }
-
     setData((current) => ({
       ...current,
-      date,
+      // Keep incomplete/past dates out of availability requests without resetting native date segments.
+      date: date && date >= todayInParis ? date : "",
       time: "",
     }))
   }
@@ -921,8 +917,13 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               <Input
                 id="date"
                 type="date"
-                value={data.date}
+                defaultValue={data.date}
                 onChange={(e) => handleDateChange(e.target.value)}
+                onBlur={(e) => {
+                  if (e.target.value && e.target.value < todayInParis) {
+                    toast.error("Impossible de réserver dans le passé")
+                  }
+                }}
                 min={todayInParis}
                 className="mt-2 h-10 w-full min-w-0 max-w-full text-sm sm:h-11"
                 disabled={!isTherapistSelectionComplete}

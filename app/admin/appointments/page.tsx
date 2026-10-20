@@ -7,6 +7,7 @@ import { useAppointments } from "@/lib/hooks/use-appointments"
 import { Plus, X } from "lucide-react"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { useState, useEffect } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
@@ -40,6 +41,7 @@ function normalizeSearchValue(value: string) {
 }
 
 export default function AppointmentsPage() {
+  const queryClient = useQueryClient()
   const { t } = useTranslations()
   const [selectedSalonId, setSelectedSalonId] = useState("all")
   const { data: appointments, isLoading, refetch } = useAppointments({
@@ -338,6 +340,11 @@ export default function AppointmentsPage() {
       })
 
       setEditDialogOpen(false)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["availability"] }),
+        queryClient.invalidateQueries({ queryKey: ["staff-appointments"] }),
+        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
+      ])
       refetch()
     } catch (error) {
       toast.error("Erreur lors de la mise à jour", {

@@ -150,6 +150,7 @@ export function AppointmentDetailsModal({
       toast.success(message)
       await queryClient.invalidateQueries({ queryKey: ["staff-appointments"] })
       await queryClient.invalidateQueries({ queryKey: ["appointments"] })
+      await queryClient.invalidateQueries({ queryKey: ["availability"] })
       setAbsentOpen(false)
       setAbsentNote("")
       onClose()

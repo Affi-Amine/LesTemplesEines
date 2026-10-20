@@ -108,6 +108,7 @@ function WeekView({
 
   const getAppointmentsForDayAndHour = (day: Date, hour: number) => {
     return appointments.filter(appointment => {
+      if (appointment.status === "cancelled") return false
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const dayDateStr = format(day, "yyyy-MM-dd")
 
@@ -298,6 +299,7 @@ function DayView({
 
   const getAppointmentsForHour = (hour: number, staffId?: string) => {
     return appointments.filter(appointment => {
+      if (appointment.status === "cancelled") return false
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const currentDateStr = format(currentDate, "yyyy-MM-dd")
 

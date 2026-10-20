@@ -8,7 +8,7 @@ import { Calendar, Users, TrendingUp, Clock } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { fetchAPI } from "@/lib/api/client"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,7 @@ import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 
 export default function AdminDashboard() {
+  const queryClient = useQueryClient()
   const { t, mounted } = useTranslations()
   const [userInfo, setUserInfo] = useState<any>(null)
 
@@ -192,6 +193,11 @@ export default function AdminDashboard() {
       })
 
       setEditDialogOpen(false)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["availability"] }),
+        queryClient.invalidateQueries({ queryKey: ["staff-appointments"] }),
+        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
+      ])
       refetch()
     } catch (error) {
       toast.error("Erreur lors de la mise à jour", {

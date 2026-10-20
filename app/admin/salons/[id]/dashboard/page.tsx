@@ -1287,6 +1287,7 @@ export default function SalonDashboardPage() {
                               {bookableStaff.map(s => {
                                 // Find appointments for this staff in this hour
                                 const staffApts = appointments?.filter((apt: any) => {
+                                  if (apt.status === "cancelled") return false
                                   const aptHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
                                   return getAppointmentStaffIds(apt).includes(s.id) && aptHour === hour
                                 })

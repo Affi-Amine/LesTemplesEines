@@ -57,7 +57,7 @@ export function useAvailability(staffId?: string | string[], date?: Date | strin
           params.append("staff_ids", staffId)
         }
 
-        return fetchAPI<AvailabilityResponse>(`/availability/service/${serviceId}?${params.toString()}`)
+        return fetchAPI<AvailabilityResponse>(`/availability/service/${serviceId}?${params.toString()}`, { cache: "no-store" })
       }
 
       if (!staffId) {
@@ -73,7 +73,7 @@ export function useAvailability(staffId?: string | string[], date?: Date | strin
         params.append("service_id", serviceId)
       }
 
-      return fetchAPI<AvailabilityResponse>(`/availability/${staffId}?${params.toString()}`)
+      return fetchAPI<AvailabilityResponse>(`/availability/${staffId}?${params.toString()}`, { cache: "no-store" })
     },
     enabled: !!formattedDate && !!serviceId && !!salonId && (!!staffId || !!serviceId),
     staleTime: 10 * 1000, // Consider stale after 10 seconds (overrides default 60s)

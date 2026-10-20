@@ -163,7 +163,7 @@ export function HomeSalonsSection() {
 
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Button asChild variant="outline" className="flex-1 w-full border-primary/20 bg-transparent cursor-pointer hover:bg-primary/8">
-                      <Link href={`/salons/${salon.slug}`}>Voir l'adresse</Link>
+                      <Link href={`/salons/${salon.slug}`}>Voir le salon</Link>
                     </Button>
                     <Button asChild className="flex-1 w-full bg-primary shadow-[0_10px_24px_rgba(214,171,89,0.16)] cursor-pointer hover:bg-primary/90">
                       <Link href={`/book/${salon.slug}`}>Réserver</Link>

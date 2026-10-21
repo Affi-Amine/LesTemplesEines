@@ -48,20 +48,9 @@ export default function StaffPage() {
   const { data: salons } = useSalons({ includeInactive: true })
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  const selectedSalon = salons?.find((salon) => salon.id === selectedSalonId)
-  const normalizeSalonValue = (value?: string | null) => value?.trim().toLowerCase() || ""
-  const staffList = (staff || []).filter((member) => {
-    if (selectedSalonId === "all") return true
-    if (member.salon_id === selectedSalonId) return true
-
-    const memberSalon = salons?.find((salon) => salon.id === member.salon_id)
-    if (!selectedSalon || !memberSalon) return false
-
-    return (
-      normalizeSalonValue(memberSalon.slug) === normalizeSalonValue(selectedSalon.slug) ||
-      normalizeSalonValue(memberSalon.name) === normalizeSalonValue(selectedSalon.name)
-    )
-  })
+  const staffList = (staff || []).filter((member) =>
+    selectedSalonId === "all" || member.salon_id === selectedSalonId
+  )
 
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null)
   const [isSaving, setIsSaving] = useState(false)

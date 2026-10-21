@@ -130,25 +130,9 @@ export default function SalonDashboardPage() {
   const createAppointment = useCreateAppointment()
 
   const salon = salons?.find(s => s.id === salonId)
-  const normalizeSalonValue = (value?: string | null) => value?.trim().toLowerCase() || ""
   const staffById = new Map<string, any>()
   ;[...(staff || []), ...(allStaff || [])].forEach((member) => {
-    if (!member?.id) return
-    if (staffById.has(member.id)) return
-    if (member.salon_id === salonId) {
-      staffById.set(member.id, member)
-      return
-    }
-
-    const memberSalon = salons?.find((candidate) => candidate.id === member.salon_id)
-    if (
-      salon &&
-      memberSalon &&
-      (
-        normalizeSalonValue(memberSalon.slug) === normalizeSalonValue(salon.slug) ||
-        normalizeSalonValue(memberSalon.name) === normalizeSalonValue(salon.name)
-      )
-    ) {
+    if (member?.id && member.salon_id === salonId && !staffById.has(member.id)) {
       staffById.set(member.id, member)
     }
   })

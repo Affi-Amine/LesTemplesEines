@@ -63,6 +63,8 @@ export async function GET(request: NextRequest) {
       targetSalonIds = salonGroup?.salonIds || [salonIdOrSlug]
     }
     
+    if (targetSalonIds.length > 0) query = query.in("salon_id", targetSalonIds)
+
     if (role) query = query.eq("role", role)
     if (isActive !== null) query = query.eq("is_active", isActive === "true")
 
@@ -70,29 +72,8 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    let filteredStaff = staff || []
-
-    if (targetSalonIds.length > 0) {
-      const { data: salonServices, error: salonServicesError } = await supabase
-        .from("service_salons")
-        .select("service_id")
-        .in("salon_id", targetSalonIds)
-
-      if (salonServicesError) throw salonServicesError
-
-      const salonIdSet = new Set(targetSalonIds)
-      const salonServiceIds = new Set((salonServices || []).map((relation) => relation.service_id))
-      filteredStaff = filteredStaff.filter((member) => {
-        if (salonIdSet.has(member.salon_id)) {
-          return true
-        }
-
-        return member.staff_services?.some((relation: any) => salonServiceIds.has(relation.service_id))
-      })
-    }
-
     return NextResponse.json(
-      filteredStaff
+      (staff || [])
         .map(mapStaff)
         .sort((a, b) => {
           const aName = `${a.first_name || ""} ${a.last_name || ""}`.trim()

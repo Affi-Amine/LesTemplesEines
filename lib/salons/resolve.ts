@@ -44,35 +44,7 @@ export async function resolveSalonGroup(
     return null
   }
 
-  const { data: salons, error: salonsError } = await supabase
-    .from("salons")
-    .select("id, slug, name")
-
-  if (salonsError) {
-    throw new Error(salonsError.message)
-  }
-
-  const targetSlug = normalizeSalonValue(salon.slug)
-  const targetName = normalizeSalonValue(salon.name)
-  const salonIds = Array.from(new Set(
-    (salons || [])
-      .filter((candidate: SalonIdentity) => {
-        if (candidate.id === salon.id) return true
-
-        const candidateSlug = normalizeSalonValue(candidate.slug)
-        const candidateName = normalizeSalonValue(candidate.name)
-
-        return Boolean(
-          (targetSlug && candidateSlug === targetSlug) ||
-          (targetName && candidateName === targetName)
-        )
-      })
-      .map((candidate: SalonIdentity) => candidate.id)
-      .filter(Boolean)
-  ))
-
-  return {
-    salon,
-    salonIds: salonIds.length > 0 ? salonIds : [salon.id],
-  }
+  // Salon membership is defined by its ID. Shared names or slugs do not
+  // establish that two database records are the same location.
+  return { salon, salonIds: [salon.id] }
 }

@@ -161,11 +161,13 @@ async function handleAppointmentCheckout(
   const payload = storedSession.payload
   const appointment = await createBookableAppointment(supabase, {
     ...payload,
+    expected_price_cents: undefined,
     payment_status: "paid",
     payment_method: "stripe",
     amount_paid_cents: storedSession.amount_cents,
     paid_at: new Date().toISOString(),
   }, {
+    quote: payload._service_quote,
     paymentRecord: {
       method: "stripe",
       amount_cents: storedSession.amount_cents,

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
 import { StepIndicator } from "@/components/step-indicator"
+import { combineServices } from "@/lib/appointments/service-selection"
 import { ServiceCatalog } from "@/components/service-catalog"
 import { useSalons } from "@/lib/hooks/use-salons"
 import { useServices } from "@/lib/hooks/use-services"
@@ -32,6 +33,7 @@ type BookingStep = "salon" | "service" | "time" | "info" | "confirm"
 interface BookingData {
   salon: string
   service: string
+  serviceIds: string[]
   date: string
   time: string
   firstName: string
@@ -56,6 +58,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   const [data, setData] = useState<BookingData>({
     salon: initialSalon || "",
     service: "",
+    serviceIds: [],
     date: "",
     time: "",
     firstName: "",
@@ -81,18 +84,20 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       ...current,
       salon: salonId,
       service: "",
+      serviceIds: [],
       date: "",
       time: "",
     }))
   }
 
   const handleServiceChange = (serviceId: string) => {
-    setData((current) => ({
-      ...current,
-      service: serviceId,
-      date: "",
-      time: "",
-    }))
+    const ids = data.serviceIds.includes(serviceId) ? data.serviceIds.filter(id => id !== serviceId) : [...data.serviceIds, serviceId]
+    try {
+      if (ids.length) combineServices(ids.map(id => services!.find(service => service.id === id)!))
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Sélection invalide"); return }
+    setData(current => ({ ...current, service: ids[0] || "", serviceIds: ids, time: "",
+      paymentOption: ids.length > 1 && current.paymentOption === "pack" ? "on_site" : current.paymentOption,
+      clientPackId: ids.length > 1 ? "" : current.clientPackId }))
   }
 
   const handleDateChange = (date: string) => {
@@ -107,7 +112,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   // Fetch data using hooks
   const { data: salons, isLoading: salonsLoading } = useSalons()
   const currentSalon = salons?.find(salon => salon.id === data.salon || salon.slug === data.salon)
-  const { data: services, isLoading: servicesLoading } = useServices(currentSalon?.id)
+  const { data: services, isLoading: servicesLoading, refetch: reloadServices } = useServices(currentSalon?.id)
   const createAppointment = useCreateAppointment()
 
   useEffect(() => {
@@ -129,9 +134,14 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   })
 
   // Find current selections
-  const currentService = services?.find((s) => s.id === data.service)
+  const currentService = useMemo(() => {
+    const selected = data.serviceIds.map(id => services?.find(service => service.id === id))
+    if (!selected.length || selected.some(service => !service)) return undefined
+    try { return combineServices(selected.filter((service): service is NonNullable<typeof service> => Boolean(service))) }
+    catch { return undefined }
+  }, [services, data.serviceIds])
   const schedule = useAppointmentSchedule({
-    salonId: currentSalon?.id || "", serviceId: currentService?.id || "", date: data.date,
+    salonId: currentSalon?.id || "", serviceId: currentService?.id || "", serviceIds: data.serviceIds, date: data.date,
     requiredStaff: currentService?.required_staff_count || 1,
     durationMinutes: currentService?.duration_minutes || 0,
   }, Boolean(currentSalon && currentService))
@@ -167,7 +177,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     })
   }, [selectedClientPack, selectedPackAllowedServiceIds, services])
   const eligiblePacks = (clientPacks || []).filter((clientPack) =>
-    clientPack.remaining_sessions > 0 &&
+    data.serviceIds.length === 1 && clientPack.remaining_sessions > 0 &&
     canUseClientPackStatus(clientPack.payment_status) &&
     clientPack.pack?.allowed_services?.includes(data.service)
   )
@@ -196,7 +206,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     }
 
     const isEligibleForSelectedService =
-      selectedClientPack.remaining_sessions > 0 &&
+      data.serviceIds.length === 1 && selectedClientPack.remaining_sessions > 0 &&
       canUseClientPackStatus(selectedClientPack.payment_status) &&
       selectedClientPack.pack?.allowed_services?.includes(data.service)
 
@@ -207,7 +217,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
         paymentOption: current.paymentOption === "pack" ? "on_site" : current.paymentOption,
       }))
     }
-  }, [data.clientPackId, data.service, selectedClientPack])
+  }, [data.clientPackId, data.service, data.serviceIds.length, selectedClientPack])
 
   useEffect(() => {
     if (!data.clientPackId || !selectedClientPack || !data.service) {
@@ -215,7 +225,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     }
 
     const isEligibleForSelectedService =
-      selectedClientPack.remaining_sessions > 0 &&
+      data.serviceIds.length === 1 && selectedClientPack.remaining_sessions > 0 &&
       canUseClientPackStatus(selectedClientPack.payment_status) &&
       selectedClientPack.pack?.allowed_services?.includes(data.service)
 
@@ -225,7 +235,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
         paymentOption: "pack",
       }))
     }
-  }, [data.clientPackId, data.paymentOption, data.service, selectedClientPack])
+  }, [data.clientPackId, data.paymentOption, data.service, data.serviceIds.length, selectedClientPack])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -300,6 +310,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
               staff_id: primaryStaffId,
               staff_ids: assignedStaffIds,
               service_id: currentService.id,
+              service_ids: data.serviceIds,
+              expected_price_cents: currentService.price_cents,
               start_time: startTime,
               client_data: {
                 first_name: data.firstName,
@@ -316,6 +328,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           window.location.href = response.url
           return
         } catch (error: any) {
+          if (error.message?.includes("tarif")) { await reloadServices(); setStep("service") }
           if (error.status === 409) { schedule.clear("Ce créneau vient d’être pris. Vos coordonnées sont conservées."); setStep("time") }
           setIsRedirectingToStripe(false)
           toast.error("Erreur lors du paiement", {
@@ -333,6 +346,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           staff_id: primaryStaffId,
           staff_ids: assignedStaffIds,
           service_id: currentService.id,
+          service_ids: data.serviceIds,
+          expected_price_cents: currentService.price_cents,
           start_time: startTime,
           client_data: {
             first_name: data.firstName,
@@ -367,6 +382,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
         }
       )
     } catch (error: any) {
+      if (error.message?.includes("tarif")) { await reloadServices(); setStep("service") }
       if (error.status === 409) { schedule.clear("Ce créneau vient d’être pris. Vos coordonnées sont conservées."); setStep("time") }
       if (!mutationStarted) toast.error(error.message || "Impossible de confirmer le rendez-vous. Réessayez.")
     } finally { submitLock.current = false; setIsSubmitting(false) }
@@ -504,7 +520,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           ) : (
             <ServiceCatalog
               services={servicesWithPackInfo}
-              selectedServiceId={data.service}
+              selectedServiceIds={data.serviceIds}
               onSelectService={handleServiceChange}
               compact
               getBadge={(service) => {
@@ -514,11 +530,17 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             />
           )}
 
+          {currentService && <div role="status" className="rounded-xl border border-primary/30 bg-primary/8 p-4">
+            <p className="text-sm font-semibold">{data.serviceIds.length} programme{data.serviceIds.length > 1 ? "s" : ""} sélectionné{data.serviceIds.length > 1 ? "s" : ""}</p>
+            <p className="mt-1 text-sm">{currentService.name}</p>
+            <p className="mt-2 font-semibold text-primary">{currentService.duration_minutes} min · {(currentService.price_cents / 100).toFixed(2)} €</p>
+            {data.serviceIds.length > 1 && <p className="mt-1 text-xs text-muted-foreground">Prestations consécutives, avec la même équipe. Règlement en ligne ou sur place.</p>}
+          </div>}
           <div className={flowActionsClass}>
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
-            <Button onClick={handleNext} disabled={!data.service || servicesLoading} size="lg" className="cursor-pointer w-full sm:w-auto">
+            <Button onClick={handleNext} disabled={!currentService || servicesLoading} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.next")}
             </Button>
           </div>

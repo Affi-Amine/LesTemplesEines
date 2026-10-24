@@ -15,6 +15,7 @@ export interface SlotSelection { context: string; start: string; staffIds: strin
 export interface ScheduleContext {
   salonId: string
   serviceId: string
+  serviceIds?: string[]
   date: string
   requiredStaff: number
   durationMinutes: number
@@ -23,12 +24,12 @@ export interface ScheduleContext {
 export const EMPTY_SLOT_SELECTION: SlotSelection = { context: "", start: "", staffIds: [] }
 const parisDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" })
 export function scheduleContextKey(context: ScheduleContext) {
-  return JSON.stringify([context.salonId, context.serviceId, context.date, context.requiredStaff, context.durationMinutes])
+  return JSON.stringify([context.salonId, context.serviceId, context.date, context.requiredStaff, context.durationMinutes, context.serviceIds || []])
 }
 
 export function getSelectableSlots(context: ScheduleContext, slots: AvailabilitySlot[], staff: ScheduleStaff[], now = Date.now()) {
   const eligible = new Set(staff.filter(member => member.salon_id === context.salonId &&
-    canStaffTakeBookings(member) && canProvideService(member.allowed_service_ids, context.serviceId)).map(member => member.id))
+    canStaffTakeBookings(member) && (context.serviceIds?.length ? context.serviceIds : [context.serviceId]).every(id => canProvideService(member.allowed_service_ids, id))).map(member => member.id))
   if (!context.serviceId || !Number.isInteger(context.requiredStaff) || context.requiredStaff < 1 || context.durationMinutes <= 0) return []
   return slots.flatMap(slot => {
     const start = Date.parse(slot.start), end = Date.parse(slot.end)

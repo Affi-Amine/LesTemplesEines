@@ -1,3 +1,4 @@
+import { presentAppointmentServices } from "@/lib/appointments/service-selection"
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 import { startOfDay, endOfDay, format } from "date-fns"
@@ -145,10 +146,7 @@ export async function GET(request: NextRequest) {
       .from("appointments")
       .select(
         `
-        id,
-        start_time,
-        end_time,
-        status,
+        *,
         client:clients(first_name, last_name, phone),
         service:services(name, duration_minutes, price_cents),
         staff:staff(first_name, last_name),
@@ -171,7 +169,7 @@ export async function GET(request: NextRequest) {
       .from("appointments")
       .select(
         `
-        service_id,
+        *,
         services(name, price_cents)
       `
       )
@@ -192,24 +190,13 @@ export async function GET(request: NextRequest) {
     >()
 
     serviceAppointments?.forEach((apt) => {
-      if (!apt.service_id || !apt.services) return
-
-      const svcSrc = apt.services as any
-      const svc: { name: string; price_cents: number } = Array.isArray(svcSrc) ? svcSrc[0] : svcSrc
-      if (!svc) return
-
-      const existing = servicesMap.get(apt.service_id)
-      if (existing) {
-        existing.booking_count++
-        existing.revenue_cents += svc.price_cents
-      } else {
-        servicesMap.set(apt.service_id, {
-          service_id: apt.service_id,
-          service_name: svc.name,
-          booking_count: 1,
-          revenue_cents: svc.price_cents,
-        })
-      }
+      const legacy = Array.isArray(apt.services) ? apt.services[0] : apt.services
+      const items = apt.service_items?.length ? apt.service_items : legacy ? [{ ...legacy, id: apt.service_id }] : []
+      items.forEach((item: { id: string; name: string; price_cents: number }) => {
+        const existing = servicesMap.get(item.id)
+        if (existing) { existing.booking_count++; existing.revenue_cents += item.price_cents }
+        else servicesMap.set(item.id, { service_id: item.id, service_name: item.name, booking_count: 1, revenue_cents: item.price_cents })
+      })
     })
 
     const popularServices = Array.from(servicesMap.values())
@@ -259,7 +246,7 @@ export async function GET(request: NextRequest) {
         total_revenue_cents: totalRevenueCents,
         pending_bookings: pendingBookings || 0,
       },
-      upcoming_appointments: upcomingAppointments || [],
+      upcoming_appointments: (upcomingAppointments || []).map(presentAppointmentServices),
       popular_services: popularServices,
       payment_methods: payment_methods,
     })

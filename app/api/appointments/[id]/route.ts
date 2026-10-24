@@ -5,6 +5,8 @@ import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
+import { presentAppointmentServices } from "@/lib/appointments/service-selection"
+
 interface RouteContext {
   params: Promise<{ id: string }>
 }
@@ -56,13 +58,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { data: existing, error: existingError } = await supabase
       .from("appointments")
       .select(`
-        id,
-        status,
-        start_time,
-        end_time,
-        service_id,
-        staff_id,
-        salon_id,
+        *,
         assignments:appointment_assignments(staff_id)
       `)
       .eq("id", id)
@@ -109,7 +105,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         : []
     const targetStaffIds = staffIdsToUpdate ?? existingStaffIds
 
-    if (updates.service_id) updateData.service_id = updates.service_id
+    if (updates.service_id) {
+      updateData.service_id = updates.service_id
+      if (updates.service_id !== existing.service_id) updateData.service_items = null
+    }
     if (updates.start_time) updateData.start_time = updates.start_time
 
     const schedulingChanged = Boolean(
@@ -139,6 +138,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         {
           salon_id: targetSalonId,
           service_id: targetServiceId,
+          service_ids: targetServiceId === existing.service_id ? existing.service_items?.map((item: any) => item.id) : undefined,
           start_time: targetStartTime,
           end_time: preservedEndTime,
           staff_id: targetStaffIds[0],
@@ -146,13 +146,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         },
         {
           ignoreAppointmentId: id,
+          quote: targetServiceId === existing.service_id ? existing.service_items : undefined,
         }
       )
 
       updateData.end_time = endTime
     }
 
-    const existingAssignments = existing.assignments || []
+    const existingAssignments: { staff_id: string }[] = existing.assignments || []
 
     const previousStaffIds = (existingAssignments || []).map((assignment) => assignment.staff_id)
     const normalizedStaffIdsToUpdate = staffIdsToUpdate
@@ -265,7 +266,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json(presentAppointmentServices(data))
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })

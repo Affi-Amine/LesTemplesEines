@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ChevronDown, Check, Clock } from "lucide-react"
+import { ChevronDown, Check, Clock, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export interface ServiceCatalogItem {
@@ -17,6 +17,7 @@ export interface ServiceCatalogItem {
 
 interface ServiceCatalogProps<T extends ServiceCatalogItem> {
   services: T[]
+  selectedServiceIds?: string[]
   selectedServiceId?: string
   onSelectService?: (serviceId: string) => void
   getBadge?: (service: T) => string | null
@@ -33,6 +34,10 @@ function normalizeCategoryKey(value: string | null | undefined) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ")
+}
+
+function isSpecialOfferCategory(category: string) {
+  return /\b(offres?|promos?|promotions?)\b/.test(normalizeCategoryKey(category))
 }
 
 function formatCategoryLabel(value: string | null | undefined) {
@@ -57,6 +62,7 @@ function formatDuration(service: ServiceCatalogItem) {
 export function ServiceCatalog<T extends ServiceCatalogItem>({
   services,
   selectedServiceId,
+  selectedServiceIds,
   onSelectService,
   getBadge,
   selectable = true,
@@ -79,12 +85,24 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
       }
     })
 
-    return Array.from(groups.values())
+    return Array.from(groups.values()).sort((a, b) => Number(isSpecialOfferCategory(b.category)) - Number(isSpecialOfferCategory(a.category)))
   }, [services])
 
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set())
+  const [closedOffers, setClosedOffers] = useState<Set<string>>(new Set())
+  const isCategoryOpen = (category: string) => isSpecialOfferCategory(category)
+    ? !closedOffers.has(category) : openCategories.has(category)
 
   const toggleCategory = (category: string) => {
+    if (isSpecialOfferCategory(category)) {
+      setClosedOffers(current => {
+        const next = new Set(current)
+        if (next.has(category)) next.delete(category)
+        else next.add(category)
+        return next
+      })
+      return
+    }
     setOpenCategories((current) => {
       const next = new Set(current)
       if (next.has(category)) {
@@ -97,6 +115,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
   }
 
   const jumpToCategory = (category: string) => {
+    setClosedOffers(current => { const next = new Set(current); next.delete(category); return next })
     setOpenCategories((current) => new Set(current).add(category))
     document.getElementById(`service-category-${normalizeCategoryKey(category)}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
   }
@@ -112,13 +131,13 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
               onClick={() => jumpToCategory(group.category)}
               className={cn(
                 "shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors sm:px-3.5 sm:py-2 sm:text-xs",
-                openCategories.has(group.category)
+                isSpecialOfferCategory(group.category) ? "border-primary bg-primary text-primary-foreground shadow-sm" : isCategoryOpen(group.category)
                   ? "border-primary/35 bg-primary/10 text-foreground"
                   : "border-primary/12 bg-background/25 text-muted-foreground hover:border-primary/35 hover:text-foreground"
               )}
             >
-              {group.category}
-              <span className="ml-2 text-primary/75">{group.items.length}</span>
+              {isSpecialOfferCategory(group.category) && <Sparkles className="mr-1.5 inline h-3.5 w-3.5" aria-hidden="true" />}{group.category}
+              <span className={cn("ml-2", isSpecialOfferCategory(group.category) ? "text-primary-foreground/75" : "text-primary/75")}>{group.items.length}</span>
             </button>
           ))}
         </div>
@@ -126,10 +145,13 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
 
       <div className="overflow-hidden rounded-xl border border-primary/10 bg-background/22 shadow-none backdrop-blur-sm sm:rounded-2xl sm:bg-[linear-gradient(180deg,rgba(31,25,20,0.78),rgba(17,14,12,0.9))] sm:shadow-[0_18px_50px_rgba(0,0,0,0.14)]">
         {groupedServices.map((group) => {
-          const isOpen = openCategories.has(group.category)
+          const isOpen = isCategoryOpen(group.category)
+          const special = isSpecialOfferCategory(group.category)
 
           return (
-            <section key={group.category} id={`service-category-${normalizeCategoryKey(group.category)}`} className="scroll-mt-28 border-b border-primary/10 last:border-b-0">
+            <section key={group.category} id={`service-category-${normalizeCategoryKey(group.category)}`}
+              data-special-offer={special || undefined}
+              className={cn("scroll-mt-28 border-b border-primary/10 last:border-b-0", special && "border-l-4 border-l-primary bg-primary/8")}>
               <button
                 type="button"
                 onClick={() => toggleCategory(group.category)}
@@ -137,6 +159,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
                 aria-expanded={isOpen}
               >
                 <span>
+                  {special && <span className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-1 text-[10px] font-semibold text-primary-foreground"><Sparkles className="h-3 w-3" aria-hidden="true" />Offres spéciales</span>}
                   <span className="block text-[10px] font-semibold uppercase tracking-[0.13em] text-primary sm:text-xs sm:tracking-[0.16em]">{group.category}</span>
                   <span className="mt-0.5 block text-[11px] text-muted-foreground sm:mt-1 sm:text-xs">{group.items.length} prestation{group.items.length > 1 ? "s" : ""}</span>
                 </span>
@@ -146,7 +169,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
               {isOpen ? (
                 <div className="divide-y divide-primary/10">
                   {group.items.map((service) => {
-                    const isSelected = selectedServiceId === service.id
+                    const isSelected = selectedServiceIds ? selectedServiceIds.includes(service.id) : selectedServiceId === service.id
                     const badge = getBadge?.(service)
 
                     return (
@@ -155,6 +178,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
                         type="button"
                         onClick={() => onSelectService?.(service.id)}
                         disabled={!selectable}
+                        aria-pressed={selectable ? isSelected : undefined}
                         className={cn(
                           "grid w-full grid-cols-[1fr_auto] gap-2 px-3 py-2.5 text-left transition-colors sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-3 sm:px-5 sm:py-4",
                           selectable ? "cursor-pointer hover:bg-primary/6" : "cursor-default",
@@ -167,6 +191,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
                               <span
                                 className={cn(
                                   "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border sm:h-5 sm:w-5",
+                                  selectedServiceIds && "rounded-md",
                                   isSelected ? "border-primary bg-primary text-primary-foreground" : "border-primary/25"
                                 )}
                               >

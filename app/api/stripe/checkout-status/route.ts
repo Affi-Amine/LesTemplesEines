@@ -1,3 +1,4 @@
+import { combineServices, presentAppointmentServices } from "@/lib/appointments/service-selection"
 export const runtime = "nodejs"
 
 import { NextRequest, NextResponse } from "next/server"
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
         `)
         .eq("id", checkoutSession.appointment_id)
         .maybeSingle()
-      appointment = data || null
+      appointment = data ? presentAppointmentServices(data) : null
       console.log("[stripe] checkout-status appointment lookup", {
         requestId,
         appointmentId: checkoutSession.appointment_id,
@@ -140,7 +141,7 @@ export async function GET(request: NextRequest) {
         .eq("id", payloadServiceId)
         .maybeSingle()
 
-      service = data || null
+      service = payload?._service_quote?.length ? combineServices(payload._service_quote) : data || null
       console.log("[stripe] checkout-status payload service lookup", {
         requestId,
         serviceId: payloadServiceId,

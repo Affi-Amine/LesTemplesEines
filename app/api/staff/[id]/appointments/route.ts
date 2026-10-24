@@ -3,6 +3,8 @@ import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { fromZonedTime } from "date-fns-tz"
 
+import { presentAppointmentServices } from "@/lib/appointments/service-selection"
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -106,7 +108,7 @@ export async function GET(
     // Sort again
     filteredApts.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
 
-    return NextResponse.json(filteredApts)
+    return NextResponse.json(filteredApts.map(presentAppointmentServices))
   } catch (error) {
     console.error("[staff:appointments] error:", error)
     return NextResponse.json({ error: "Internal server error", details: error instanceof Error ? error.message : String(error) }, { status: 500 })

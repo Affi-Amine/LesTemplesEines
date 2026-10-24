@@ -8,6 +8,9 @@ import { resolveSalonGroup } from "@/lib/salons/resolve"
 
 import { ClientDataSchema } from "@/lib/appointments/client-data"
 
+import { loadServiceBundle } from "@/lib/appointments/service-bundle"
+import { combineServices, getSelectedServiceIds, presentAppointmentServices, type SelectedService } from "@/lib/appointments/service-selection"
+
 const APPOINTMENT_TIMEZONE = "Europe/Paris"
 
 export { ClientDataSchema } from "@/lib/appointments/client-data"
@@ -19,6 +22,8 @@ export const BookableAppointmentSchema = z.object({
   staff_id: z.string().uuid().optional(),
   staff_ids: z.array(z.string().uuid()).optional(),
   service_id: z.string().uuid(),
+  service_ids: z.array(z.string().uuid()).min(1).max(8).optional(),
+  expected_price_cents: z.number().int().min(0).optional(),
   start_time: z.string(),
   end_time: z.string().optional(),
   client_notes: z.string().optional(),
@@ -40,7 +45,7 @@ type SupabaseClient = ReturnType<typeof createAdminClient>
 export type BookableAppointmentInput = z.infer<typeof BookableAppointmentSchema>
 export type AppointmentSchedulingInput = Pick<
   BookableAppointmentInput,
-  "salon_id" | "service_id" | "start_time" | "end_time" | "staff_id" | "staff_ids"
+  "salon_id" | "service_id" | "service_ids" | "start_time" | "end_time" | "staff_id" | "staff_ids"
 >
 
 export function getTodayInParis() {
@@ -75,9 +80,20 @@ function logAppointmentTiming(requestId: string | undefined, step: string, start
 
 export async function resolveAppointmentTiming(
   supabase: SupabaseClient,
-  input: Pick<BookableAppointmentInput, "service_id" | "start_time" | "end_time">
+  input: Pick<BookableAppointmentInput, "service_id" | "service_ids" | "start_time" | "end_time"> & { salon_id?: string },
+  quote?: SelectedService[]
 ) {
   let endTime = input.end_time
+  if (input.service_ids) getSelectedServiceIds(input.service_id, input.service_ids)
+  if ((input.service_ids?.length || 0) > 1) {
+    const bundle = await loadServiceBundle(supabase, input.service_id, input.service_ids, input.salon_id)
+    const items = quote || bundle.items
+    if (items.map(item => item.id).join() !== bundle.ids.join()) throw new Error("Devis de prestations invalide.")
+    const service = combineServices(items)
+    const computedEnd = new Date(Date.parse(input.start_time) + service.duration_minutes * 60_000).toISOString()
+    if (endTime && Date.parse(endTime) !== Date.parse(computedEnd)) throw new Error("La durée doit couvrir toutes les prestations.")
+    return { endTime: computedEnd, service, serviceItems: items }
+  }
 
   const { data: service, error: serviceError } = await supabase
     .from("services")
@@ -95,18 +111,21 @@ export async function resolveAppointmentTiming(
     endTime = endDate.toISOString()
   }
 
-  return { endTime, service }
+  return { endTime, service, serviceItems: undefined as SelectedService[] | undefined }
 }
 
 export async function validateBookableAppointment(
   supabase: SupabaseClient,
-  input: BookableAppointmentInput
+  input: BookableAppointmentInput,
+  quote?: SelectedService[]
 ) {
-  const { endTime, service } = await validateAppointmentScheduling(supabase, input)
+  const { endTime, service, serviceItems } = await validateAppointmentScheduling(supabase, input, { quote })
+  if (input.expected_price_cents !== undefined && input.expected_price_cents !== service.price_cents) throw new Error("Le tarif a changé. Actualisez votre sélection avant de confirmer.")
+  if (serviceItems && (input.client_pack_id || input.payment_method === "pack" || input.payment_method === "gift_card")) throw new Error("Les réservations avec plusieurs prestations se règlent en ligne ou sur place.")
 
   const allStaffIds = Array.from(new Set(input.staff_ids || (input.staff_id ? [input.staff_id] : [])))
 
-  return { endTime, service, allStaffIds }
+  return { endTime, service, serviceItems, allStaffIds }
 }
 
 export async function validateAppointmentScheduling(
@@ -114,10 +133,11 @@ export async function validateAppointmentScheduling(
   input: AppointmentSchedulingInput,
   options?: {
     ignoreAppointmentId?: string
+    quote?: SelectedService[]
   }
 ) {
   assertAppointmentStartIsNotInPast(input.start_time)
-  const { endTime, service } = await resolveAppointmentTiming(supabase, input)
+  const { endTime, service, serviceItems } = await resolveAppointmentTiming(supabase, input, options?.quote)
   const salonGroup = await resolveSalonGroup(supabase, input.salon_id)
   const salonIds = salonGroup?.salonIds || [input.salon_id]
 
@@ -146,7 +166,7 @@ export async function validateAppointmentScheduling(
     )
   }
 
-  await assertStaffCanProvideService(supabase, allStaffIds, input.service_id)
+  for (const id of serviceItems?.map(item => item.id) || [input.service_id]) await assertStaffCanProvideService(supabase, allStaffIds, id)
 
   for (const staffId of allStaffIds) {
     let conflictQuery = supabase
@@ -194,7 +214,7 @@ export async function validateAppointmentScheduling(
     }
   }
 
-  return { endTime, service, allStaffIds }
+  return { endTime, service, serviceItems, allStaffIds }
 }
 
 export async function assertStaffCanProvideService(
@@ -378,6 +398,7 @@ export async function createBookableAppointment(
   input: BookableAppointmentInput,
   options?: {
     requestId?: string
+    quote?: SelectedService[]
     paymentRecord?: {
       method: string
       amount_cents: number
@@ -389,7 +410,7 @@ export async function createBookableAppointment(
   const requestId = options?.requestId
   const totalStartedAt = Date.now()
   const validateStartedAt = Date.now()
-  const { endTime, allStaffIds, service } = await validateBookableAppointment(supabase, input)
+  const { endTime, allStaffIds, service, serviceItems } = await validateBookableAppointment(supabase, input, options?.quote)
   logAppointmentTiming(requestId, "validateBookableAppointment", validateStartedAt, {
     serviceId: input.service_id,
     staffCount: allStaffIds.length,
@@ -411,6 +432,7 @@ export async function createBookableAppointment(
       client_id: clientId,
       staff_id: primaryStaffId,
       service_id: input.service_id,
+      ...(serviceItems ? { service_items: serviceItems } : {}),
       start_time: input.start_time,
       end_time: endTime,
       client_notes: input.client_notes || input.notes || null,
@@ -511,5 +533,5 @@ export async function createBookableAppointment(
     paymentMethod: input.payment_method || "on_site",
   })
 
-  return appointment
+  return presentAppointmentServices(appointment)
 }

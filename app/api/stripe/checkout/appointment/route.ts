@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const payload = BookableAppointmentSchema.parse(body)
     const supabase = createAdminClient()
-    const { service } = await validateBookableAppointment(supabase, payload)
+    const { service, serviceItems } = await validateBookableAppointment(supabase, payload)
     const stripe = getStripeClient()
     const baseUrl = getBaseUrl(request.nextUrl.origin)
 
@@ -27,17 +27,17 @@ export async function POST(request: NextRequest) {
         salon_id: payload.salon_id,
         appointment_id: "",
       },
-      line_items: [{
+      line_items: (serviceItems || [service]).map(item => ({
         quantity: 1,
         price_data: {
           currency: "eur",
-          unit_amount: service.price_cents,
+          unit_amount: item.price_cents,
           product_data: {
-            name: service.name,
-            description: `${service.duration_minutes} min`,
+            name: item.name,
+            description: `${item.duration_minutes} min`,
           },
         },
-      }],
+      })),
     })
 
     const { error: insertError } = await supabase
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
         status: "open",
         amount_cents: service.price_cents,
         currency: "eur",
-        payload,
+        payload: { ...payload, _service_quote: serviceItems },
       }])
 
     if (insertError) {

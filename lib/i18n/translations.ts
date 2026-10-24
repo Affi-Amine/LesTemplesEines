@@ -24,8 +24,8 @@ export const translations = {
     booking: {
       step1_title: "Choisir un temple",
       step1_subtitle: "Sélectionnez votre établissement préféré",
-      step2_title: "Choisir une prestation",
-      step2_subtitle: "Sélectionnez le service souhaité",
+      step2_title: "Choisir vos programmes",
+      step2_subtitle: "Combinez plusieurs soins : leurs durées et tarifs s’additionnent.",
       step3_title: "Choisir un créneau",
       step3_subtitle: "Sélectionnez la date et l'heure",
       step4_title: "Vos informations",
@@ -120,8 +120,8 @@ export const translations = {
     booking: {
       step1_title: "Choose a temple",
       step1_subtitle: "Select your preferred location",
-      step2_title: "Choose a service",
-      step2_subtitle: "Select the desired service",
+      step2_title: "Choose your massage programmes",
+      step2_subtitle: "Combine treatments: their durations and prices are added together.",
       step3_title: "Choose a time slot",
       step3_subtitle: "Select date and time",
       step4_title: "Your information",

@@ -14,6 +14,8 @@ import { after, type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { fromZonedTime } from "date-fns-tz"
 
+import { presentAppointmentServices } from "@/lib/appointments/service-selection"
+
 const AppointmentSchema = z.object({
   salon_id: z.string().uuid(),
   client_id: z.string().uuid().optional(),
@@ -21,6 +23,8 @@ const AppointmentSchema = z.object({
   staff_id: z.string().uuid().optional(),
   staff_ids: z.array(z.string().uuid()).optional(),
   service_id: z.string().uuid().optional(),
+  service_ids: z.array(z.string().uuid()).min(1).max(8).optional(),
+  expected_price_cents: z.number().int().min(0).optional(),
   start_time: z.string(),
   end_time: z.string().optional(),
   client_notes: z.string().optional(),
@@ -129,7 +133,7 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    return NextResponse.json(appointments || [])
+    return NextResponse.json((appointments || []).map(presentAppointmentServices))
   } catch (error) {
     console.error("[v0] Get appointments error:", error)
     return NextResponse.json({ error: "Failed to fetch appointments" }, { status: 500 })
@@ -161,6 +165,8 @@ export async function POST(request: NextRequest) {
         staff_id: appointmentData.staff_id,
         staff_ids: appointmentData.staff_ids,
         service_id: appointmentData.service_id!,
+        service_ids: appointmentData.service_ids,
+        expected_price_cents: appointmentData.expected_price_cents,
         start_time: appointmentData.start_time,
         end_time: appointmentData.end_time,
         client_notes: appointmentData.client_notes,

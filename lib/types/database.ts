@@ -80,6 +80,7 @@ export interface Client {
 }
 
 export interface Appointment {
+  service_items?: import("@/lib/appointments/service-selection").SelectedService[] | null
   id: string
   salon_id: string
   client_id: string

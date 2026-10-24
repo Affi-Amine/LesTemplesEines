@@ -11,6 +11,8 @@ import { fromZonedTime } from "date-fns-tz"
 import { BOOKABLE_STAFF_ROLES, resolveOpeningHoursForDate } from "@/lib/calendar/scheduling"
 import { resolveSalonGroup } from "@/lib/salons/resolve"
 
+import { loadServiceBundle } from "@/lib/appointments/service-bundle"
+
 const TIMEZONE = "Europe/Paris"
 
 interface RouteContext {
@@ -66,8 +68,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 })
     }
 
-    const duration = service.duration_minutes
-    const requiredStaffCount = service.required_staff_count || 1
+    const selectedIds = request.nextUrl.searchParams.get("service_ids")?.split(",").filter(Boolean) || [service_id]
+    const bundle = selectedIds.length > 1 ? await loadServiceBundle(supabase, service_id, selectedIds, salonId || undefined) : null
+    const duration = bundle?.service.duration_minutes || service.duration_minutes
+    const requiredStaffCount = bundle?.service.required_staff_count || service.required_staff_count || 1
 
     if (!salonId) {
       return NextResponse.json({ error: "salon_id is required for multi-salon services" }, { status: 400 })
@@ -146,11 +150,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
       })
     }
 
-    const qualifiedStaffIds = await resolveStaffIdsThatCanProvideService(
-      supabase,
-      staffInSalon.map((member) => member.id),
-      service_id
-    )
+    let qualifiedStaffIds = staffInSalon.map(member => member.id)
+    for (const id of bundle?.ids || [service_id]) {
+      qualifiedStaffIds = await resolveStaffIdsThatCanProvideService(supabase, qualifiedStaffIds, id)
+    }
     const allStaff = staffInSalon.filter((member) => qualifiedStaffIds.includes(member.id))
 
     if (!allStaff || allStaff.length < requiredStaffCount) {

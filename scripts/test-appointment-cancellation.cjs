@@ -6,6 +6,8 @@ const Module = require('node:module');
 const statusModule = new Module(require('node:path').join(process.cwd(), 'status-test.cjs'));
 statusModule._compile(ts.transpileModule(fs.readFileSync('lib/appointments/status.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, statusModule.id);
 const source = fs.readFileSync('app/api/appointments/[id]/route.ts', 'utf8');
+const serviceSelectionModule = new Module(require('node:path').join(process.cwd(), 'service-selection-test.cjs'));
+serviceSelectionModule._compile(ts.transpileModule(fs.readFileSync('lib/appointments/service-selection.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, serviceSelectionModule.id);
 async function scenario(status, body, conflict) {
   let validations = 0;
   let persisted;
@@ -25,6 +27,7 @@ async function scenario(status, body, conflict) {
     exports: mod.exports,
     require(name) {
       if (name === '@/lib/appointments/status') return statusModule.exports;
+      if (name === '@/lib/appointments/service-selection') return serviceSelectionModule.exports;
       if (name === '@/lib/supabase/admin') return { createAdminClient: () => db };
       if (name === '@/lib/appointments/create') return { validateAppointmentScheduling: async () => { validations++; if (conflict) throw new Error('conflict'); return { endTime: '2026-11-02T11:00:00Z' } } };
       if (name === '@/lib/auth/api-auth') return { requireStaffAuth: () => ({ payload: { role: 'admin' } }) };

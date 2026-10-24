@@ -37,7 +37,7 @@ assert.equal(selection.staffIds.length,0,'Unavailable staff must not follow the 
 assert.equal(selection.start,afternoon.start)
 console.log('PASS: time comes first; changing time removes an incompatible practitioner without hiding other slots')
 selection={context:scheduleContextKey(context),start:morning.start,staffIds:['a']}
-for(const next of [{...context,date:'2099-11-03'},{...context,salonId:'salon-b'},{...context,serviceId:'duo'},{...context,durationMinutes:90}]) {
+for(const next of [{...context,date:'2099-11-03'},{...context,salonId:'salon-b'},{...context,serviceId:'duo'},{...context,durationMinutes:90},{...context,serviceIds:['solo','extra']}]) {
   const reconciled=reconcileSlotSelection(next,selection,slots)
   assert.equal(reconciled.start,'')
   assert.equal(reconciled.staffIds.length,0)

@@ -1,6 +1,6 @@
 import { blocksAppointmentSchedule } from "@/lib/appointments/status"
 import { format } from "date-fns"
-import { fromZonedTime } from "date-fns-tz"
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
 
 export const QUARTER_MINUTES = 15
 export const SCHEDULE_TIMEZONE = "Europe/Paris"
@@ -86,12 +86,12 @@ export function quarterOptionsBetween(startTime: string, endTime: string): strin
 }
 
 export function getOpeningHoursForDate(openingHours: SalonOpeningHours | null | undefined, date: Date) {
-  return openingHours?.[DAY_KEYS[date.getDay()]]
+  return openingHours?.[DAY_KEYS[Number(formatInTimeZone(date, SCHEDULE_TIMEZONE, "i")) % 7]]
 }
 
 export function resolveOpeningHoursForDate(openingHours: SalonOpeningHours | null | undefined, date: Date) {
   if (!openingHours || Object.keys(openingHours).length === 0) {
-    return DEFAULT_OPENING_HOURS[DAY_KEYS[date.getDay()]]
+    return getOpeningHoursForDate(DEFAULT_OPENING_HOURS, date)
   }
 
   return getOpeningHoursForDate(openingHours, date)

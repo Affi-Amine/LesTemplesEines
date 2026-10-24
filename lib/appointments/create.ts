@@ -5,20 +5,14 @@ import { findClientByEmail, findClientByPhone } from "@/lib/client-auth"
 import { formatInTimeZone } from "date-fns-tz"
 import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { resolveSalonGroup } from "@/lib/salons/resolve"
+import { canStaffTakeBookings } from "@/lib/calendar/scheduling"
+import { getWorkingPeriods, intervalFitsPeriods, scheduleDate } from "@/lib/calendar/working-periods"
+import { normalizeAppointmentStaff, SchedulingError } from "@/lib/appointments/rules"
+import { persistAppointmentSchedule } from "@/lib/appointments/persist"
+import { ClientDataSchema } from "@/lib/appointments/client-data"
+export { ClientDataSchema } from "@/lib/appointments/client-data"
 
 const APPOINTMENT_TIMEZONE = "Europe/Paris"
-
-const PhoneSchema = z
-  .string()
-  .transform((s) => (s || "").replace(/[\s\u00A0\-\.\(\)\/]/g, ""))
-  .refine((s) => /^\+?[0-9]{9,}$/.test(s), { message: "Invalid phone number format" })
-
-export const ClientDataSchema = z.object({
-  first_name: z.string().min(1),
-  last_name: z.string().min(1),
-  phone: PhoneSchema,
-  email: z.string().email().optional(),
-})
 
 export const BookableAppointmentSchema = z.object({
   salon_id: z.string().uuid(),
@@ -27,8 +21,8 @@ export const BookableAppointmentSchema = z.object({
   staff_id: z.string().uuid().optional(),
   staff_ids: z.array(z.string().uuid()).optional(),
   service_id: z.string().uuid(),
-  start_time: z.string(),
-  end_time: z.string().optional(),
+  start_time: z.string().datetime({ offset: true }),
+  end_time: z.string().datetime({ offset: true }).optional(),
   client_notes: z.string().optional(),
   notes: z.string().optional(),
   status: z.enum(["confirmed", "pending", "in_progress", "completed", "cancelled", "no_show"]).optional(),
@@ -63,11 +57,11 @@ export function assertAppointmentStartIsNotInPast(startTime: string) {
   const appointmentStart = new Date(startTime)
 
   if (Number.isNaN(appointmentStart.getTime())) {
-    throw new Error("Date de rendez-vous invalide")
+    throw new SchedulingError("Date de rendez-vous invalide")
   }
 
   if (appointmentStart.getTime() < Date.now()) {
-    throw new Error("Impossible de créer un rendez-vous dans le passé")
+    throw new SchedulingError("Impossible de créer un rendez-vous dans le passé")
   }
 }
 
@@ -89,13 +83,14 @@ export async function resolveAppointmentTiming(
 
   const { data: service, error: serviceError } = await supabase
     .from("services")
-    .select("id, name, duration_minutes, price_cents, required_staff_count")
+    .select("id, name, duration_minutes, price_cents, required_staff_count, is_active")
     .eq("id", input.service_id)
     .single()
 
   if (serviceError || !service) {
-    throw new Error("Service not found")
+    throw new SchedulingError("Prestation introuvable", 404)
   }
+  if (service.is_active !== true) throw new SchedulingError("Cette prestation est désactivée")
 
   if (!endTime) {
     const startDate = new Date(input.start_time)
@@ -103,6 +98,9 @@ export async function resolveAppointmentTiming(
     endTime = endDate.toISOString()
   }
 
+  if (!(new Date(endTime).getTime() > new Date(input.start_time).getTime())) {
+    throw new SchedulingError("La fin du rendez-vous doit être postérieure au début")
+  }
   return { endTime, service }
 }
 
@@ -110,11 +108,43 @@ export async function validateBookableAppointment(
   supabase: SupabaseClient,
   input: BookableAppointmentInput
 ) {
-  const { endTime, service } = await validateAppointmentScheduling(supabase, input)
+  return validateAppointmentScheduling(supabase, input)
+}
 
-  const allStaffIds = Array.from(new Set(input.staff_ids || (input.staff_id ? [input.staff_id] : [])))
+export async function assertStaffBelongToSalon(supabase: SupabaseClient, salonId: string, staffIds: string[]) {
+  const { data: members, error } = await supabase.from("staff")
+    .select("id, salon_id, role, is_active").in("id", staffIds)
+  if (error) throw new Error(error.message)
+  if (members?.length !== staffIds.length || members.some(member =>
+    member.salon_id !== salonId || !canStaffTakeBookings(member))) {
+    throw new SchedulingError("Les praticiens doivent être actifs et affectés au salon sélectionné")
+  }
+}
 
-  return { endTime, service, allStaffIds }
+export async function validateSalonStaffScheduling(
+  supabase: SupabaseClient,
+  input: Pick<AppointmentSchedulingInput, "salon_id" | "staff_id" | "staff_ids" | "start_time"> & { end_time: string },
+  options?: { checkWorkingHours?: boolean }
+) {
+  assertAppointmentStartIsNotInPast(input.start_time)
+  const start = new Date(input.start_time), end = new Date(input.end_time)
+  if (!(end > start)) throw new SchedulingError("Dates de rendez-vous invalides")
+  const allStaffIds = normalizeAppointmentStaff(input)
+  const group = await resolveSalonGroup(supabase, input.salon_id)
+  if (!group || group.salon.is_active !== true) throw new SchedulingError("Salon introuvable ou désactivé", 404)
+  await assertStaffBelongToSalon(supabase, group.salon.id, allStaffIds)
+  if (options?.checkWorkingHours !== false) {
+    const date = scheduleDate(start)
+    if (scheduleDate(end) !== date) throw new SchedulingError("Le rendez-vous doit rester dans une même journée")
+    for (const staffId of allStaffIds) {
+      const { data: shifts, error } = await supabase.from("staff_availability").select("*").eq("staff_id", staffId)
+      if (error) throw new Error(error.message)
+      if (!intervalFitsPeriods(start, end, getWorkingPeriods(date, group.salon.opening_hours, shifts || []))) {
+        throw new SchedulingError("Ce créneau est en dehors des horaires du salon ou du praticien")
+      }
+    }
+  }
+  return { allStaffIds, salon: group.salon }
 }
 
 export async function validateAppointmentScheduling(
@@ -126,28 +156,26 @@ export async function validateAppointmentScheduling(
 ) {
   assertAppointmentStartIsNotInPast(input.start_time)
   const { endTime, service } = await resolveAppointmentTiming(supabase, input)
-  const salonGroup = await resolveSalonGroup(supabase, input.salon_id)
-  const salonIds = salonGroup?.salonIds || [input.salon_id]
+  const { allStaffIds } = await validateSalonStaffScheduling(supabase, { ...input, end_time: endTime })
 
   const { data: serviceSalons, error: serviceSalonError } = await supabase
     .from("service_salons")
     .select("service_id")
     .eq("service_id", input.service_id)
-    .in("salon_id", salonIds)
+    .eq("salon_id", input.salon_id)
 
   if (serviceSalonError) {
     throw new Error(serviceSalonError.message)
   }
 
   if (!serviceSalons || serviceSalons.length === 0) {
-    throw new Error("Ce service n'est pas disponible dans le salon selectionne")
+    throw new SchedulingError("Ce service n'est pas disponible dans le salon sélectionné")
   }
 
-  const allStaffIds = Array.from(new Set(input.staff_ids || (input.staff_id ? [input.staff_id] : [])))
   const requiredStaffCount = service.required_staff_count || 1
 
   if (allStaffIds.length !== requiredStaffCount) {
-    throw new Error(
+    throw new SchedulingError(
       requiredStaffCount === 1
         ? "Cette prestation nécessite exactement 1 masseuse"
         : `Cette prestation nécessite exactement ${requiredStaffCount} masseuses`
@@ -176,7 +204,7 @@ export async function validateAppointmentScheduling(
     }
 
     if (conflicts && conflicts.length > 0) {
-      throw new Error("Un ou plusieurs creneaux ne sont plus disponibles")
+      throw new SchedulingError("Un ou plusieurs creneaux ne sont plus disponibles", 409)
     }
 
     let assignmentConflictQuery = supabase
@@ -198,7 +226,7 @@ export async function validateAppointmentScheduling(
     }
 
     if (deepConflicts && deepConflicts.length > 0) {
-      throw new Error("Un ou plusieurs creneaux ne sont plus disponibles")
+      throw new SchedulingError("Un ou plusieurs creneaux ne sont plus disponibles", 409)
     }
   }
 
@@ -218,7 +246,7 @@ export async function assertStaffCanProvideService(
   const unavailableStaffIds = staffIds.filter((staffId) => !qualifiedStaffIds.includes(staffId))
 
   if (unavailableStaffIds.length > 0) {
-    throw new Error("Une ou plusieurs masseuses ne peuvent pas réaliser ce soin")
+    throw new SchedulingError("Une ou plusieurs masseuses ne peuvent pas réaliser ce soin")
   }
 }
 
@@ -231,23 +259,15 @@ export async function resolveStaffIdsThatCanProvideService(
     return []
   }
 
-  const { data: serviceAssignments, error: serviceAssignmentsError } = await supabase
-    .from("staff_services")
-    .select("staff_id")
-    .eq("service_id", serviceId)
-
-  if (serviceAssignmentsError) {
-    throw new Error(serviceAssignmentsError.message)
-  }
-
-  // New services often start without explicit staff assignments. In that case,
-  // keep them bookable by every eligible staff member in the selected salon.
-  if (!serviceAssignments || serviceAssignments.length === 0) {
-    return staffIds
-  }
-
-  const allowedStaffIds = new Set(serviceAssignments.map((assignment) => assignment.staff_id))
-  return staffIds.filter((staffId) => allowedStaffIds.has(staffId))
+  // Read each practitioner's full configuration. A restriction in another salon
+  // cannot change this practitioner's permissions. Never rely on a global limit.
+  const eligible = await Promise.all(staffIds.map(async staffId => {
+    const { data: assignments, error } = await supabase.from("staff_services")
+      .select("service_id").eq("staff_id", staffId)
+    if (error) throw new Error(error.message)
+    return !assignments?.length || assignments.some(row => row.service_id === serviceId) ? staffId : null
+  }))
+  return eligible.filter((id): id is string => id !== null)
 }
 
 async function resolveClientId(supabase: SupabaseClient, input: BookableAppointmentInput) {
@@ -407,59 +427,26 @@ export async function createBookableAppointment(
   const clientId = await resolveClientId(supabase, input)
   logAppointmentTiming(requestId, "resolveClientId", clientStartedAt, { clientId })
 
-  const primaryStaffId = input.staff_id || allStaffIds[0]
+  const primaryStaffId = allStaffIds[0]
   const paymentStatus = input.payment_status || "unpaid"
   const paidAt = input.paid_at || (paymentStatus === "paid" ? new Date().toISOString() : null)
 
   const insertAppointmentStartedAt = Date.now()
-  const { data: appointment, error } = await supabase
-    .from("appointments")
-    .insert([{
-      salon_id: input.salon_id,
-      client_id: clientId,
-      staff_id: primaryStaffId,
-      service_id: input.service_id,
-      start_time: input.start_time,
-      end_time: endTime,
-      client_notes: input.client_notes || input.notes || null,
-      status: input.status || "confirmed",
-      payment_status: paymentStatus,
-      payment_method: input.payment_method || "on_site",
-      amount_paid_cents: input.amount_paid_cents || 0,
-      paid_at: paidAt,
-    }])
-    .select(`
-      *,
-      client:clients(*),
-      staff:staff(id, first_name, last_name, role, phone),
-      assignments:appointment_assignments(
-        staff:staff(id, first_name, last_name)
-      ),
-      service:services(*),
-      salon:salons(id, name, city, address)
-    `)
-    .single()
-
-  if (error || !appointment) {
-    throw new Error(error?.message || "Failed to create appointment")
-  }
-  logAppointmentTiming(requestId, "insertAppointment", insertAppointmentStartedAt, { appointmentId: appointment.id })
-
-  const assignmentStartedAt = Date.now()
-  const { error: assignmentError } = await supabase
-    .from("appointment_assignments")
-    .insert(allStaffIds.map((staffId) => ({
-      appointment_id: appointment.id,
-      staff_id: staffId,
-    })))
-
-  if (assignmentError) {
-    throw new Error(assignmentError.message)
-  }
-  logAppointmentTiming(requestId, "insertAssignments", assignmentStartedAt, {
-    appointmentId: appointment.id,
-    staffCount: allStaffIds.length,
-  })
+  const appointment = await persistAppointmentSchedule(supabase, {
+    salon_id: input.salon_id,
+    client_id: clientId,
+    staff_id: primaryStaffId,
+    service_id: input.service_id,
+    start_time: input.start_time,
+    end_time: endTime,
+    client_notes: input.client_notes || input.notes || null,
+    status: input.status || "confirmed",
+    payment_status: paymentStatus,
+    payment_method: input.payment_method || "on_site",
+    amount_paid_cents: input.amount_paid_cents || 0,
+    paid_at: paidAt,
+  }, allStaffIds)
+  logAppointmentTiming(requestId, "persistSchedule", insertAppointmentStartedAt, { appointmentId: appointment.id })
 
   if (options?.paymentRecord && options.paymentRecord.amount_cents > 0) {
     const paymentStartedAt = Date.now()

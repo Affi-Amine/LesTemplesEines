@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Get the first staff member (should be unique by email)
     const staff = staffArray[0]
+    if (!staff.is_active) return NextResponse.json({ error: "Compte désactivé" }, { status: 403 })
 
     // Verify password
     console.log("[v0] Verifying password...")

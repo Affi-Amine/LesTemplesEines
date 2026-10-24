@@ -119,6 +119,9 @@ async function main() {
   }
   tables.salons[1].slug = 'test'
   assert.deepEqual(Array.from((await resolveSalonGroup(db, salonId)).salonIds), [salonId])
+  await assert.rejects(() => resolveSalonGroup(db, 'test'), /ambigu/)
+  tables.salons[1].slug = 'temple-Nuad '
+  assert.equal((await resolveSalonGroup(db, ' temple-nuad ')).salon.id, otherSalonId)
   const all = await getStaff({ nextUrl: new URL('http://test') })
   assert.equal(all.data.length, 3)
   const missing = await getStaff({ nextUrl: new URL('http://test?salon_id=missing') })

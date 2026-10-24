@@ -5,14 +5,16 @@ import {
   assertAppointmentStartIsNotInPast,
   ClientDataSchema,
   createBookableAppointment,
+  validateSalonStaffScheduling,
 } from "@/lib/appointments/create"
-import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { findClientByPhone } from "@/lib/client-auth"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { isUUID, resolveSalonGroup } from "@/lib/salons/resolve"
 import { after, type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { fromZonedTime } from "date-fns-tz"
+import { SchedulingError } from "@/lib/appointments/rules"
+import { persistAppointmentSchedule } from "@/lib/appointments/persist"
 
 const AppointmentSchema = z.object({
   salon_id: z.string().uuid(),
@@ -21,8 +23,8 @@ const AppointmentSchema = z.object({
   staff_id: z.string().uuid().optional(),
   staff_ids: z.array(z.string().uuid()).optional(),
   service_id: z.string().uuid().optional(),
-  start_time: z.string(),
-  end_time: z.string().optional(),
+  start_time: z.string().datetime({ offset: true }),
+  end_time: z.string().datetime({ offset: true }).optional(),
   client_notes: z.string().optional(),
   notes: z.string().optional(), // Alternative field name
   status: z.enum(["confirmed", "in_progress", "completed", "cancelled", "no_show", "blocked"]).optional(),
@@ -192,6 +194,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(appointment, { status: 201 })
     }
 
+    const blockAuth = requireStaffAuth(request)
+    if ("response" in blockAuth) return blockAuth.response
     let clientId = appointmentData.client_id
 
     // If client_data is provided instead of client_id, create or find client
@@ -296,58 +300,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for conflicts
-    const primaryStaffId = appointmentData.staff_id
-    const allStaffIds = appointmentData.staff_ids || (primaryStaffId ? [primaryStaffId] : [])
-
-    for (const staffId of allStaffIds) {
-      const legacyConflictStartedAt = Date.now()
-      const { data: conflicts } = await supabase
-        .from("appointments")
-        .select("id")
-        .eq("staff_id", staffId) // Check legacy single staff column
-        .in("status", BLOCKING_APPOINTMENT_STATUSES)
-        .lt("start_time", endTime) // Overlap check: StartA < EndB AND EndA > StartB
-        .gt("end_time", appointmentData.start_time)
-
-      if (conflicts && conflicts.length > 0) {
-        return NextResponse.json({ error: "Un ou plusieurs créneaux ne sont plus disponibles" }, { status: 409 })
-      }
-      console.log("[appointments] Checked legacy conflicts", {
-        requestId,
-        staffId,
-        durationMs: Date.now() - legacyConflictStartedAt,
-      })
-      
-      // Also check multi-provider assignments table
-      const assignmentConflictStartedAt = Date.now()
-      const { data: assignmentConflicts } = await supabase
-        .from("appointment_assignments")
-        .select("appointment_id")
-        .eq("staff_id", staffId)
-        .not("appointment_id", "is", null) // assignment must link to valid apt
-      
-      if (assignmentConflicts && assignmentConflicts.length > 0) {
-         // Deep check on those appointments times would be better, but simplified for now:
-         // Real check requires joining appointments table on assignmentConflicts.
-         // Let's do a proper join check:
-         const { data: deepConflicts } = await supabase
-           .from("appointment_assignments")
-           .select("appointment:appointments!inner(start_time, end_time, status)")
-           .eq("staff_id", staffId)
-           .filter("appointment.status", "in", `(${BLOCKING_APPOINTMENT_STATUSES.map((status) => `"${status}"`).join(",")})`)
-           .filter("appointment.start_time", "lt", endTime)
-           .filter("appointment.end_time", "gt", appointmentData.start_time)
-           
-         if (deepConflicts && deepConflicts.length > 0) {
-            return NextResponse.json({ error: "Un ou plusieurs créneaux ne sont plus disponibles" }, { status: 409 })
-         }
-      }
-      console.log("[appointments] Checked assignment conflicts", {
-        requestId,
-        staffId,
-        durationMs: Date.now() - assignmentConflictStartedAt,
-      })
-    }
+    // Blocks may cover time outside opening hours, but never another salon's staff.
+    const { allStaffIds } = await validateSalonStaffScheduling(supabase, {
+      ...appointmentData, end_time: endTime!,
+    }, { checkWorkingHours: false })
+    const primaryStaffId = allStaffIds[0]
 
     // Create appointment
     const appointmentPayload = {
@@ -365,50 +322,7 @@ export async function POST(request: NextRequest) {
       paid_at: appointmentData.paid_at || null,
     }
 
-    const appointmentInsertStartedAt = Date.now()
-    const { data: appointment, error } = await supabase
-      .from("appointments")
-      .insert([appointmentPayload])
-      .select(
-        `*,
-        client:clients(*),
-        staff:staff(id, first_name, last_name, role, phone),
-        service:services(*),
-        salon:salons(id, name, city, address)`,
-      )
-      .single()
-
-    if (error) throw error
-    console.log("[appointments] Inserted blocked appointment", {
-      requestId,
-      appointmentId: appointment.id,
-      durationMs: Date.now() - appointmentInsertStartedAt,
-    })
-
-    // Insert multi-provider assignments
-    if (allStaffIds.length > 0) {
-      const assignments = allStaffIds.map(sid => ({
-        appointment_id: appointment.id,
-        staff_id: sid
-      }))
-      
-      const assignmentInsertStartedAt = Date.now()
-      const { error: assignError } = await supabase
-        .from("appointment_assignments")
-        .insert(assignments)
-      
-      if (assignError) {
-        console.error("Failed to assign extra staff", assignError)
-        // Non-fatal, but logged
-      } else {
-        console.log("[appointments] Inserted blocked assignments", {
-          requestId,
-          appointmentId: appointment.id,
-          staffCount: allStaffIds.length,
-          durationMs: Date.now() - assignmentInsertStartedAt,
-        })
-      }
-    }
+    const appointment = await persistAppointmentSchedule(supabase, appointmentPayload, allStaffIds)
     if (appointmentData.status !== "blocked") {
       scheduleAppointmentNotifications(appointment, "legacy", {
         bookingSource: appointmentData.booking_source || "client",
@@ -430,6 +344,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }
+    if (error instanceof SchedulingError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: error.message || "Failed to create appointment" }, { status: 500 })
   }
 }

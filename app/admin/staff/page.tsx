@@ -199,7 +199,10 @@ export default function StaffPage() {
         method: "DELETE",
       })
 
-      if (!response.ok) throw new Error("Échec de la suppression")
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || "Échec de la suppression")
+      }
 
       toast.success("Membre désactivé", {
         description: `${member.first_name} ${member.last_name} a été désactivé`,
@@ -210,7 +213,7 @@ export default function StaffPage() {
       refetch()
     } catch (error) {
       toast.error("Erreur", {
-        description: "Impossible de désactiver le membre",
+        description: error instanceof Error ? error.message : "Impossible de désactiver le membre",
         icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
       })
     }

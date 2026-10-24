@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { AdminHeader } from "@/components/admin-header"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -22,13 +22,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
-import { useServices } from "@/lib/hooks/use-services"
-import { useAvailability } from "@/lib/hooks/use-availability"
-import { useClientSearch } from "@/lib/hooks/use-client-search"
 import { DndContext, PointerSensor, TouchSensor, useSensors, useSensor, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core"
 import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
-import { ClientSuggestionList } from "@/components/client-suggestion-list"
 import {
   findOverlappingAppointment,
   canStaffTakeBookings,
@@ -43,7 +38,6 @@ import {
   slotDateTimeInScheduleTimezone,
   timeToMinutes,
 } from "@/lib/calendar/scheduling"
-import type { Client } from "@/lib/types/database"
 
 import { useRouter } from "next/navigation"
 
@@ -126,8 +120,6 @@ export default function SalonDashboardPage() {
   })
   const { data: staff, isLoading: isStaffLoading } = useStaff(salonId)
   const { data: allStaff, isLoading: isAllStaffLoading } = useStaff()
-  const { data: services } = useServices(salonId)
-  const createAppointment = useCreateAppointment()
 
   const salon = salons?.find(s => s.id === salonId)
   const staffById = new Map<string, any>()
@@ -432,73 +424,6 @@ export default function SalonDashboardPage() {
     }
   }
 
-  const handleCreateAppointment = async () => {
-    if (!createForm.date || !createForm.startTime || !createForm.service_id || !createForm.first_name || !createForm.last_name || !createForm.phone) {
-      toast.error("Veuillez remplir tous les champs obligatoires")
-      return
-    }
-
-    if (createForm.staff_ids.length !== selectedCreateRequiredStaffCount) {
-      toast.error("Masseuses incomplètes", {
-        description: `Cette prestation nécessite ${selectedCreateRequiredStaffCount} masseuse${selectedCreateRequiredStaffCount > 1 ? "s" : ""}.`,
-      })
-      return
-    }
-
-    const availableTimes = new Set(
-      (createAvailability?.available_slots || []).map((slot) =>
-        formatInTimeZone(slot.start, "Europe/Paris", "HH:mm")
-      )
-    )
-
-    if (availableTimes.size > 0 && !availableTimes.has(createForm.startTime)) {
-      toast.error("Créneau indisponible", {
-        description: "Choisissez une heure dans les disponibilités proposées.",
-      })
-      return
-    }
-
-    const startDateTime = dateTimeInScheduleTimezone(new Date(`${createForm.date}T00:00:00`), createForm.startTime)
-    if (!startDateTime) {
-      toast.error("Horaire invalide")
-      return
-    }
-
-    createAppointment.mutate({
-      salon_id: salonId,
-      service_id: createForm.service_id,
-      staff_ids: createForm.staff_ids,
-      staff_id: createForm.staff_ids[0],
-      start_time: startDateTime.toISOString(),
-      client_data: {
-        first_name: createForm.first_name,
-        last_name: createForm.last_name,
-        phone: createForm.phone,
-        email: createForm.email || undefined
-      },
-      client_notes: createForm.notes,
-      status: "confirmed"
-    }, {
-      onSuccess: () => {
-        setIsCreateOpen(false)
-        setCreateForm({
-          service_id: "",
-          staff_ids: [],
-          date: date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-          startTime: "09:00",
-          first_name: "",
-          last_name: "",
-          phone: "",
-          email: "",
-          notes: ""
-        })
-        setCreateClientSearchTerm("")
-        setDebouncedCreateClientSearchTerm("")
-        refetchAppointments()
-      }
-    })
-  }
-
   const handleBlockSlot = () => {
     const defaultTime = getDefaultStartTimeForDate(selectedOpeningHours, date || new Date())
     setIsBlockingOpen(true)
@@ -509,38 +434,11 @@ export default function SalonDashboardPage() {
     }))
   }
 
-  const handleOpenCreate = () => {
-    const defaultTime = getDefaultStartTimeForDate(selectedOpeningHours, date || new Date())
-    setIsCreateOpen(true)
-    setCreateForm((current) => ({
-      ...current,
-      date: date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-      startTime: defaultTime,
-    }))
-  }
+  const handleOpenCreate = () => setIsCreateOpen(true)
 
-  const toggleStaffSelection = (staffId: string, formType: 'blocking' | 'create') => {
-    if (formType === 'blocking') {
-      const current = blockingForm.staff_ids
-      if (current.includes(staffId)) {
-        setBlockingForm({...blockingForm, staff_ids: current.filter(id => id !== staffId)})
-      } else {
-        setBlockingForm({...blockingForm, staff_ids: [...current, staffId]})
-      }
-    } else {
-      const current = createForm.staff_ids
-      if (current.includes(staffId)) {
-        setCreateForm({...createForm, staff_ids: current.filter(id => id !== staffId)})
-      } else {
-        if (current.length >= selectedCreateRequiredStaffCount) {
-          toast.error("Nombre de masseuses atteint", {
-            description: `Cette prestation nécessite ${selectedCreateRequiredStaffCount} masseuse${selectedCreateRequiredStaffCount > 1 ? "s" : ""}.`,
-          })
-          return
-        }
-        setCreateForm({...createForm, staff_ids: [...current, staffId]})
-      }
-    }
+  const toggleStaffSelection = (staffId: string, _formType: "blocking") => {
+    setBlockingForm(current => ({ ...current, staff_ids: current.staff_ids.includes(staffId)
+      ? current.staff_ids.filter(id => id !== staffId) : [...current.staff_ids, staffId] }))
   }
 
   const [blockingForm, setBlockingForm] = useState({
@@ -550,80 +448,10 @@ export default function SalonDashboardPage() {
     notes: ""
   })
 
-  const [createForm, setCreateForm] = useState({
-    service_id: "",
-    staff_ids: [] as string[],
-    date: date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    startTime: "09:00",
-    first_name: "",
-    last_name: "",
-    phone: "",
-    email: "",
-    notes: ""
-  })
-  const [createClientSearchTerm, setCreateClientSearchTerm] = useState("")
-  const [debouncedCreateClientSearchTerm, setDebouncedCreateClientSearchTerm] = useState("")
-  const { data: createClientSuggestions, isFetching: isFetchingCreateClientSuggestions } = useClientSearch(
-    debouncedCreateClientSearchTerm,
-    8
-  )
-  const selectedCreateService = services?.find((service) => service.id === createForm.service_id)
-  const selectedCreateRequiredStaffCount = selectedCreateService?.required_staff_count || 1
-  const hasExplicitCreateServiceAssignments = Boolean(
-    selectedCreateService &&
-      bookableStaff.some((member) => (member.allowed_service_ids || []).includes(selectedCreateService.id))
-  )
-  const availableCreateStaff = bookableStaff.filter((member) => {
-    if (!selectedCreateService || !hasExplicitCreateServiceAssignments) return true
-    return (member.allowed_service_ids || []).includes(selectedCreateService.id)
-  })
-  const createAvailabilityStaffSelection =
-    createForm.staff_ids.length >= selectedCreateRequiredStaffCount
-      ? createForm.staff_ids
-      : undefined
-  const {
-    data: createAvailability,
-    isFetching: isFetchingCreateAvailability,
-    isError: createAvailabilityHasError,
-  } = useAvailability(
-    createAvailabilityStaffSelection,
-    createForm.date || undefined,
-    createForm.service_id || undefined,
-    salonId
-  )
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setDebouncedCreateClientSearchTerm(createClientSearchTerm.trim())
-    }, 250)
-
-    return () => window.clearTimeout(timeout)
-  }, [createClientSearchTerm])
-
   // Handle empty slot click for quick create
   const handleEmptySlotClick = (data: { hour: number; minute: number; date: Date; staffId?: string }) => {
     setQuickCreateData(data)
     setIsQuickCreateOpen(true)
-  }
-
-  const handleCreateClientFieldChange = (field: "phone" | "first_name" | "last_name", value: string) => {
-    setCreateForm((current) => ({
-      ...current,
-      [field]: value,
-    }))
-    setCreateClientSearchTerm(value)
-  }
-
-  const handleSelectCreateClientSuggestion = (client: Client) => {
-    setCreateForm((current) => ({
-      ...current,
-      first_name: client.first_name || "",
-      last_name: client.last_name || "",
-      phone: client.phone || "",
-      email: client.email || "",
-    }))
-    setCreateClientSearchTerm("")
-    setDebouncedCreateClientSearchTerm("")
   }
 
   // Handle drag start
@@ -868,91 +696,6 @@ export default function SalonDashboardPage() {
           <div className="flex items-center gap-1"><div className="w-3 h-3 bg-green-100 border rounded"></div> Disponible</div>
           <div className="flex items-center gap-1"><div className="w-3 h-3 bg-red-400/80 border rounded"></div> Occupé (au moins un membre)</div>
         </div>
-      </div>
-    )
-  }
-
-  const CreateAvailabilityPanel = ({
-    requiredStaffCount,
-    selectedStaffCount,
-    selectedTime,
-    availability,
-    isFetching,
-    hasError,
-    onSelectTime,
-  }: {
-    requiredStaffCount: number
-    selectedStaffCount: number
-    selectedTime: string
-    availability?: { available_slots?: Array<{ start: string; end: string; available_staff?: string[] }>; salon_hours?: { open: string; close: string } }
-    isFetching: boolean
-    hasError: boolean
-    onSelectTime: (time: string) => void
-  }) => {
-    if (!createForm.service_id || !createForm.date) {
-      return null
-    }
-
-    const slots = availability?.available_slots || []
-    const slotTimes = slots.map((slot) => ({
-      time: formatInTimeZone(slot.start, "Europe/Paris", "HH:mm"),
-      availableStaffCount: slot.available_staff?.length || 0,
-    }))
-    const isSpecificSelectionComplete = selectedStaffCount === requiredStaffCount
-    const availabilityModeLabel = isSpecificSelectionComplete
-      ? `Disponibilités communes pour les ${requiredStaffCount} masseuse${requiredStaffCount > 1 ? "s" : ""} sélectionnée${requiredStaffCount > 1 ? "s" : ""}`
-      : `Créneaux avec au moins ${requiredStaffCount} masseuse${requiredStaffCount > 1 ? "s" : ""} disponible${requiredStaffCount > 1 ? "s" : ""}`
-
-    return (
-      <div className="mt-4 space-y-3 border-t pt-4">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <Label>{availabilityModeLabel}</Label>
-          <Badge variant={isSpecificSelectionComplete ? "default" : "outline"}>
-            {selectedStaffCount}/{requiredStaffCount} sélectionné{selectedStaffCount > 1 ? "s" : ""}
-          </Badge>
-        </div>
-
-        {!isSpecificSelectionComplete ? (
-          <p className="text-xs text-muted-foreground">
-            Sélectionnez {requiredStaffCount} masseuse{requiredStaffCount > 1 ? "s" : ""} pour vérifier leur disponibilité commune exacte.
-          </p>
-        ) : null}
-
-        {isFetching ? (
-          <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-            Chargement des disponibilités...
-          </div>
-        ) : hasError ? (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            Impossible de charger les disponibilités pour cette date.
-          </div>
-        ) : slotTimes.length === 0 ? (
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            Aucun créneau disponible pour cette sélection. Changez la date, l'heure ou les masseuses.
-          </div>
-        ) : (
-          <div className="rounded-lg border bg-green-50 p-3">
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {slotTimes.slice(0, 25).map((slot) => (
-                <Button
-                  key={slot.time}
-                  type="button"
-                  variant={selectedTime === slot.time ? "default" : "outline"}
-                  className="h-10 bg-white text-sm font-semibold data-[selected=true]:bg-primary"
-                  data-selected={selectedTime === slot.time}
-                  onClick={() => onSelectTime(slot.time)}
-                >
-                  {slot.time}
-                </Button>
-              ))}
-            </div>
-            {slotTimes.length > 25 ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {slotTimes.length - 25} autres créneaux disponibles plus tard.
-              </p>
-            ) : null}
-          </div>
-        )}
       </div>
     )
   }
@@ -1761,183 +1504,16 @@ export default function SalonDashboardPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Create Manual Appointment Dialog */}
-        <Dialog
-          open={isCreateOpen}
-          onOpenChange={(open) => {
-            setIsCreateOpen(open)
-            if (!open) {
-              setCreateClientSearchTerm("")
-              setDebouncedCreateClientSearchTerm("")
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Ajouter un rendez-vous</DialogTitle>
-              <DialogDescription>
-                Créer manuellement un rendez-vous pour un client
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Service</Label>
-                <Select value={createForm.service_id} onValueChange={(val) => setCreateForm({...createForm, service_id: val, staff_ids: [], startTime: ""})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir un service" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {services?.map((service) => (
-                      <SelectItem key={service.id} value={service.id}>
-                        {service.name} ({service.duration_minutes} min) - {service.price_cents / 100}€
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <Label>Masseuses</Label>
-                  {createForm.service_id ? (
-                    <Badge variant={createForm.staff_ids.length === selectedCreateRequiredStaffCount ? "default" : "outline"}>
-                      {createForm.staff_ids.length}/{selectedCreateRequiredStaffCount} requis
-                    </Badge>
-                  ) : null}
-                </div>
-                {createForm.service_id ? (
-                  <p className="text-xs text-muted-foreground">
-                    Cette prestation nécessite exactement {selectedCreateRequiredStaffCount} masseuse{selectedCreateRequiredStaffCount > 1 ? "s" : ""}. Sélectionnez uniquement le nombre requis.
-                  </p>
-                ) : null}
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {createForm.staff_ids.map(id => {
-                    const member = bookableStaff.find(s => s.id === id)
-                    return (
-                      <Badge key={id} variant="secondary" className="gap-1 flex items-center p-2">
-                        <span>{member?.first_name} {member?.last_name}</span>
-                        <X className="w-3 h-3 cursor-pointer hover:text-destructive ml-1" onClick={() => toggleStaffSelection(id, 'create')} />
-                      </Badge>
-                    )
-                  })}
-                </div>
-                <Select
-                  onValueChange={(val) => toggleStaffSelection(val, 'create')}
-                  disabled={!createForm.service_id || createForm.staff_ids.length >= selectedCreateRequiredStaffCount}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={
-                      !createForm.service_id
-                        ? "Choisir une prestation d'abord"
-                        : createForm.staff_ids.length >= selectedCreateRequiredStaffCount
-                          ? "Nombre requis atteint"
-                          : "Ajouter une masseuse"
-                    } />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableCreateStaff.filter(s => !createForm.staff_ids.includes(s.id)).map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.first_name} {member.last_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Heure de début</Label>
-                  <Input
-                    type="time"
-                    value={createForm.startTime}
-                    onChange={(e) => setCreateForm({...createForm, startTime: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Date</Label>
-                  <Input
-                    type="date"
-                    value={createForm.date}
-                    onChange={(e) => setCreateForm({...createForm, date: e.target.value, startTime: ""})}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Prénom *</Label>
-                  <Input
-                    value={createForm.first_name}
-                    onChange={(e) => handleCreateClientFieldChange("first_name", e.target.value)}
-                    placeholder="Prénom"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Nom *</Label>
-                  <Input
-                    value={createForm.last_name}
-                    onChange={(e) => handleCreateClientFieldChange("last_name", e.target.value)}
-                    placeholder="Nom"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Téléphone *</Label>
-                  <Input
-                    value={createForm.phone}
-                    onChange={(e) => handleCreateClientFieldChange("phone", e.target.value)}
-                    placeholder="06..."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input
-                    type="email"
-                    value={createForm.email}
-                    onChange={(e) => setCreateForm({...createForm, email: e.target.value})}
-                    placeholder="client@email.com"
-                  />
-                </div>
-              </div>
-
-              <ClientSuggestionList
-                visible={debouncedCreateClientSearchTerm.length >= 2 || createClientSearchTerm.trim().length >= 2}
-                clients={createClientSuggestions}
-                isLoading={isFetchingCreateClientSuggestions}
-                onSelect={handleSelectCreateClientSuggestion}
-              />
-
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Textarea
-                  placeholder="Notes sur le rendez-vous..."
-                  value={createForm.notes}
-                  onChange={(e) => setCreateForm({...createForm, notes: e.target.value})}
-                />
-              </div>
-
-              <CreateAvailabilityPanel
-                requiredStaffCount={selectedCreateRequiredStaffCount}
-                selectedStaffCount={createForm.staff_ids.length}
-                selectedTime={createForm.startTime}
-                availability={createAvailability}
-                isFetching={isFetchingCreateAvailability}
-                hasError={createAvailabilityHasError}
-                onSelectTime={(time) => setCreateForm({...createForm, startTime: time})}
-              />
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="cursor-pointer">Annuler</Button>
-              <Button onClick={handleCreateAppointment} disabled={createAppointment.isPending} className="cursor-pointer">
-                {createAppointment.isPending ? "Création..." : "Créer le rendez-vous"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* The button and calendar now share the same slot-first form. */}
+        <QuickCreateModal
+          isOpen={isCreateOpen}
+          onClose={() => setIsCreateOpen(false)}
+          salonId={salonId}
+          initialDate={date || undefined}
+          existingAppointments={appointments || []}
+          openingHours={selectedOpeningHours}
+          onSuccess={() => refetchAppointments()}
+        />
 
         {/* Quick Create Modal */}
         <QuickCreateModal

@@ -14,7 +14,7 @@ const openingHoursSchema = z.record(
 
 const UpdateSalonSchema = z.object({
   name: z.string().min(1).optional(),
-  slug: z.string().min(1).optional(),
+  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/, "Slug invalide").optional(),
   address: z.string().min(1).optional(),
   city: z.string().min(1).optional(),
   phone: z.string().optional(),

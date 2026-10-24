@@ -25,6 +25,14 @@ async function scenario(status, body, conflict) {
     exports: mod.exports,
     require(name) {
       if (name === '@/lib/appointments/status') return statusModule.exports;
+      if (name === '@/lib/appointments/persist') return { persistAppointmentSchedule: async (_db, data) => {
+        persisted = data; return { ...existing, ...data };
+      } };
+      if (name === '@/lib/appointments/rules') {
+        const rules = new Module(require('node:path').join(process.cwd(), 'rules-test.cjs'));
+        rules._compile(ts.transpileModule(fs.readFileSync('lib/appointments/rules.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, rules.id);
+        return rules.exports;
+      }
       if (name === '@/lib/supabase/admin') return { createAdminClient: () => db };
       if (name === '@/lib/appointments/create') return { validateAppointmentScheduling: async () => { validations++; if (conflict) throw new Error('conflict'); return { endTime: '2026-11-02T11:00:00Z' } } };
       if (name === '@/lib/auth/api-auth') return { requireStaffAuth: () => ({ payload: { role: 'admin' } }) };

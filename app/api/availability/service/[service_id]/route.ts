@@ -10,6 +10,7 @@ import { addMinutes, format, areIntervalsOverlapping } from "date-fns"
 import { fromZonedTime } from "date-fns-tz"
 import { BOOKABLE_STAFF_ROLES, resolveOpeningHoursForDate } from "@/lib/calendar/scheduling"
 import { resolveSalonGroup } from "@/lib/salons/resolve"
+import { ceilToScheduleQuarter, getWorkingPeriods, intervalFitsPeriods, isScheduleDate, type WorkingPeriod } from "@/lib/calendar/working-periods"
 
 const TIMEZONE = "Europe/Paris"
 
@@ -18,17 +19,7 @@ interface RouteContext {
 }
 
 function ceilToNextQuarter(date: Date) {
-  const rounded = new Date(date)
-  rounded.setSeconds(0, 0)
-
-  const minutes = rounded.getMinutes()
-  const remainder = minutes % 15
-
-  if (remainder !== 0) {
-    rounded.setMinutes(minutes + (15 - remainder))
-  }
-
-  return rounded
+  return ceilToScheduleQuarter(date)
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
@@ -41,6 +32,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     if (!dateParam) {
       return NextResponse.json({ error: "Date parameter is required" }, { status: 400 })
     }
+    if (!isScheduleDate(dateParam)) return NextResponse.json({ error: "Date invalide" }, { status: 400 })
 
     if (isDateBeforeTodayInParis(dateParam)) {
       return NextResponse.json({
@@ -65,6 +57,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     if (serviceError || !service) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 })
     }
+    if (!service.is_active) return NextResponse.json({ error: "Prestation désactivée" }, { status: 400 })
 
     const duration = service.duration_minutes
     const requiredStaffCount = service.required_staff_count || 1
@@ -74,7 +67,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const salonGroup = await resolveSalonGroup(supabase, salonId)
-    if (!salonGroup) {
+    if (!salonGroup || salonGroup.salon.is_active !== true) {
       return NextResponse.json({ error: "Salon not found" }, { status: 404 })
     }
 
@@ -108,7 +101,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const requestedDate = fromZonedTime(`${dateParam} 12:00:00`, TIMEZONE)
-    const dayOfWeek = requestedDate.getDay()
+    const dayOfWeek = new Date(`${dateParam}T12:00:00Z`).getUTCDay()
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
     const dayName = dayNames[dayOfWeek]
     const salonHours = resolveOpeningHoursForDate(salon?.opening_hours, requestedDate)
@@ -135,7 +128,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       query = query.in("id", requestedIds)
     }
 
-    const { data: staffInSalon } = await query
+    const { data: staffInSalon, error: staffQueryError } = await query
+    if (staffQueryError) throw staffQueryError
 
     if (!staffInSalon || staffInSalon.length === 0) {
       return NextResponse.json({
@@ -169,7 +163,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // 4. Calculate availability for each staff member
-    const staffAvailabilityMap = new Map<string, { busy: Array<{start: Date, end: Date}>, shift: {start: Date, end: Date} }>()
+    const staffAvailabilityMap = new Map<string, { busy: Array<{start: Date, end: Date}>, periods: WorkingPeriod[] }>()
 
     const dayStart = fromZonedTime(`${dateParam} ${salonHours.open}:00`, TIMEZONE)
     const dayEnd = fromZonedTime(`${dateParam} ${salonHours.close}:00`, TIMEZONE)
@@ -183,31 +177,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
         .from("staff_availability")
         .select("*")
         .eq("staff_id", staff.id)
-        .or(`and(is_recurring.eq.true,day_of_week.eq.${dayOfWeek}),and(is_recurring.eq.false,specific_date.eq.${dateParam})`)
 
       if (shiftsError) {
         throw shiftsError
       }
 
-      let shiftStart = dayStart
-      let shiftEnd = dayEnd
-
-      if (shifts && shifts.length > 0) {
-        // Use the specific date override if exists, otherwise recurring
-        const specific = shifts.find(s => !s.is_recurring)
-        const recurring = shifts.find(s => s.is_recurring)
-        const activeShift = specific || recurring
-
-        if (activeShift) {
-           if (activeShift.start_time) shiftStart = fromZonedTime(`${dateParam} ${activeShift.start_time}`, TIMEZONE)
-           if (activeShift.end_time) shiftEnd = fromZonedTime(`${dateParam} ${activeShift.end_time}`, TIMEZONE)
-        }
-      } else {
-         // Keep the same fallback as the single-staff availability route:
-         // if no staff_availability row exists, assume salon opening hours.
-         shiftStart = dayStart
-         shiftEnd = dayEnd
-      }
+      const periods = getWorkingPeriods(dateParam, salon?.opening_hours, shifts || [])
 
       // Get existing appointments (assignments + primary staff_id legacy)
       // Check legacy column
@@ -216,8 +191,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
         .select("start_time, end_time")
         .eq("staff_id", staff.id)
         .in("status", BLOCKING_APPOINTMENT_STATUSES)
-        .gte("start_time", dayRangeStart)
-        .lte("start_time", dayRangeEnd)
+        .lt("start_time", dayRangeEnd)
+        .gt("end_time", dayRangeStart)
 
       if (legacyAptsError) {
         throw legacyAptsError
@@ -229,8 +204,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
         .select("appointment:appointments!inner(start_time, end_time, status)")
         .eq("staff_id", staff.id)
         .filter("appointment.status", "in", `(${BLOCKING_APPOINTMENT_STATUSES.map((status) => `"${status}"`).join(",")})`)
-        .gte("appointment.start_time", dayRangeStart)
-        .lte("appointment.start_time", dayRangeEnd)
+        .lt("appointment.start_time", dayRangeEnd)
+        .gt("appointment.end_time", dayRangeStart)
 
       if (assignmentsError) {
         throw assignmentsError
@@ -248,7 +223,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         }
       })
 
-      staffAvailabilityMap.set(staff.id, { busy: busyRanges, shift: { start: shiftStart, end: shiftEnd } })
+      staffAvailabilityMap.set(staff.id, { busy: busyRanges, periods })
     }
 
     // 5. Find intersection slots
@@ -280,15 +255,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
             continue
         }
 
-        const { busy: busyRanges, shift } = staffData
+        const { busy: busyRanges, periods } = staffData
         
         // Check if within working hours
-        const isWithinShift = areIntervalsOverlapping(slotInterval, shift) && 
-                              slotInterval.start >= shift.start && 
-                              slotInterval.end <= shift.end
+        const isWithinShift = intervalFitsPeriods(slotInterval.start, slotInterval.end, periods)
 
         if (!isWithinShift) {
-            staffStatus[`${staff.first_name} ${staff.last_name}`] = `Outside shift (${format(shift.start, 'HH:mm')}-${format(shift.end, 'HH:mm')})`
+            staffStatus[`${staff.first_name} ${staff.last_name}`] = "Outside working hours"
             continue
         }
 

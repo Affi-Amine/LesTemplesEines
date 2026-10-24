@@ -14,9 +14,9 @@ let tables, failedUpdate = false, authDenied = false, sequence = 100
 function seed(count) {
   failedUpdate = authDenied = false
   tables = {
-    salons: [{ id: salonId, slug: 'test', name: 'Test', opening_hours: Object.fromEntries(
+    salons: [{ id: salonId, slug: 'test', name: 'Test', is_active: true, opening_hours: Object.fromEntries(
       ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => [day, { open: '09:00', close: '19:00' }])) }],
-    services: [{ id: serviceId, duration_minutes: 60, required_staff_count: count, price_cents: 10000 }],
+    services: [{ id: serviceId, is_active: true, duration_minutes: 60, required_staff_count: count, price_cents: 10000 }],
     service_salons: [{ service_id: serviceId, salon_id: salonId }],
     staff: staffIds.map(id => ({ id, salon_id: salonId, is_active: true, role: 'therapist' })),
     staff_services: [], staff_availability: [],
@@ -79,7 +79,18 @@ function from(table) {
   }
   return q
 }
-const db = { from }
+const db = { from, async rpc(name, { p_appointment, p_staff_ids, p_appointment_id }) {
+  assert.equal(name, 'save_appointment_schedule')
+  if (failedUpdate) return { data: null, error: { message: 'Database unavailable' } }
+  let row = tables.appointments.find(a => a.id === p_appointment_id)
+  if (row) Object.assign(row, p_appointment)
+  else { row = { id: uuid(sequence++), ...p_appointment }; tables.appointments.push(row) }
+  if (p_staff_ids) {
+    tables.appointment_assignments = tables.appointment_assignments.filter(a => a.appointment_id !== row.id)
+    tables.appointment_assignments.push(...p_staff_ids.map(staff_id => ({ appointment_id: row.id, staff_id })))
+  }
+  return { data: row.id, error: null }
+} }
 const modules = new Map()
 function load(relative) {
   const filename = path.join(root, relative)
@@ -170,5 +181,44 @@ async function main() {
   assert.equal(await isAvailable(2), false)
   await assert.rejects(() => createBookableAppointment(db, input(2)), /disponibles/)
   console.log('PASS: cancellation preserves another booking that still occupies one practitioner')
+  seed(1)
+  tables.appointments = []; tables.appointment_assignments = []
+  tables.staff[0].salon_id = uuid(60)
+  await assert.rejects(() => createBookableAppointment(db, input(1)), /salon sélectionné/)
+  assert.equal(tables.appointments.length, 0)
+  tables.staff[0].salon_id = salonId
+  tables.staff[0].is_active = false
+  await assert.rejects(() => createBookableAppointment(db, input(1)), /actifs/)
+  tables.staff[0].is_active = true
+  await assert.rejects(() => createBookableAppointment(db, { ...input(1), staff_id: staffIds[1] }), /principal/)
+  tables.staff_services = [{ staff_id: staffIds[1], service_id: uuid(70) }]
+  assert.ok(await createBookableAppointment(db, input(1)))
+  console.log('PASS: wrong salon, inactive practitioner and inconsistent principal refused; another practitioner cannot restrict this one')
+  seed(1)
+  tables.appointments = []; tables.appointment_assignments = []
+  tables.staff_availability = [
+    { staff_id: staffIds[0], is_recurring: true, day_of_week: 1, start_time: '09:00:00', end_time: '12:00:00' },
+    { staff_id: staffIds[0], is_recurring: true, day_of_week: 1, start_time: '14:00:00', end_time: '18:00:00' },
+  ]
+  assert.equal(await isAvailable(1), true)
+  assert.equal(await staffIsAvailable(staffIds[0]), true)
+  await assert.rejects(() => createBookableAppointment(db, { ...input(1), start_time: '2099-11-02T11:30:00Z' }), /horaires/)
+  tables.staff_availability.push({ staff_id: staffIds[0], is_recurring: false, specific_date: '2099-11-02', start_time: '16:00:00', end_time: '18:00:00' })
+  assert.equal(await isAvailable(1), false)
+  assert.equal(await staffIsAvailable(staffIds[0]), false)
+  await assert.rejects(() => createBookableAppointment(db, input(1)), /horaires/)
+  console.log('PASS: both availability APIs and booking agree on split shifts and date overrides')
+  seed(1)
+  tables.appointments[0].start_time = '2099-11-01T23:30:00Z'
+  tables.appointments[0].end_time = end
+  assert.equal(await isAvailable(1), false)
+  assert.equal(await staffIsAvailable(staffIds[0]), false)
+  console.log('PASS: appointments starting before the requested day still block overlapping time')
+  const { ceilToScheduleQuarter } = load('lib/calendar/working-periods.ts')
+  assert.equal(ceilToScheduleQuarter(new Date('2099-11-02T10:00:00.001Z')).toISOString(), '2099-11-02T10:15:00.000Z')
+  console.log('PASS: current-day slots never round down into the past')
+  const { persistAppointmentSchedule } = load('lib/appointments/persist.ts')
+  await assert.rejects(() => persistAppointmentSchedule({ rpc: async () => ({ error: { code: 'PGRST202' } }) }, {}), /Migration.*requise/)
+  console.log('PASS: missing database migration fails explicitly without separate-write fallback')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

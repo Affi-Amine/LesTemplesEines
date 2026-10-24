@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "import:clients": "node scripts/import-clients-csv.mjs",
     "test:backend": "ts-node scripts/test-backend.ts",
-    "test:booking": "node scripts/test-appointment-cancellation.cjs && node scripts/test-cancellation-rebooking.cjs"
+    "test:booking": "node scripts/test-appointment-cancellation.cjs && node scripts/test-cancellation-rebooking.cjs && node scripts/test-staff-salon-mapping.cjs && node scripts/test-booking-database.cjs && node scripts/test-slot-selection.cjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -77,6 +77,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22",

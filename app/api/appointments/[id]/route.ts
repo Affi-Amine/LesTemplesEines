@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin"
-import { validateAppointmentScheduling } from "@/lib/appointments/create"
+import { validateAppointmentScheduling, validateSalonStaffScheduling } from "@/lib/appointments/create"
+import { normalizeAppointmentStaff, SchedulingError } from "@/lib/appointments/rules"
+import { persistAppointmentSchedule } from "@/lib/appointments/persist"
 import { blocksAppointmentSchedule } from "@/lib/appointments/status"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
@@ -24,7 +26,7 @@ const UpdateAppointmentSchema = z.object({
   // New fields for modification
   service_id: z.string().uuid().optional(),
   salon_id: z.string().uuid().optional(),
-  start_time: z.string().optional(), // ISO string
+  start_time: z.string().datetime({ offset: true }).optional(),
   staff_ids: z.array(z.string().uuid()).min(1).optional(),
   staff_id: z.string().uuid().optional(), // Legacy support
 })
@@ -45,6 +47,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       client_notes: body.client_notes,
       internal_notes: body.internal_notes,
     } : body)
+    if (updates.staff_id || updates.staff_ids) normalizeAppointmentStaff(updates)
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 })
@@ -58,6 +61,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .select(`
         id,
         status,
+        updated_at,
         start_time,
         end_time,
         service_id,
@@ -102,11 +106,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const targetSalonId = updates.salon_id || existing.salon_id
     const targetServiceId = updates.service_id || existing.service_id
     const targetStartTime = updates.start_time || existing.start_time
-    const existingStaffIds = existing.assignments?.length
-      ? existing.assignments.map((assignment: any) => assignment.staff_id)
-      : existing.staff_id
-        ? [existing.staff_id]
-        : []
+    const existingStaffIds = Array.from(new Set<string>([
+      ...(existing.staff_id ? [existing.staff_id] : []),
+      ...(existing.assignments || []).map((assignment: any) => assignment.staff_id),
+    ]))
     const targetStaffIds = staffIdsToUpdate ?? existingStaffIds
 
     if (updates.service_id) updateData.service_id = updates.service_id
@@ -123,11 +126,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const reactivating = !blocksAppointmentSchedule(existing.status) &&
       blocksAppointmentSchedule(updates.status || existing.status)
 
-    if (reactivating && (!targetSalonId || !targetServiceId || targetStaffIds.length === 0)) {
+    const isBlock = (updates.status || existing.status) === "blocked"
+    if (reactivating && (!targetSalonId || (!targetServiceId && !isBlock) || targetStaffIds.length === 0)) {
       return NextResponse.json({ error: "Impossible de réactiver un rendez-vous sans salon, prestation et praticien" }, { status: 400 })
     }
 
-    if ((schedulingChanged || reactivating) && targetSalonId && targetServiceId && targetStaffIds.length > 0) {
+    if ((schedulingChanged || reactivating) && !isBlock && targetSalonId && targetServiceId && targetStaffIds.length > 0) {
       // Preserve the booked duration unless the service itself is changed.
       // A service's catalogue duration may have changed since this booking.
       const originalDuration = new Date(existing.end_time).getTime() - new Date(existing.start_time).getTime()
@@ -151,103 +155,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       updateData.end_time = endTime
     }
-
-    const existingAssignments = existing.assignments || []
-
-    const previousStaffIds = (existingAssignments || []).map((assignment) => assignment.staff_id)
-    const normalizedStaffIdsToUpdate = staffIdsToUpdate
-      ? Array.from(new Set(staffIdsToUpdate))
-      : null
-
-    if (normalizedStaffIdsToUpdate) {
-      updateData.staff_id = normalizedStaffIdsToUpdate[0] || null
+    if ((schedulingChanged || reactivating) && isBlock) {
+      const duration = new Date(existing.end_time).getTime() - new Date(existing.start_time).getTime()
+      const endTime = new Date(new Date(targetStartTime).getTime() + duration).toISOString()
+      await validateSalonStaffScheduling(supabase, {
+        salon_id: targetSalonId, staff_ids: targetStaffIds, start_time: targetStartTime, end_time: endTime,
+      }, { checkWorkingHours: false })
+      updateData.end_time = endTime
     }
 
-    let assignmentsWereUpdated = false
-    if (normalizedStaffIdsToUpdate) {
-      const previousStaffIdSet = new Set(previousStaffIds)
-      const nextStaffIdSet = new Set(normalizedStaffIdsToUpdate)
-      const staffIdsToAdd = normalizedStaffIdsToUpdate.filter((staffId) => !previousStaffIdSet.has(staffId))
-      const staffIdsToRemove = previousStaffIds.filter((staffId) => !nextStaffIdSet.has(staffId))
-
-      if (staffIdsToAdd.length > 0) {
-        const { error: insertAssignmentsError } = await supabase
-          .from("appointment_assignments")
-          .insert(
-            staffIdsToAdd.map((staffId) => ({
-              appointment_id: id,
-              staff_id: staffId,
-            }))
-          )
-
-        if (insertAssignmentsError) {
-          throw new Error("Failed to update staff assignments: " + insertAssignmentsError.message)
-        }
-
-        assignmentsWereUpdated = true
-      }
-
-      if (staffIdsToRemove.length > 0) {
-        const { error: deleteAssignmentsError } = await supabase
-          .from("appointment_assignments")
-          .delete()
-          .eq("appointment_id", id)
-          .in("staff_id", staffIdsToRemove)
-
-        if (deleteAssignmentsError) {
-          if (staffIdsToAdd.length > 0) {
-            await supabase
-              .from("appointment_assignments")
-              .delete()
-              .eq("appointment_id", id)
-              .in("staff_id", staffIdsToAdd)
-          }
-
-          throw new Error("Failed to update staff assignments: " + deleteAssignmentsError.message)
-        }
-
-        assignmentsWereUpdated = true
-      }
-    }
-
-    // Perform update
-    const { data, error } = await supabase
-      .from("appointments")
-      .update(updateData)
-      .eq("id", id)
-      .select(
-        `*,
-        client:clients(*),
-        staff:staff(id, first_name, last_name, role, phone),
-        assignments:appointment_assignments(
-          staff_id,
-          staff:staff(id, first_name, last_name)
-        ),
-        service:services(*),
-        salon:salons(id, name, city, address)`
-      )
-      .single()
-
-    if (error) {
-      if (assignmentsWereUpdated) {
-        await supabase.from("appointment_assignments").delete().eq("appointment_id", id)
-
-        if (existingAssignments && existingAssignments.length > 0) {
-          await supabase.from("appointment_assignments").insert(
-            existingAssignments.map((assignment) => ({
-              appointment_id: id,
-              staff_id: assignment.staff_id,
-            }))
-          )
-        }
-      }
-
-      // Likely a Postgres CHECK constraint error when setting unknown status
-      const message = error.message?.includes("status")
-        ? "Invalid status value for appointment"
-        : error.message
-      return NextResponse.json({ error: message || "Failed to update appointment" }, { status: 400 })
-    }
+    const nextStaffIds = staffIdsToUpdate ? normalizeAppointmentStaff(updates) : undefined
+    if (nextStaffIds) updateData.staff_id = nextStaffIds[0]
+    if (existing.updated_at) updateData.expected_updated_at = existing.updated_at
+    const data = await persistAppointmentSchedule(supabase, updateData, nextStaffIds, id)
 
     if (updates.payments && updates.payments.length > 0) {
       const paymentRecords = updates.payments.map(p => ({
@@ -267,6 +187,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json(data)
   } catch (error: any) {
+    if (error instanceof SchedulingError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }

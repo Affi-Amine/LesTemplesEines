@@ -4,13 +4,13 @@ import { useQuery } from "@tanstack/react-query"
 import { fetchAPI } from "@/lib/api/client"
 import { format, isValid } from "date-fns"
 
-interface AvailabilitySlot {
+export interface AvailabilitySlot {
   start: string
   end: string
   available_staff?: string[]
 }
 
-interface AvailabilityResponse {
+export interface AvailabilityResponse {
   staff_id?: string
   staff_name?: string
   date: string
@@ -32,13 +32,13 @@ function normalizeStaffKey(staffId?: string | string[]) {
   return Array.isArray(staffId) ? [...staffId].sort().join(",") : staffId
 }
 
-export function useAvailability(staffId?: string | string[], date?: Date | string, serviceId?: string, salonId?: string) {
+export function useAvailability(staffId?: string | string[], date?: Date | string, serviceId?: string, salonId?: string, options?: { enabled?: boolean; version?: string }) {
   const formattedDate = formatAvailabilityDate(date)
   const staffKey = normalizeStaffKey(staffId)
 
   return useQuery({
-    queryKey: ["availability", staffKey, formattedDate, serviceId, salonId],
-    queryFn: () => {
+    queryKey: ["availability", staffKey, formattedDate, serviceId, salonId, options?.version],
+    queryFn: ({ signal }) => {
       if (!formattedDate) {
         throw new Error("Date is required")
       }
@@ -57,7 +57,7 @@ export function useAvailability(staffId?: string | string[], date?: Date | strin
           params.append("staff_ids", staffId)
         }
 
-        return fetchAPI<AvailabilityResponse>(`/availability/service/${serviceId}?${params.toString()}`, { cache: "no-store" })
+        return fetchAPI<AvailabilityResponse>(`/availability/service/${serviceId}?${params.toString()}`, { signal, cache: "no-store" })
       }
 
       if (!staffId) {
@@ -73,9 +73,10 @@ export function useAvailability(staffId?: string | string[], date?: Date | strin
         params.append("service_id", serviceId)
       }
 
-      return fetchAPI<AvailabilityResponse>(`/availability/${staffId}?${params.toString()}`, { cache: "no-store" })
+      return fetchAPI<AvailabilityResponse>(`/availability/${staffId}?${params.toString()}`, { signal, cache: "no-store" })
     },
-    enabled: !!formattedDate && !!serviceId && !!salonId && (!!staffId || !!serviceId),
+    enabled: options?.enabled !== false && !!formattedDate && !!serviceId && !!salonId,
+    refetchOnMount: "always",
     staleTime: 10 * 1000, // Consider stale after 10 seconds (overrides default 60s)
     refetchInterval: 30 * 1000, // Refetch every 30 seconds to catch newly booked slots
   })

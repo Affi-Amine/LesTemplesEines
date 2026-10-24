@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, type CSSProperties } from "react"
+import { useState, useEffect, useMemo, type CSSProperties } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { fetchAPI } from "@/lib/api/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -487,8 +489,17 @@ export default function CalendrierPage() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [salons, setSalons] = useState<Salon[]>([])
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [loading, setLoading] = useState(true)
+  const startDate = format(startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }), "yyyy-MM-dd")
+  const endDate = format(endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }), "yyyy-MM-dd")
+  const { data: appointments = [], isFetching: loading, isError: appointmentsError, refetch: fetchAppointments } = useQuery({
+    queryKey: ["appointments", "calendar", selectedSalon, startDate, endDate],
+    queryFn: ({ signal }) => {
+      const query = new URLSearchParams({ start_date: startDate, end_date: endDate })
+      if (selectedSalon !== "all") query.set("salon_id", selectedSalon)
+      return fetchAPI<Appointment[]>(`/appointments?${query}`, { signal, cache: "no-store" })
+    },
+    staleTime: 0,
+  })
   const selectedSalonData = useMemo(
     () => salons.find((salon) => salon.id === selectedSalon) || null,
     [salons, selectedSalon]
@@ -510,6 +521,15 @@ export default function CalendrierPage() {
     minute: number
     staffId?: string
   } | null>(null)
+
+  useEffect(() => {
+    setSelectedAppointment(null)
+    setIsModalOpen(false)
+    setIsQuickCreateOpen(false)
+    setQuickCreateData(null)
+    setActiveAppointment(null)
+    setPendingMove(null)
+  }, [selectedSalon])
 
   // Configure sensors for drag-and-drop (desktop + mobile)
   const sensors = useSensors(
@@ -770,35 +790,6 @@ export default function CalendrierPage() {
     }
   }
 
-  // Fetch appointments function (extracted for reuse)
-  const fetchAppointments = useCallback(async () => {
-    setLoading(true)
-    try {
-      const startDate = format(startOfMonth(currentDate), "yyyy-MM-dd")
-      const endDate = format(endOfMonth(currentDate), "yyyy-MM-dd")
-
-      let url = `/api/appointments?start_date=${startDate}&end_date=${endDate}`
-      if (selectedSalon !== "all") {
-        url += `&salon_id=${selectedSalon}`
-      }
-
-      const response = await fetch(url)
-      if (response.ok) {
-        const data = await response.json()
-        setAppointments(data)
-      }
-    } catch (error) {
-      console.error("Erreur lors du chargement des rendez-vous:", error)
-    } finally {
-      setLoading(false)
-    }
-  }, [currentDate, selectedSalon])
-
-  // Fetch appointments
-  useEffect(() => {
-    fetchAppointments()
-  }, [fetchAppointments])
-
   // Generate calendar grid including previous/next month days for complete weeks
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
@@ -895,6 +886,12 @@ export default function CalendrierPage() {
           </Card>
         )}
 
+        {appointmentsError && (
+          <div role="alert" className="rounded-md border border-destructive/30 p-4 text-destructive">
+            Impossible de charger le planning de ce salon.
+            <Button variant="outline" onClick={() => void fetchAppointments()} className="ml-3">Réessayer</Button>
+          </div>
+        )}
         {selectedSalonData && (
           <Card>
             <CardContent className="flex flex-col gap-2 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
@@ -960,7 +957,9 @@ export default function CalendrierPage() {
             </div>
           </CardHeader>
           <CardContent className="px-2 pb-3 sm:px-6 sm:pb-6">
-            {loading ? (
+            {appointmentsError ? (
+              <div className="text-center py-8 text-muted-foreground">Planning indisponible.</div>
+            ) : loading ? (
               <div className="text-center py-8">Chargement des rendez-vous...</div>
             ) : (
               <>

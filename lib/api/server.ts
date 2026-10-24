@@ -4,7 +4,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server"
-import { isUUID, resolveSalonGroup } from "@/lib/salons/resolve"
+import { resolveSalonGroup } from "@/lib/salons/resolve"
 
 // Types
 export type Salon = {
@@ -79,19 +79,14 @@ export async function getSalons(): Promise<Salon[]> {
  */
 export async function getSalon(idOrSlug: string): Promise<Salon | null> {
   const supabase = await createClient()
+  const group = await resolveSalonGroup(supabase, idOrSlug)
+  if (!group) return null
 
-  // Try by ID first, then by slug
-  let query = supabase
+  const query = supabase
     .from('salons')
     .select('*')
     .eq('is_active', true)
-
-  // Check if it's a UUID
-  if (isUUID(idOrSlug)) {
-    query = query.eq('id', idOrSlug)
-  } else {
-    query = query.eq('slug', idOrSlug)
-  }
+    .eq('id', group.salon.id)
 
   const { data, error } = await query.single()
 

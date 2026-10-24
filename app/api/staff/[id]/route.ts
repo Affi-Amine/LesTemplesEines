@@ -185,6 +185,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     return NextResponse.json(mapStaff(fullStaff))
   } catch (error) {
     console.error("[v0] Update staff error:", error)
+    if ((error as { code?: string })?.code === "23514") {
+      return NextResponse.json({ error: (error as { message: string }).message }, { status: 409 })
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }
@@ -217,6 +220,9 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ message: "Staff member deactivated successfully" })
   } catch (error) {
     console.error("[v0] Delete staff error:", error)
+    if ((error as { code?: string })?.code === "23514") {
+      return NextResponse.json({ error: (error as { message: string }).message }, { status: 409 })
+    }
     return NextResponse.json({ error: "Failed to deactivate staff member" }, { status: 500 })
   }
 }

@@ -6,6 +6,7 @@ import { BookableAppointmentSchema, validateBookableAppointment } from "@/lib/ap
 import { getStripeClient } from "@/lib/stripe"
 import { getBaseUrl } from "@/lib/gift-cards"
 import { z } from "zod"
+import { SchedulingError } from "@/lib/appointments/rules"
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
       url: session.url,
     })
   } catch (error) {
+    if (error instanceof SchedulingError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("[stripe] Appointment checkout error:", error)
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })

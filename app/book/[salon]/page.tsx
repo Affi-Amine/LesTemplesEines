@@ -50,7 +50,7 @@ export default async function SalonBookingPage({ params }: SalonBookingPageProps
             </p>
           </div>
           <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Chargement...</div>}>
-            <BookingFlow initialSalon={salon.id} />
+            <BookingFlow key={salon.id} initialSalon={salon.id} />
           </Suspense>
         </div>
       </div>

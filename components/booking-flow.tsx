@@ -26,6 +26,7 @@ import { fetchAPI } from "@/lib/api/client"
 import { createClient } from "@/lib/supabase/client"
 import type { ClientPack, Staff } from "@/lib/types/database"
 import { canUseClientPackStatus } from "@/lib/packs"
+import { canProvideService } from "@/lib/appointments/rules"
 
 type BookingStep = "salon" | "service" | "time" | "info" | "confirm"
 
@@ -161,18 +162,10 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   // Find current selections
   const currentSalon = salons?.find((s) => s.id === data.salon || s.slug === data.salon)
   const currentService = services?.find((s) => s.id === data.service)
-  const serviceHasExplicitStaffAssignments = Boolean(
-    currentService &&
-      (staff || []).some((employee) => (employee.allowed_service_ids || []).includes(currentService.id))
-  )
   const salonEmployees = (staff || []).filter((employee) => {
     const allowedServiceIds = employee.allowed_service_ids || []
-    const canProvideService =
-      !currentService ||
-      !serviceHasExplicitStaffAssignments ||
-      allowedServiceIds.includes(currentService.id)
-
-    return canStaffTakeBookings(employee) && canProvideService
+    return employee.salon_id === currentSalon?.id && canStaffTakeBookings(employee) &&
+      canProvideService(allowedServiceIds, currentService?.id)
   })
   const currentEmployee = salonEmployees.find((e) => e.id === data.employee)
   const selectedEmployees = salonEmployees.filter((employee) => data.employees.includes(employee.id))

@@ -4,6 +4,8 @@ export interface SalonIdentity {
   id: string
   slug?: string | null
   name?: string | null
+  is_active?: boolean | null
+  opening_hours?: Record<string, { open: string; close: string }> | null
 }
 
 export interface ResolvedSalonGroup {
@@ -28,17 +30,20 @@ export async function resolveSalonGroup(
 
   let targetQuery = supabase
     .from("salons")
-    .select("id, slug, name")
+    .select("id, slug, name, is_active, opening_hours")
 
-  targetQuery = isUUID(value) ? targetQuery.eq("id", value) : targetQuery.eq("slug", value)
-
-  const { data: matches, error } = await targetQuery.limit(1)
+  // UUIDs identify records; slugs are normalized only at this public boundary.
+  if (isUUID(value)) targetQuery = targetQuery.eq("id", value)
+  const { data: matches, error } = await targetQuery
 
   if (error) {
     throw new Error(error.message)
   }
 
-  const salon = Array.isArray(matches) ? matches[0] : matches
+  const candidates: SalonIdentity[] = (Array.isArray(matches) ? matches : matches ? [matches] : [])
+    .filter(salon => isUUID(value) || normalizeSalonValue(salon.slug) === normalizeSalonValue(value))
+  if (candidates.length > 1) throw new Error("Identifiant de salon ambigu")
+  const salon = candidates[0]
 
   if (!salon?.id) {
     return null

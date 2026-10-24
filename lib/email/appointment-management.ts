@@ -22,7 +22,7 @@ export async function sendManagementLinkToClient(appointment: any) {
   if (canSms) deliveries.push(sendSms({ to: appointment.client.phone,
     message: `Votre RDV chez ${appointment.salon?.name || "Les Temples"} : ${appointmentWhen(appointment.start_time)}. Gérer : ${url} Modification/annulation jusqu'à la veille uniquement. Remboursement : contacter le salon.` }))
   const results = await Promise.allSettled(deliveries)
-  if (results.every(result => result.status === "rejected")) throw new Error("L’envoi du lien a échoué. Réessayez.")
+  if (results.every(result => result.status === "rejected" || (result.value as any)?.skipped)) throw new Error("L’envoi du lien a échoué. Réessayez.")
 }
 
 export async function sendAppointmentClientChangedNotifications(appointment: any, action: "cancel" | "reschedule", previousStart: string) {
@@ -40,7 +40,7 @@ export async function sendAppointmentClientChangedNotifications(appointment: any
   if (isEmailEnabled) tasks.push(sendEmail({ to: adminEmails, subject: `${heading} par le client – ${appointment.salon?.name || "Salon"}`,
     html: `<div style="font-family:Arial,sans-serif;color:#172a24;line-height:1.6"><h2>${html(heading)} par le client</h2><p>Client : ${html(appointment.client?.first_name)} ${html(appointment.client?.last_name)}</p><p>Ancien horaire : ${html(appointmentWhen(previousStart))}</p><p>Horaire du rendez-vous : ${html(appointmentWhen(appointment.start_time))}</p><p>Salon : ${html(appointment.salon?.name)}</p><p>Aucun remboursement automatique n’a été effectué.</p></div>` }))
   const results = await Promise.allSettled(tasks)
-  if (!results.length || results.some(result => result.status === "rejected")) throw new Error("Une notification n’a pas pu être remise.")
+  if (!results.length || results.some(result => result.status === "rejected" || (result.value as any)?.skipped)) throw new Error("Une notification n’a pas pu être remise.")
 }
 
 export async function loadAppointmentForManagementDelivery(id: string) {

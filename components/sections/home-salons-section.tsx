@@ -95,7 +95,7 @@ export function HomeSalonsSection() {
         <div className="relative mb-12 text-center md:mb-16">
             <span className="text-sm font-semibold text-primary tracking-widest uppercase">Nos adresses</span>
           <h2 className="mt-2 mb-4 text-3xl font-serif font-bold md:text-5xl">
-            {salonCount > 0 ? `${salonCount} adresse${salonCount > 1 ? "s" : ""}, un même niveau d'exigence` : "Nos adresses Les Temples"}
+            {salonCount > 0 ? `${salonCount} adresse${salonCount > 1 ? "s" : ""}, un même niveau d'exigence` : "Nos adresses Les Temples "}
           </h2>
           <p className="mx-auto max-w-2xl text-sm text-muted-foreground sm:text-base">
             Dans chaque maison, le même accueil discret, le même soin juste, la même sérénité.

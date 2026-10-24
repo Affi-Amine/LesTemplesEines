@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useAppointments } from "@/lib/hooks/use-appointments"
 import { Plus, X } from "lucide-react"
 import { useTranslations } from "@/lib/i18n/use-translations"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -23,6 +23,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useSalons } from "@/lib/hooks/use-salons"
 import { useServices } from "@/lib/hooks/use-services"
 import { useStaff } from "@/lib/hooks/use-staff"
+import { useAppointmentSchedule } from "@/lib/hooks/use-appointment-schedule"
+import { AppointmentSchedulePicker } from "@/components/calendar/appointment-schedule-picker"
+import { ClientDataSchema } from "@/lib/appointments/client-data"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
 import { useClientSearch } from "@/lib/hooks/use-client-search"
 import { toast } from "sonner"
@@ -30,7 +33,8 @@ import { Icon } from "@iconify/react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { formatInTimeZone } from "date-fns-tz"
-import { getPaymentMethodLabel, getPaymentStatusClass, getPaymentStatusLabel } from "@/lib/payments"
+import { AppointmentPaymentBadge } from "@/components/appointment-payment-badge"
+import { getPaymentMethodLabel } from "@/lib/payments"
 import { dateTimeInScheduleTimezone } from "@/lib/calendar/scheduling"
 import type { Client } from "@/lib/types/database"
 
@@ -50,6 +54,8 @@ export default function AppointmentsPage() {
 
 
   // Create dialog state
+  const submitLock = useRef(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [clientSearchTerm, setClientSearchTerm] = useState("")
   const [debouncedClientSearchTerm, setDebouncedClientSearchTerm] = useState("")
@@ -85,7 +91,6 @@ export default function AppointmentsPage() {
 
   const { data: salons } = useSalons({ includeInactive: true })
   const { data: services } = useServices(form.salon_id || undefined)
-  const { data: staff } = useStaff(form.salon_id || undefined)
   const { data: clientSuggestions, isFetching: isFetchingClientSuggestions } = useClientSearch(
     debouncedClientSearchTerm,
     8
@@ -96,16 +101,17 @@ export default function AppointmentsPage() {
   const { data: editStaff } = useStaff(editForm.salon_id || undefined)
   const selectedService = services?.find((service) => service.id === form.service_id)
   const selectedServiceRequiredStaffCount = selectedService?.required_staff_count || 1
+  const schedule = useAppointmentSchedule({
+    salonId: form.salon_id, serviceId: form.service_id, date: form.date,
+    requiredStaff: selectedServiceRequiredStaffCount, durationMinutes: selectedService?.duration_minutes || 0,
+  }, isDialogOpen)
   const editSelectedService = editServices?.find((service) => service.id === editForm.service_id)
   const editSelectedServiceRequiredStaffCount = editSelectedService?.required_staff_count || Math.max(editForm.staff_ids.length, 1)
-  const staffCanProvideSelectedService = (member: { allowed_service_ids?: string[] }, serviceId: string, allStaff = staff || []) => {
+  const staffCanProvideSelectedService = (member: { allowed_service_ids?: string[] }, serviceId: string, allStaff = editStaff || []) => {
     const hasExplicitAssignments = allStaff.some((employee) => (employee.allowed_service_ids || []).includes(serviceId))
 
     return !hasExplicitAssignments || (member.allowed_service_ids || []).includes(serviceId)
   }
-  const availableStaff = (staff || []).filter((member) =>
-    !form.service_id || staffCanProvideSelectedService(member, form.service_id)
-  )
   const availableEditStaff = (editStaff || []).filter((member) =>
     !editForm.service_id || staffCanProvideSelectedService(member, editForm.service_id, editStaff || [])
   )
@@ -138,16 +144,6 @@ export default function AppointmentsPage() {
     setDebouncedClientSearchTerm("")
   }
 
-  const handleAddStaff = (staffId: string) => {
-    if (!form.staff_ids.includes(staffId) && form.staff_ids.length < selectedServiceRequiredStaffCount) {
-      setForm({ ...form, staff_ids: [...form.staff_ids, staffId] })
-    }
-  }
-
-  const handleRemoveStaff = (staffId: string) => {
-    setForm({ ...form, staff_ids: form.staff_ids.filter(id => id !== staffId) })
-  }
-
   // Edit Form Staff Handlers
   const handleEditAddStaff = (staffId: string) => {
     if (!editForm.staff_ids.includes(staffId) && editForm.staff_ids.length < editSelectedServiceRequiredStaffCount) {
@@ -159,14 +155,7 @@ export default function AppointmentsPage() {
     setEditForm({ ...editForm, staff_ids: editForm.staff_ids.filter(id => id !== staffId) })
   }
 
-  useEffect(() => {
-    if (createAppointment.isSuccess) {
-      setIsDialogOpen(false)
-      resetForm()
-    }
-  }, [createAppointment.isSuccess])
-
-  const handleCreate = () => setIsDialogOpen(true)
+  const handleCreate = () => { schedule.clear(); setIsDialogOpen(true) }
 
   const handleClientFieldChange = (field: "phone" | "first_name" | "last_name", value: string) => {
     setForm((current) => ({
@@ -189,50 +178,29 @@ export default function AppointmentsPage() {
   }
 
   const handleSave = async () => {
-    if (!form.salon_id || !form.service_id || !form.date || !form.time || !form.first_name || !form.last_name || !form.phone) {
-      toast.error("Champs manquants", {
-        description: "Veuillez remplir tous les champs obligatoires",
-        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+    if (submitLock.current || !schedule.isValid) return
+    const contact = ClientDataSchema.safeParse({ first_name: form.first_name, last_name: form.last_name, phone: form.phone, email: form.email || undefined })
+    if (!contact.success) { toast.error(contact.error.issues[0].message); return }
+    submitLock.current = true
+    setIsSaving(true)
+    let mutationStarted = false
+    try {
+      const selection = await schedule.refreshSelection()
+      if (!selection) return
+      mutationStarted = true
+      await createAppointment.mutateAsync({
+        salon_id: form.salon_id, service_id: form.service_id,
+        staff_id: selection.staffIds[0], staff_ids: selection.staffIds,
+        start_time: selection.slot.start, client_data: contact.data,
+        client_notes: form.notes || undefined, booking_source: "admin",
       })
-      return
-    }
-
-    if (form.staff_ids.length !== selectedServiceRequiredStaffCount) {
-      toast.error("Thérapeutes incomplets", {
-        description: `Cette prestation nécessite ${selectedServiceRequiredStaffCount} thérapeute${selectedServiceRequiredStaffCount > 1 ? "s" : ""}.`,
-        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-      })
-      return
-    }
-
-    const parisTime = dateTimeInScheduleTimezone(new Date(`${form.date}T00:00:00`), form.time)
-    if (!parisTime) {
-      toast.error("Horaire invalide", {
-        description: "Veuillez choisir une heure valide",
-        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-      })
-      return
-    }
-    const start_time = parisTime.toISOString()
-
-    // Handle backward compatibility and multi-select
-    const primaryStaffId = form.staff_id || form.staff_ids[0]
-    const allStaffIds = form.staff_ids.length > 0 ? form.staff_ids : (primaryStaffId ? [primaryStaffId] : [])
-
-    createAppointment.mutate({
-      salon_id: form.salon_id,
-      service_id: form.service_id,
-      staff_id: primaryStaffId,
-      staff_ids: allStaffIds,
-      start_time,
-      client_data: {
-        first_name: form.first_name,
-        last_name: form.last_name,
-        phone: form.phone,
-        email: form.email || undefined,
-      },
-      client_notes: form.notes || undefined,
-    })
+      setIsDialogOpen(false)
+      resetForm()
+      schedule.clear()
+    } catch (error: any) {
+      if (error.status === 409) { schedule.clear("Ce créneau vient d’être pris. Les informations client sont conservées."); await schedule.refresh() }
+      if (!mutationStarted) toast.error(error.message || "Impossible de créer le rendez-vous.")
+    } finally { submitLock.current = false; setIsSaving(false) }
   }
 
   // Handle appointment actions
@@ -398,6 +366,7 @@ export default function AppointmentsPage() {
         <Dialog
           open={isDialogOpen}
           onOpenChange={(open) => {
+            if (isSaving) return
             setIsDialogOpen(open)
             if (!open) {
               resetForm()
@@ -411,7 +380,7 @@ export default function AppointmentsPage() {
                 Créer un nouveau rendez-vous pour un client.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <fieldset disabled={isSaving} className="grid min-w-0 gap-4 py-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="salon">Salon</Label>
@@ -444,59 +413,7 @@ export default function AppointmentsPage() {
                   </Select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="therapist">
-                  Thérapeutes ({form.staff_ids.length}/{selectedServiceRequiredStaffCount})
-                </Label>
-                <Select onValueChange={handleAddStaff} disabled={!form.salon_id || !form.service_id || form.staff_ids.length >= selectedServiceRequiredStaffCount}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Ajouter un thérapeute" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableStaff.filter(m => !form.staff_ids.includes(m.id)).map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.first_name} {member.last_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.service_id ? (
-                  <p className="text-xs text-muted-foreground">
-                    Cette prestation nécessite {selectedServiceRequiredStaffCount} thérapeute{selectedServiceRequiredStaffCount > 1 ? "s" : ""}.
-                  </p>
-                ) : null}
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {form.staff_ids.map(id => {
-                    const member = staff?.find(s => s.id === id)
-                    return (
-                      <Badge key={id} variant="secondary" className="gap-1">
-                        {member?.first_name} {member?.last_name}
-                        <X className="w-3 h-3 cursor-pointer" onClick={() => handleRemoveStaff(id)} />
-                      </Badge>
-                    )
-                  })}
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="date">Date</Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={form.date}
-                    onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="time">Heure</Label>
-                  <Input
-                    id="time"
-                    type="time"
-                    value={form.time}
-                    onChange={(e) => setForm({ ...form, time: e.target.value })}
-                  />
-                </div>
-              </div>
+              <AppointmentSchedulePicker schedule={schedule} onDateChange={date => setForm(current => ({ ...current, date }))} disabled={isSaving} />
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="phone">Téléphone *</Label>
@@ -587,13 +504,13 @@ export default function AppointmentsPage() {
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 />
               </div>
-            </div>
+            </fieldset>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              <Button variant="outline" disabled={isSaving} onClick={() => setIsDialogOpen(false)}>
                 Annuler
               </Button>
-              <Button onClick={handleSave} disabled={createAppointment.isPending}>
-                {createAppointment.isPending ? "Sauvegarde..." : "Créer"}
+              <Button onClick={handleSave} disabled={isSaving || !schedule.isValid}>
+                {isSaving ? "Sauvegarde..." : "Créer"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -643,9 +560,7 @@ export default function AppointmentsPage() {
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Paiement</Label>
                   <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline" className={getPaymentStatusClass(selectedAppointment.payment_status)}>
-                      {getPaymentStatusLabel(selectedAppointment.payment_status)}
-                    </Badge>
+                    <AppointmentPaymentBadge appointment={selectedAppointment} />
                     {selectedAppointment.payment_method && (
                       <span className="text-sm text-muted-foreground">
                         via {getPaymentMethodLabel(selectedAppointment.payment_method)}

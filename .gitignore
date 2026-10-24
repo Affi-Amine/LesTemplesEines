@@ -15,6 +15,13 @@ yarn.lock
 
 # testing
 /coverage
+/.playwright-cli/
+/output/playwright/
+/supabase/.temp/
+
+# Local production audit extracts; regenerate with the read-only audit script.
+/docs/audits/salon-relations-data.json
+/docs/audits/2026-10-24-salons-plannings.md
 
 # next.js
 /.next/

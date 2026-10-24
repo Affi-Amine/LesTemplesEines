@@ -189,6 +189,26 @@
 }
 
 @layer components {
+  .app-toaster [data-sonner-toast].app-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: var(--width);
+    padding: 16px;
+    border: 1px solid #62533c;
+    border-left-width: 4px;
+    border-radius: 12px;
+    background: #211c16;
+    color: #faf7f0;
+    box-shadow: 0 12px 36px rgb(0 0 0 / 35%);
+  }
+  .app-toast .app-toast-title { color: #faf7f0; font-size: 14px; font-weight: 650; line-height: 1.4; }
+  .app-toast .app-toast-description { margin-top: 4px; color: #d6d0c5; font-size: 13px; line-height: 1.5; }
+  .app-toaster .app-toast-success { border-left-color: #4ade80 !important; }
+  .app-toaster .app-toast-error { border-left-color: #fb7185 !important; }
+  .app-toaster .app-toast-warning { border-left-color: #fbbf24 !important; }
+  .app-toaster .app-toast-info { border-left-color: #60a5fa !important; }
+  .app-toast [data-close-button] { background: #30291f; color: #faf7f0; border-color: #62533c; }
   .home-reveal {
     animation: reveal-up 700ms ease-out both;
   }

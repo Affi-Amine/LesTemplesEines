@@ -6,19 +6,11 @@ import { formatInTimeZone } from "date-fns-tz"
 import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { resolveSalonGroup } from "@/lib/salons/resolve"
 
+import { ClientDataSchema } from "@/lib/appointments/client-data"
+
 const APPOINTMENT_TIMEZONE = "Europe/Paris"
 
-const PhoneSchema = z
-  .string()
-  .transform((s) => (s || "").replace(/[\s\u00A0\-\.\(\)\/]/g, ""))
-  .refine((s) => /^\+?[0-9]{9,}$/.test(s), { message: "Invalid phone number format" })
-
-export const ClientDataSchema = z.object({
-  first_name: z.string().min(1),
-  last_name: z.string().min(1),
-  phone: PhoneSchema,
-  email: z.string().email().optional(),
-})
+export { ClientDataSchema } from "@/lib/appointments/client-data"
 
 export const BookableAppointmentSchema = z.object({
   salon_id: z.string().uuid(),

@@ -11,21 +11,21 @@ export type AppointmentStatus = "confirmed" | "pending" | "in_progress" | "compl
 export function getStatusColor(status: string): string {
   switch (status) {
     case "confirmed":
-      return "bg-green-100 text-green-800 border-green-200"
+      return "bg-sky-950 text-sky-100 border-sky-600"
     case "pending":
-      return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      return "bg-amber-950 text-amber-100 border-amber-600"
     case "in_progress":
-      return "bg-purple-100 text-purple-800 border-purple-200"
+      return "bg-violet-950 text-violet-100 border-violet-500"
     case "completed":
-      return "bg-blue-100 text-blue-800 border-blue-200"
+      return "bg-slate-800 text-slate-100 border-slate-500"
     case "cancelled":
-      return "bg-red-100 text-red-800 border-red-200"
+      return "bg-rose-950 text-rose-100 border-rose-500"
     case "no_show":
-      return "bg-orange-100 text-orange-800 border-orange-200"
+      return "bg-orange-950 text-orange-100 border-orange-500"
     case "blocked":
-      return "bg-gray-100 text-gray-800 border-gray-200"
+      return "bg-zinc-900 text-zinc-200 border-zinc-500"
     default:
-      return "bg-gray-100 text-gray-800 border-gray-200"
+      return "bg-zinc-900 text-zinc-200 border-zinc-500"
   }
 }
 

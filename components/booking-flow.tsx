@@ -12,10 +12,10 @@ import { StepIndicator } from "@/components/step-indicator"
 import { ServiceCatalog } from "@/components/service-catalog"
 import { useSalons } from "@/lib/hooks/use-salons"
 import { useServices } from "@/lib/hooks/use-services"
-import { useStaff } from "@/lib/hooks/use-staff"
-import { useAvailability } from "@/lib/hooks/use-availability"
+import { useAppointmentSchedule } from "@/lib/hooks/use-appointment-schedule"
+import { AppointmentSchedulePicker } from "@/components/calendar/appointment-schedule-picker"
+import { ClientDataSchema } from "@/lib/appointments/client-data"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
-import { canStaffTakeBookings, dateTimeInScheduleTimezone } from "@/lib/calendar/scheduling"
 import { t } from "@/lib/i18n/get-translations"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
@@ -32,9 +32,6 @@ type BookingStep = "salon" | "service" | "time" | "info" | "confirm"
 interface BookingData {
   salon: string
   service: string
-  employee: string
-  employees: string[] // For multi-staff selection
-  assignmentMode: "specific" | "random"
   date: string
   time: string
   firstName: string
@@ -59,9 +56,6 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   const [data, setData] = useState<BookingData>({
     salon: initialSalon || "",
     service: "",
-    employee: "",
-    employees: [],
-    assignmentMode: "specific",
     date: "",
     time: "",
     firstName: "",
@@ -72,6 +66,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     paymentOption: "on_site",
     clientPackId: searchParams.get("client_pack_id") || "",
   })
+  const submitLock = useRef(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false)
   const [hasClientSession, setHasClientSession] = useState(false)
   const todayInParis = useMemo(() => formatInTimeZone(new Date(), "Europe/Paris", "yyyy-MM-dd"), [])
@@ -85,9 +81,6 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
       ...current,
       salon: salonId,
       service: "",
-      employee: "",
-      employees: [],
-      assignmentMode: "specific",
       date: "",
       time: "",
     }))
@@ -97,30 +90,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     setData((current) => ({
       ...current,
       service: serviceId,
-      employee: "",
-      employees: [],
-      assignmentMode: "specific",
       date: "",
-      time: "",
-    }))
-  }
-
-  const handleEmployeeChange = (employeeId: string) => {
-    setData((current) => ({
-      ...current,
-      assignmentMode: "specific",
-      employee: employeeId,
-      employees: [],
-      time: "",
-    }))
-  }
-
-  const handleRandomAssignment = () => {
-    setData((current) => ({
-      ...current,
-      assignmentMode: "random",
-      employee: "",
-      employees: [],
       time: "",
     }))
   }
@@ -136,8 +106,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
   // Fetch data using hooks
   const { data: salons, isLoading: salonsLoading } = useSalons()
-  const { data: services, isLoading: servicesLoading } = useServices(data.salon || undefined)
-  const { data: staff, isLoading: staffLoading } = useStaff(data.salon || undefined)
+  const currentSalon = salons?.find(salon => salon.id === data.salon || salon.slug === data.salon)
+  const { data: services, isLoading: servicesLoading } = useServices(currentSalon?.id)
   const createAppointment = useCreateAppointment()
 
   useEffect(() => {
@@ -159,24 +129,19 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   })
 
   // Find current selections
-  const currentSalon = salons?.find((s) => s.id === data.salon || s.slug === data.salon)
   const currentService = services?.find((s) => s.id === data.service)
-  const serviceHasExplicitStaffAssignments = Boolean(
-    currentService &&
-      (staff || []).some((employee) => (employee.allowed_service_ids || []).includes(currentService.id))
-  )
-  const salonEmployees = (staff || []).filter((employee) => {
-    const allowedServiceIds = employee.allowed_service_ids || []
-    const canProvideService =
-      !currentService ||
-      !serviceHasExplicitStaffAssignments ||
-      allowedServiceIds.includes(currentService.id)
-
-    return canStaffTakeBookings(employee) && canProvideService
-  })
-  const currentEmployee = salonEmployees.find((e) => e.id === data.employee)
-  const selectedEmployees = salonEmployees.filter((employee) => data.employees.includes(employee.id))
-  const isRandomAssignment = data.assignmentMode === "random"
+  const schedule = useAppointmentSchedule({
+    salonId: currentSalon?.id || "", serviceId: currentService?.id || "", date: data.date,
+    requiredStaff: currentService?.required_staff_count || 1,
+    durationMinutes: currentService?.duration_minutes || 0,
+  }, Boolean(currentSalon && currentService))
+  const salonEmployees = schedule.staff
+  const currentEmployee = salonEmployees.find(member => member.id === schedule.staffIds[0])
+  const selectedEmployees = salonEmployees.filter(member => schedule.staffIds.includes(member.id))
+  useEffect(() => {
+    const time = schedule.slot ? formatInTimeZone(schedule.slot.start, "Europe/Paris", "HH:mm") : ""
+    setData(current => current.time === time ? current : { ...current, time })
+  }, [schedule.slot?.start])
   const defaultClientProfile = useMemo(
     () => clientPacks?.find((clientPack) => clientPack.client)?.client || null,
     [clientPacks]
@@ -262,114 +227,6 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     }
   }, [data.clientPackId, data.paymentOption, data.service, selectedClientPack])
 
-  const isMultiStaff = (currentService?.required_staff_count || 1) > 1
-  const availabilitySelection =
-    isRandomAssignment
-      ? undefined
-      : isMultiStaff
-        ? data.employees
-        : data.employee || undefined
-
-  // Availability based on selected therapist/date. Use the raw YYYY-MM-DD string to avoid timezone shifts.
-  const {
-    data: availabilityData,
-    isLoading: availabilityLoading,
-    isFetching: availabilityFetching,
-    isError: availabilityHasError,
-    error: availabilityError,
-  } = useAvailability(
-    availabilitySelection,
-    data.date || undefined,
-    data.service || undefined,
-    data.salon || undefined,
-  )
-
-  // Derive available start times (HH:mm) for quick lookup
-  const availableTimesSet = useMemo(() => new Set(
-    (availabilityData?.available_slots || []).map((slot) =>
-      new Date(slot.start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-    ),
-  ), [availabilityData?.available_slots])
-
-  // Helper to get staff for selected slot in multi-staff scenario
-  const getStaffForSelectedTime = () => {
-    if (!data.time || !availabilityData?.available_slots) return []
-    const selectedSlot = availabilityData.available_slots.find(slot => 
-      new Date(slot.start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) === data.time
-    )
-    return selectedSlot?.available_staff || []
-  }
-  const availableEmployeesForSelectedTime = useMemo(() => {
-    const availableStaffIds = new Set(getStaffForSelectedTime())
-    return salonEmployees.filter((employee) => availableStaffIds.has(employee.id))
-  }, [availabilityData?.available_slots, data.time, salonEmployees])
-
-  const getPreferredStaffIds = (availableStaffIds: string[], requiredCount: number) => {
-    const sortByName = (a: Staff, b: Staff) =>
-      `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`, "fr")
-
-    const availableEmployees = salonEmployees
-      .filter((employee) => availableStaffIds.includes(employee.id))
-
-    const femaleEmployees = availableEmployees
-      .filter((employee) => employee.gender === "female")
-      .sort(sortByName)
-
-    const fallbackEmployees = availableEmployees
-      .filter((employee) => employee.gender !== "female")
-      .sort(sortByName)
-
-    return (femaleEmployees.length > 0 ? femaleEmployees : fallbackEmployees)
-      .slice(0, requiredCount)
-      .map((employee) => employee.id)
-  }
-
-  const availableTimeOptions = useMemo(() => (
-    (availabilityData?.available_slots || []).map((slot) =>
-      new Date(slot.start).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-    )
-  ), [availabilityData?.available_slots])
-
-  useEffect(() => {
-    if (data.time && !availableTimesSet.has(data.time)) {
-      setData((current) => ({
-        ...current,
-        time: "",
-      }))
-    }
-  }, [availableTimesSet, data.time])
-
-  useEffect(() => {
-    if (!data.employee || isRandomAssignment || !data.time || !availabilityData?.available_slots) {
-      return
-    }
-
-    const isStillAvailable = availableEmployeesForSelectedTime.some((employee) => employee.id === data.employee)
-
-    if (!isStillAvailable) {
-      setData((current) => ({
-        ...current,
-        employee: "",
-      }))
-    }
-  }, [availabilityData?.available_slots, availableEmployeesForSelectedTime, data.employee, data.time, isRandomAssignment])
-
-  useEffect(() => {
-    if (data.employees.length === 0 || isRandomAssignment || !data.time || !availabilityData?.available_slots) {
-      return
-    }
-
-    const availableEmployeeIds = new Set(availableEmployeesForSelectedTime.map((employee) => employee.id))
-    const nextEmployees = data.employees.filter((employeeId) => availableEmployeeIds.has(employeeId))
-
-    if (nextEmployees.length !== data.employees.length) {
-      setData((current) => ({
-        ...current,
-        employees: nextEmployees,
-      }))
-    }
-  }, [availabilityData?.available_slots, availableEmployeesForSelectedTime, data.employees, data.time, isRandomAssignment])
-
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -377,40 +234,8 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     window.scrollTo({ top: Math.max(top, 0), behavior: "smooth" })
   }, [step])
 
-  // Handle toggle for multi-staff selection
-  const toggleEmployeeSelection = (employeeId: string, requiredCount: number) => {
-    let newSelection = [...data.employees]
-    if (newSelection.includes(employeeId)) {
-      newSelection = newSelection.filter(id => id !== employeeId)
-    } else {
-      if (newSelection.length < requiredCount) {
-        newSelection.push(employeeId)
-      } else {
-         // Replace the first one if limit reached (optional UX choice, or just block)
-         // Let's block for now or maybe replace last? Let's just block adding more than needed
-         // Actually better UX: if full, don't add. User must unselect first.
-         // Or: Shift. remove first, add new.
-         // Let's keep it simple: if not full, add.
-         if (newSelection.length >= requiredCount) return
-      }
-    }
-    setData((current) => ({
-      ...current,
-      assignmentMode: "specific",
-      employee: "",
-      employees: newSelection,
-      time: "",
-    }))
-  }
-
-  const handleTimeChange = (time: string) => {
-    setData((current) => ({
-      ...current,
-      time,
-    }))
-  }
-
   const handleNext = () => {
+    if (step === "time" && !schedule.isValid) return
     const steps: BookingStep[] = ["salon", "service", "time", "info", "confirm"]
     const currentIndex = steps.indexOf(step)
     if (currentIndex < steps.length - 1) {
@@ -427,184 +252,124 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   }
 
   const handleConfirm = async () => {
-    // If multi-staff, we don't need currentEmployee, but we need dynamic staff assignment
-    // const isMultiStaff = (currentService?.required_staff_count || 1) > 1 // Defined above now
-    
-    if (!currentSalon || !currentService || (!currentEmployee && !isMultiStaff && !isRandomAssignment)) {
-      toast.error("Erreur", {
-        description: "Veuillez remplir tous les champs requis",
-        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-      })
-      return
-    }
+    if (submitLock.current || !currentSalon || !currentService) return
+    if (!schedule.isValid) { setStep("time"); return }
+    const contact = ClientDataSchema.safeParse({ first_name: data.firstName, last_name: data.lastName, phone: data.phone, email: data.email || undefined })
+    if (!contact.success) { toast.error(contact.error.issues[0].message); setStep("info"); return }
+    submitLock.current = true
+    setIsSubmitting(true)
+    let mutationStarted = false
+    try {
+      const selection = await schedule.refreshSelection()
+      if (!selection) { setStep("time"); return }
+      const startTime = selection.slot.start
+      const assignedStaffIds = selection.staffIds
+      const primaryStaffId = assignedStaffIds[0]
 
-    const parisTime = dateTimeInScheduleTimezone(new Date(`${data.date}T00:00:00`), data.time)
-    if (!parisTime) {
-      toast.error("Horaire invalide")
-      return
-    }
-    const startTime = parisTime.toISOString()
-
-    if (parisTime.getTime() < Date.now()) {
-      toast.error("Impossible de réserver un créneau dans le passé")
-      return
-    }
-    
-    // For multi-staff, get the assigned staff from availability data
-    let assignedStaffIds: string[] = []
-    let primaryStaffId = currentEmployee?.id
-
-    if (isRandomAssignment) {
-      const requiredCount = currentService.required_staff_count || 1
-      const preferredStaffIds = getPreferredStaffIds(getStaffForSelectedTime(), requiredCount)
-
-      if (preferredStaffIds.length < requiredCount) {
-        toast.error("Aucun praticien disponible pour ce créneau", {
-          description: "Choisissez un autre créneau ou un autre praticien.",
-          icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-        })
+      if (data.paymentOption === "pack" && !data.clientPackId) {
+        toast.error("Sélectionnez un forfait valide pour cette prestation.")
         return
       }
 
-      assignedStaffIds = preferredStaffIds
-      primaryStaffId = preferredStaffIds[0]
-    } else if (isMultiStaff) {
-      // If user selected specific employees, use them. Otherwise auto-assign (fallback)
-      // But since we are implementing manual selection now, we prefer data.employees if valid
-      
-      const requiredCount = currentService.required_staff_count || 1
-      
-      if (data.employees.length === requiredCount) {
-         // User selected manually
-         assignedStaffIds = data.employees
-      } else {
-         // Fallback to auto-assignment if user didn't select or selected fewer (should be blocked by UI validation ideally)
-         // But for now let's keep auto-assign as backup or if they chose "Any"
-         const preferredStaffIds = getPreferredStaffIds(getStaffForSelectedTime(), requiredCount)
-         if (preferredStaffIds.length < requiredCount) {
-            toast.error("Erreur", {
-              description: "Plus assez de personnel disponible pour ce créneau.",
-              icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-            })
-            return
-         }
-         assignedStaffIds = preferredStaffIds
-      }
-      
-      primaryStaffId = assignedStaffIds[0] // Use first one as primary for compatibility
-    } else {
-      assignedStaffIds = currentEmployee ? [currentEmployee.id] : []
-    }
+      const assignedStaff = salonEmployees.find((employee) => employee.id === primaryStaffId) || currentEmployee
 
-    if (!primaryStaffId) {
-       toast.error("Erreur technique: Impossible d'assigner un prestataire.")
-       return
-    }
-
-    if (data.paymentOption === "pack" && !data.clientPackId) {
-      toast.error("Sélectionnez un forfait valide pour cette prestation.")
-      return
-    }
-
-    const assignedStaff = salonEmployees.find((employee) => employee.id === primaryStaffId) || currentEmployee
-
-    const bookingDetails = {
-      salon: currentSalon,
-      service: currentService,
-      staff: assignedStaff,
-      start_time: startTime,
-      client: {
-        first_name: data.firstName,
-        last_name: data.lastName,
-        phone: data.phone,
-        email: data.email,
-      },
-      notes: data.notes,
-      payment_option: data.paymentOption,
-    }
-
-    if (data.paymentOption === "stripe") {
-      setIsRedirectingToStripe(true)
-      localStorage.setItem("lastBooking", JSON.stringify(bookingDetails))
-
-      try {
-        const response = await fetchAPI<{ url: string }>("/stripe/checkout/appointment", {
-          method: "POST",
-          body: JSON.stringify({
-            salon_id: currentSalon.id,
-            staff_id: primaryStaffId,
-            staff_ids: assignedStaffIds,
-            service_id: currentService.id,
-            start_time: startTime,
-            client_data: {
-              first_name: data.firstName,
-              last_name: data.lastName,
-              phone: data.phone,
-              email: data.email || undefined,
-            },
-            notes: data.notes || undefined,
-            payment_method: "stripe",
-            payment_status: "pending",
-          }),
-        })
-
-        window.location.href = response.url
-        return
-      } catch (error: any) {
-        setIsRedirectingToStripe(false)
-        toast.error("Erreur lors du paiement", {
-          description: error.message || "Impossible de lancer le paiement Stripe.",
-          icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-        })
-        return
-      }
-    }
-
-    createAppointment.mutate(
-      {
-        salon_id: currentSalon.id,
-        staff_id: primaryStaffId,
-        staff_ids: assignedStaffIds,
-        service_id: currentService.id,
+      const bookingDetails = {
+        salon: currentSalon,
+        service: currentService,
+        staff: assignedStaff,
         start_time: startTime,
-        client_data: {
+        client: {
           first_name: data.firstName,
           last_name: data.lastName,
           phone: data.phone,
-          email: data.email || undefined,
+          email: data.email,
         },
-        notes: data.notes || undefined,
-        payment_method: data.paymentOption === "pack" ? "pack" : "on_site",
-        payment_status: data.paymentOption === "pack" ? "paid" : "unpaid",
-        amount_paid_cents: data.paymentOption === "pack" ? currentService.price_cents : 0,
-        client_pack_id: data.paymentOption === "pack" ? data.clientPackId : undefined,
-        booking_source: "client",
-      },
-      {
-        onSuccess: (appointment) => {
-          // Store booking details for success page
-          const confirmedBookingDetails = {
-            reference: appointment.id,
-            ...bookingDetails,
-          }
-          localStorage.setItem("lastBooking", JSON.stringify(confirmedBookingDetails))
+        notes: data.notes,
+        payment_option: data.paymentOption,
+      }
 
-          toast.success(t(locale, "booking.booking_confirmed"), {
-            description: "Un SMS de confirmation sera envoyé à " + data.phone,
-            icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
-            duration: 5000,
+      if (data.paymentOption === "stripe") {
+        setIsRedirectingToStripe(true)
+        localStorage.setItem("lastBooking", JSON.stringify(bookingDetails))
+
+        try {
+          const response = await fetchAPI<{ url: string }>("/stripe/checkout/appointment", {
+            method: "POST",
+            body: JSON.stringify({
+              salon_id: currentSalon.id,
+              staff_id: primaryStaffId,
+              staff_ids: assignedStaffIds,
+              service_id: currentService.id,
+              start_time: startTime,
+              client_data: {
+                first_name: data.firstName,
+                last_name: data.lastName,
+                phone: data.phone,
+                email: data.email || undefined,
+              },
+              notes: data.notes || undefined,
+              payment_method: "stripe",
+              payment_status: "pending",
+            }),
           })
 
-          router.push("/booking-success")
-        },
-        onError: (error: any) => {
-          toast.error("Erreur lors de la réservation", {
-            description: error.message || "Une erreur est survenue",
+          window.location.href = response.url
+          return
+        } catch (error: any) {
+          if (error.status === 409) { schedule.clear("Ce créneau vient d’être pris. Vos coordonnées sont conservées."); setStep("time") }
+          setIsRedirectingToStripe(false)
+          toast.error("Erreur lors du paiement", {
+            description: error.message || "Impossible de lancer le paiement Stripe.",
             icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
           })
-        },
+          return
+        }
       }
-    )
+
+      mutationStarted = true
+      await createAppointment.mutateAsync(
+        {
+          salon_id: currentSalon.id,
+          staff_id: primaryStaffId,
+          staff_ids: assignedStaffIds,
+          service_id: currentService.id,
+          start_time: startTime,
+          client_data: {
+            first_name: data.firstName,
+            last_name: data.lastName,
+            phone: data.phone,
+            email: data.email || undefined,
+          },
+          notes: data.notes || undefined,
+          payment_method: data.paymentOption === "pack" ? "pack" : "on_site",
+          payment_status: data.paymentOption === "pack" ? "paid" : "unpaid",
+          amount_paid_cents: data.paymentOption === "pack" ? currentService.price_cents : 0,
+          client_pack_id: data.paymentOption === "pack" ? data.clientPackId : undefined,
+          booking_source: "client",
+        },
+        {
+          onSuccess: (appointment) => {
+            // Store booking details for success page
+            const confirmedBookingDetails = {
+              reference: appointment.id,
+              ...bookingDetails,
+            }
+            localStorage.setItem("lastBooking", JSON.stringify(confirmedBookingDetails))
+
+            toast.success(t(locale, "booking.booking_confirmed"), {
+              description: "Votre rendez-vous est enregistré.",
+              icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
+              duration: 5000,
+            })
+
+            router.push("/booking-success")
+          },
+        }
+      )
+    } catch (error: any) {
+      if (error.status === 409) { schedule.clear("Ce créneau vient d’être pris. Vos coordonnées sont conservées."); setStep("time") }
+      if (!mutationStarted) toast.error(error.message || "Impossible de confirmer le rendez-vous. Réessayez.")
+    } finally { submitLock.current = false; setIsSubmitting(false) }
   }
 
   const stepLabels = [
@@ -630,11 +395,6 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     )
   }
 
-  const isTherapistSelectionComplete =
-    isRandomAssignment ||
-    (!isMultiStaff && !!currentEmployee) ||
-    (isMultiStaff && selectedEmployees.length === (currentService?.required_staff_count || 1))
-  const isAvailabilityPending = Boolean(data.date && isTherapistSelectionComplete && (availabilityLoading || availabilityFetching))
   const flowCardClass = "animate-in fade-in duration-300 gap-3 border-0 bg-transparent px-0 py-0 shadow-none sm:gap-6 sm:rounded-xl sm:border sm:border-primary/10 sm:bg-card/70 sm:p-6 md:p-8"
   const flowTitleClass = "mb-1 text-[1.12rem] font-semibold leading-tight sm:text-2xl"
   const flowSubtitleClass = "mb-3 text-[0.82rem] leading-5 text-muted-foreground sm:mb-6 sm:text-base sm:leading-6"
@@ -642,6 +402,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
 
   return (
     <div ref={containerRef} className="mx-auto w-full max-w-2xl px-0 pb-2 pt-2 sm:p-4 scroll-mt-28">
+      <fieldset disabled={isSubmitting || isRedirectingToStripe} className="min-w-0">
       <StepIndicator currentStep={stepIndex} totalSteps={5} stepLabels={stepLabels} />
 
       {/* Step 1: Select Salon */}
@@ -769,213 +530,12 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
         <Card className={flowCardClass}>
           <h2 className={flowTitleClass}>{t(locale, "booking.step3_title")}</h2>
           <p className={flowSubtitleClass}>{t(locale, "booking.step3_subtitle")}</p>
-          <div className="space-y-5 sm:space-y-6">
-            <div>
-              {(!currentService?.required_staff_count || currentService.required_staff_count <= 1) ? (
-                <div className="mb-5 sm:mb-6">
-                  <Label className="text-sm font-semibold sm:text-base">{t(locale, "booking.select_therapist")}</Label>
-                  <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground sm:mt-2 sm:text-xs">
-                    Choisissez votre praticien avant de voir les créneaux, ou laissez-nous choisir pour vous.
-                  </p>
-                  {staffLoading ? (
-                    <div className="mt-3 space-y-2">
-                      {[1, 2].map((i) => (
-                        <div key={i} className="rounded-lg border p-3 animate-pulse">
-                          <div className="h-4 w-1/3 rounded bg-muted" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-2.5 space-y-2 sm:mt-3 sm:space-y-3">
-                      <button
-                        type="button"
-                        onClick={handleRandomAssignment}
-                        aria-pressed={isRandomAssignment}
-                        className={`w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-all sm:rounded-2xl sm:p-4 ${
-                          isRandomAssignment
-                            ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
-                            : "bg-card/65 hover:bg-muted hover:border-primary"
-                        }`}
-                      >
-                        <span className="flex items-start gap-3">
-                          <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${isRandomAssignment ? "border-primary" : "border-primary/30"}`}>
-                            {isRandomAssignment ? <span className="h-2 w-2 rounded-full bg-primary" /> : null}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-sm font-medium text-foreground sm:text-base">Aléatoire</span>
-                            <span className="mt-1 block text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">
-                              Nous attribuons automatiquement un praticien disponible sur le créneau choisi.
-                            </span>
-                          </span>
-                        </span>
-                      </button>
-                      {salonEmployees.map((emp) => {
-                        const isSelected = data.employee === emp.id && !isRandomAssignment
-
-                        return (
-                          <button
-                            key={emp.id}
-                            type="button"
-                            onClick={() => handleEmployeeChange(emp.id)}
-                            aria-pressed={isSelected}
-                            className={`w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-all sm:rounded-2xl sm:p-4 ${
-                              isSelected
-                                ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
-                                : "bg-card/65 hover:bg-muted hover:border-primary"
-                            }`}
-                          >
-                            <span className="flex items-start gap-3">
-                              <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${isSelected ? "border-primary" : "border-primary/30"}`}>
-                                {isSelected ? <span className="h-2 w-2 rounded-full bg-primary" /> : null}
-                              </span>
-                              <span className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground sm:text-base sm:leading-6">
-                                {renderStaffName(emp)}
-                              </span>
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="mb-5 sm:mb-6">
-                  <Label className="text-sm font-semibold sm:text-base">
-                    Sélectionnez {currentService.required_staff_count} praticiens
-                    {data.employees.length > 0 && !isRandomAssignment && ` (${data.employees.length}/${currentService.required_staff_count})`}
-                  </Label>
-                  <p className="mb-2.5 mt-1.5 text-[11px] leading-5 text-muted-foreground sm:mb-3 sm:mt-2 sm:text-xs">
-                    Choisissez d'abord vos praticiens, ou laissez-nous faire l'attribution automatique sur le créneau choisi.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleRandomAssignment}
-                    aria-pressed={isRandomAssignment}
-                    className={`mb-2.5 w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-all sm:mb-3 sm:rounded-2xl sm:p-4 ${
-                      isRandomAssignment
-                        ? "border-primary bg-primary/10 shadow-[0_10px_24px_rgba(214,171,89,0.08)]"
-                        : "bg-card/65 hover:bg-muted hover:border-primary"
-                    }`}
-                  >
-                    <span className="flex items-start gap-3">
-                      <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${isRandomAssignment ? "border-primary bg-primary" : "border-primary/30"}`}>
-                        {isRandomAssignment ? <Icon icon="solar:check-bold" className="h-3 w-3 text-primary-foreground" /> : null}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium text-foreground sm:text-base">Attribution automatique</span>
-                        <span className="mt-1 block text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">
-                          Nous choisirons les praticiens disponibles au moment du créneau.
-                        </span>
-                      </span>
-                    </span>
-                  </button>
-                  {staffLoading ? (
-                    <div className="mt-3 space-y-2">
-                      {[1, 2].map((i) => (
-                        <div key={i} className="rounded-lg border p-3 animate-pulse">
-                          <div className="h-4 w-1/3 rounded bg-muted" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-2.5 space-y-2 sm:mt-3 sm:space-y-3">
-                      {salonEmployees.map((emp) => {
-                        const isSelected = data.employees.includes(emp.id)
-                        const isFull = data.employees.length >= (currentService.required_staff_count || 2)
-                        const disabled = !isSelected && isFull
-
-                        return (
-                          <button
-                            key={emp.id}
-                            type="button"
-                            disabled={disabled}
-                            aria-pressed={isSelected && !isRandomAssignment}
-                            className={`w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-colors sm:rounded-2xl sm:p-4 ${isSelected && !isRandomAssignment ? "border-primary bg-primary/12 shadow-[0_10px_24px_rgba(214,171,89,0.08)]" : "bg-card/65 hover:bg-muted"} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
-                            onClick={() => {
-                              !disabled && toggleEmployeeSelection(emp.id, currentService.required_staff_count || 2)
-                            }}
-                          >
-                            <span className="flex items-start gap-3">
-                              <span className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${isSelected && !isRandomAssignment ? "border-primary bg-primary" : "border-primary/30"}`}>
-                                {isSelected && !isRandomAssignment ? <Icon icon="solar:check-bold" className="h-3 w-3 text-primary-foreground" /> : null}
-                              </span>
-                              <span className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground sm:text-base sm:leading-6">
-                                {renderStaffName(emp)}
-                              </span>
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <Label htmlFor="date" className="text-sm font-semibold sm:text-base">
-                {t(locale, "booking.select_date")}
-              </Label>
-              <Input
-                id="date"
-                type="date"
-                defaultValue={data.date}
-                onChange={(e) => handleDateChange(e.target.value)}
-                onBlur={(e) => {
-                  if (e.target.value && e.target.value < todayInParis) {
-                    toast.error("Impossible de réserver dans le passé")
-                  }
-                }}
-                min={todayInParis}
-                className="mt-2 h-10 w-full min-w-0 max-w-full text-sm sm:h-11"
-                disabled={!isTherapistSelectionComplete}
-              />
-              {!isTherapistSelectionComplete ? (
-                <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground sm:mt-2 sm:text-xs">
-                  Choisissez d'abord un praticien ou l'option aléatoire pour voir les créneaux.
-                </p>
-              ) : null}
-            </div>
-            <div>
-              <Label className="text-sm font-semibold sm:text-base">{t(locale, "booking.select_time")}</Label>
-              <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground sm:mt-2 sm:text-xs">
-                {!isTherapistSelectionComplete && "Choisissez d'abord un praticien ou l'option aléatoire."}
-                {isTherapistSelectionComplete && !data.date && "Sélectionnez d'abord la date pour voir les créneaux disponibles."}
-                {isAvailabilityPending && "Chargement des créneaux disponibles..."}
-              </p>
-              {availabilityHasError && data.date ? (
-                <div className="mt-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs leading-5 text-destructive">
-                  Impossible de charger les créneaux. {availabilityError instanceof Error ? availabilityError.message : "Réessayez dans quelques instants."}
-                </div>
-              ) : null}
-              {data.date && isTherapistSelectionComplete && !isAvailabilityPending && !availabilityHasError && availableTimeOptions.length === 0 ? (
-                <div className="mt-2.5 rounded-xl border border-primary/15 bg-card/45 p-3 text-xs leading-5 text-muted-foreground">
-                  Aucun créneau libre pour ce choix. Essayez une autre date ou un autre praticien.
-                </div>
-              ) : null}
-              {availableTimeOptions.length > 0 ? (
-                <div className="mt-2.5 grid grid-cols-3 gap-1.5 sm:mt-3 sm:grid-cols-3 sm:gap-2 md:grid-cols-4">
-                  {availableTimeOptions.map((time) => {
-                  const isSelected = data.time === time
-                  return (
-                    <Button
-                      key={time}
-                      variant={isSelected ? "default" : "outline"}
-                      onClick={() => handleTimeChange(time)}
-                      className="h-9 w-full rounded-lg text-xs font-medium sm:h-12 sm:rounded-xl sm:text-sm"
-                      disabled={!isTherapistSelectionComplete || isAvailabilityPending}
-                    >
-                      {time}
-                    </Button>
-                  )
-                  })}
-                </div>
-              ) : null}
-            </div>
-          </div>
+          <AppointmentSchedulePicker schedule={schedule} onDateChange={handleDateChange} disabled={isSubmitting} />
           <div className={flowActionsClass}>
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.back")}
             </Button>
-            <Button onClick={handleNext} disabled={!data.date || !data.time || !isTherapistSelectionComplete} size="lg" className="cursor-pointer w-full sm:w-auto">
+            <Button onClick={handleNext} disabled={!schedule.isValid} size="lg" className="cursor-pointer w-full sm:w-auto">
               {t(locale, "common.next")}
             </Button>
           </div>
@@ -1227,16 +787,16 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row justify-between gap-3">
-            <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto" disabled={createAppointment.isPending}>
+            <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto" disabled={isSubmitting || createAppointment.isPending}>
               {t(locale, "common.back")}
             </Button>
             <Button
               onClick={handleConfirm}
               className="bg-primary hover:bg-primary/90 cursor-pointer w-full sm:w-auto"
               size="lg"
-              disabled={createAppointment.isPending || isRedirectingToStripe}
+              disabled={isSubmitting || createAppointment.isPending || isRedirectingToStripe}
             >
-              {createAppointment.isPending || isRedirectingToStripe ? (
+              {isSubmitting || createAppointment.isPending || isRedirectingToStripe ? (
                 <>
                   <Icon icon="svg-spinners:ring-resize" className="w-5 h-5 mr-2" />
                   {isRedirectingToStripe ? "Redirection..." : t(locale, "common.loading")}
@@ -1252,6 +812,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
           </div>
         </Card>
       )}
+      </fieldset>
     </div>
   )
 }

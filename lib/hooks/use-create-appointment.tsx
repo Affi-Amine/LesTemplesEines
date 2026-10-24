@@ -53,7 +53,7 @@ export function useCreateAppointment() {
       toast.success(isBlockedSlot ? "Créneau bloqué avec succès !" : "Rendez-vous créé avec succès !", {
         description: isBlockedSlot
           ? "Le créneau a été réservé pour empêcher de nouvelles prises de rendez-vous."
-          : "Le client recevra un SMS de confirmation.",
+          : "Le rendez-vous est enregistré dans le planning.",
         icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
         duration: 5000,
       })

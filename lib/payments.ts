@@ -3,16 +3,16 @@ export type AppointmentPaymentStatus = "pending" | "paid" | "unpaid" | "failed" 
 export function getPaymentStatusLabel(status?: string | null) {
   switch (status) {
     case "paid":
-      return "Paye"
+      return "Payé"
     case "pending":
       return "En attente"
     case "failed":
-      return "Echoue"
+      return "Échoué"
     case "partial":
       return "Partiel"
     case "unpaid":
     default:
-      return "Non paye"
+      return "Non payé"
   }
 }
 
@@ -38,14 +38,16 @@ export function getPaymentMethodLabel(method?: string | null) {
       return "Stripe"
     case "gift_card":
       return "Carte cadeau"
+    case "pack":
+      return "Forfait"
     case "on_site":
       return "Sur place"
     case "card":
       return "Carte bancaire"
     case "cash":
-      return "Especes"
+      return "Espèces"
     case "check":
-      return "Cheque"
+      return "Chèque"
     case "treatwell":
       return "Treatwell"
     case "loyalty":

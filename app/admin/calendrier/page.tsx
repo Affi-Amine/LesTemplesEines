@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, type CSSProperties } from "react"
+import { useState, useEffect, useMemo, type CSSProperties } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { fetchAPI } from "@/lib/api/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -18,6 +20,7 @@ import { Icon } from "@iconify/react"
 import { BookingDetailsModal } from "@/components/booking-details-modal"
 import { DndContext, PointerSensor, TouchSensor, useSensors, useSensor, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core"
 import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
+import { AppointmentPaymentBadge, AppointmentPaymentLegend } from "@/components/appointment-payment-badge"
 import { useStaff } from "@/lib/hooks/use-staff"
 import {
   findOverlappingAppointment,
@@ -45,6 +48,8 @@ interface Appointment {
   end_time: string
   status: string
   salon_id: string
+  payment_status?: string
+  payment_method?: string
   staff_id?: string
   client?: {
     first_name: string
@@ -249,9 +254,7 @@ function WeekView({
                             {isDraggable && (
                               <GripVertical className="absolute right-0.5 top-0.5 w-3 h-3 text-muted-foreground/50" />
                             )}
-                            <div className="font-medium truncate text-[10px]">
-                              {getAppointmentTitle(appointment)}
-                            </div>
+                            <div className="flex items-center gap-1 text-[10px] font-medium"><span className="min-w-0 flex-1 truncate">{getAppointmentTitle(appointment)}</span><AppointmentPaymentBadge appointment={appointment} compact iconOnly={position.height < 55} /></div>
                             <div className="truncate text-[9px]">
                               {appointment.service?.name || (appointment.status === "blocked" ? "Indisponible" : "Service")}
                             </div>
@@ -448,8 +451,9 @@ function DayView({
                         )}
                         <div className="flex items-center gap-1 font-semibold text-[10px]">
                           <span>{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
+                          <AppointmentPaymentBadge appointment={appointment} compact iconOnly={position.height < 45} className="ml-auto mr-2" />
                           {isMultiStaffAppointment ? (
-                            <span className="rounded bg-background/80 px-1 text-[9px]">x{appointmentStaffIds.length}</span>
+                            <span className="rounded bg-black/15 px-1 text-[9px]">x{appointmentStaffIds.length}</span>
                           ) : null}
                         </div>
                         <div className="truncate text-[10px] font-medium">
@@ -487,8 +491,17 @@ export default function CalendrierPage() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [salons, setSalons] = useState<Salon[]>([])
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [loading, setLoading] = useState(true)
+  const startDate = format(startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }), "yyyy-MM-dd")
+  const endDate = format(endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }), "yyyy-MM-dd")
+  const { data: appointments = [], isFetching: loading, isError: appointmentsError, refetch: fetchAppointments } = useQuery({
+    queryKey: ["appointments", "calendar", selectedSalon, startDate, endDate],
+    queryFn: ({ signal }) => {
+      const query = new URLSearchParams({ start_date: startDate, end_date: endDate })
+      if (selectedSalon !== "all") query.set("salon_id", selectedSalon)
+      return fetchAPI<Appointment[]>(`/appointments?${query}`, { signal, cache: "no-store" })
+    },
+    staleTime: 0,
+  })
   const selectedSalonData = useMemo(
     () => salons.find((salon) => salon.id === selectedSalon) || null,
     [salons, selectedSalon]
@@ -510,6 +523,15 @@ export default function CalendrierPage() {
     minute: number
     staffId?: string
   } | null>(null)
+
+  useEffect(() => {
+    setSelectedAppointment(null)
+    setIsModalOpen(false)
+    setIsQuickCreateOpen(false)
+    setQuickCreateData(null)
+    setActiveAppointment(null)
+    setPendingMove(null)
+  }, [selectedSalon])
 
   // Configure sensors for drag-and-drop (desktop + mobile)
   const sensors = useSensors(
@@ -770,35 +792,6 @@ export default function CalendrierPage() {
     }
   }
 
-  // Fetch appointments function (extracted for reuse)
-  const fetchAppointments = useCallback(async () => {
-    setLoading(true)
-    try {
-      const startDate = format(startOfMonth(currentDate), "yyyy-MM-dd")
-      const endDate = format(endOfMonth(currentDate), "yyyy-MM-dd")
-
-      let url = `/api/appointments?start_date=${startDate}&end_date=${endDate}`
-      if (selectedSalon !== "all") {
-        url += `&salon_id=${selectedSalon}`
-      }
-
-      const response = await fetch(url)
-      if (response.ok) {
-        const data = await response.json()
-        setAppointments(data)
-      }
-    } catch (error) {
-      console.error("Erreur lors du chargement des rendez-vous:", error)
-    } finally {
-      setLoading(false)
-    }
-  }, [currentDate, selectedSalon])
-
-  // Fetch appointments
-  useEffect(() => {
-    fetchAppointments()
-  }, [fetchAppointments])
-
   // Generate calendar grid including previous/next month days for complete weeks
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
@@ -895,6 +888,12 @@ export default function CalendrierPage() {
           </Card>
         )}
 
+        {appointmentsError && (
+          <div role="alert" className="rounded-md border border-destructive/30 p-4 text-destructive">
+            Impossible de charger le planning de ce salon.
+            <Button variant="outline" onClick={() => void fetchAppointments()} className="ml-3">Réessayer</Button>
+          </div>
+        )}
         {selectedSalonData && (
           <Card>
             <CardContent className="flex flex-col gap-2 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
@@ -907,6 +906,8 @@ export default function CalendrierPage() {
             </CardContent>
           </Card>
         )}
+
+        <AppointmentPaymentLegend />
 
         {/* Legend */}
         <Card className="border-l-4 border-l-primary">
@@ -960,7 +961,9 @@ export default function CalendrierPage() {
             </div>
           </CardHeader>
           <CardContent className="px-2 pb-3 sm:px-6 sm:pb-6">
-            {loading ? (
+            {appointmentsError ? (
+              <div className="text-center py-8 text-muted-foreground">Planning indisponible.</div>
+            ) : loading ? (
               <div className="text-center py-8">Chargement des rendez-vous...</div>
             ) : (
               <>
@@ -1001,10 +1004,11 @@ export default function CalendrierPage() {
                               {dayAppointments.slice(0, 3).map((appointment) => (
                                 <div
                                   key={appointment.id}
-                                  className={`h-4 overflow-hidden rounded-[3px] border px-0.5 text-[8px] font-bold leading-4 ${getStatusColor(appointment.status)}`}
+                                  className={`flex h-4 items-center justify-between gap-0.5 overflow-hidden rounded-[3px] border px-0.5 text-[8px] font-bold leading-4 ${getStatusColor(appointment.status)}`}
                                   title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}`}
                                 >
-                                  {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}
+                                  <span>{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
+                                  <AppointmentPaymentBadge appointment={appointment} iconOnly compact className="h-3 w-3" />
                                 </div>
                               ))}
                               {dayAppointments.length > 3 && (
@@ -1056,8 +1060,9 @@ Masseuse : ${appointment.staff?.first_name || 'Inconnu'} ${appointment.staff?.la
 Salon: ${appointment.salon?.name || 'Salon Inconnu'}
 Statut: ${getStatusLabel(appointment.status)}`}
                                 >
-                                  <div className="font-medium">
-                                    {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}
+                                  <div className="flex items-center justify-between gap-1 font-medium">
+                                    <span>{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
+                                    <AppointmentPaymentBadge appointment={appointment} compact />
                                   </div>
                                   <div className="truncate">
                                     {appointment.status === "blocked"
@@ -1212,7 +1217,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
       {/* Drag Overlay for visual feedback */}
       <DragOverlay>
         {activeAppointment ? (
-            <div className={`text-xs p-2 rounded border shadow-lg bg-white/90 backdrop-blur ${getStatusColor(activeAppointment.status)}`}>
+            <div className={`text-xs p-2 rounded border shadow-lg backdrop-blur ${getStatusColor(activeAppointment.status)}`}>
               <div className="font-medium">
               {activeAppointment.status === "blocked"
                 ? "Créneau bloqué"

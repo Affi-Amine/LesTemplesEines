@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { AppointmentPaymentBadge } from "@/components/appointment-payment-badge"
+import { getStatusColor, getStatusLabel } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -27,6 +29,8 @@ interface BookingDetailsModalProps {
     start_time: string
     end_time: string
     status: string
+    payment_status?: string | null
+    payment_method?: string | null
     client_notes?: string
     salon_id?: string
     service_id?: string
@@ -228,30 +232,6 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "confirmed": return "bg-green-100 text-green-800 border-green-200"
-      case "pending": return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "completed": return "bg-blue-100 text-blue-800 border-blue-200"
-      case "cancelled": return "bg-red-100 text-red-800 border-red-200"
-      case "no_show": return "bg-gray-100 text-gray-800 border-gray-200"
-      case "blocked": return "bg-gray-100 text-gray-800 border-gray-200"
-      default: return "bg-gray-100 text-gray-800 border-gray-200"
-    }
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "confirmed": return "Confirmé"
-      case "pending": return "En attente"
-      case "completed": return "Terminé"
-      case "cancelled": return "Annulé"
-      case "no_show": return "Absent"
-      case "blocked": return "Bloqué"
-      default: return status
-    }
-  }
-
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60)
     const mins = minutes % 60
@@ -289,6 +269,8 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
             </DialogDescription>
           )}
         </DialogHeader>
+
+        {!isEditMode && <AppointmentPaymentBadge appointment={appointment} />}
 
         {isEditMode ? (
           /* Edit Mode */

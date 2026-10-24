@@ -44,6 +44,7 @@ export function DraggableAppointment({
   return (
     <div
       ref={setNodeRef}
+      data-appointment-id={id}
       style={combinedStyle}
       {...(disabled ? {} : listeners)}
       {...(disabled ? {} : attributes)}

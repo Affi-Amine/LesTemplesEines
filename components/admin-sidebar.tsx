@@ -16,10 +16,10 @@ export function AdminSidebar() {
 
   useEffect(() => {
     // Get user info from localStorage
-    const adminUser = localStorage.getItem("adminUser")
-    if (adminUser) {
-      setUserInfo(JSON.parse(adminUser))
-    }
+    try {
+      const adminUser = localStorage.getItem("adminUser")
+      if (adminUser) setUserInfo(JSON.parse(adminUser))
+    } catch { setUserInfo(null) }
   }, [])
 
   const role = userInfo?.role
@@ -101,19 +101,18 @@ export function AdminSidebar() {
 
         <nav className="p-4 space-y-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href
+            const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(`${item.href}/`))
             const IconComponent = item.icon
             return (
-              <Link key={item.href} href={item.href}>
-                <Button
+              <Button key={item.href} asChild
                   variant={isActive ? "default" : "ghost"}
                   className="w-full justify-start gap-3"
-                  onClick={() => setIsOpen(false)}
                 >
+                <Link href={item.href} onClick={() => setIsOpen(false)} aria-current={isActive ? "page" : undefined}>
                   {IconComponent && <IconComponent className="w-4 h-4" />}
                   {item.label}
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             )
           })}
         </nav>

@@ -66,14 +66,14 @@ export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: Ap
             </div>
 
             <div className="grid grid-cols-3 gap-2">
-              <Button variant="outline" size="sm" onClick={() => onView?.(apt)}>
-                <Eye className="h-4 w-4" />
+              <Button variant="outline" size="sm" className="h-auto min-h-12 flex-col gap-1 px-1 py-2 text-xs" onClick={() => onView?.(apt)} aria-label={`Voir le rendez-vous de ${apt.clientName}`}>
+                <Eye className="h-4 w-4" aria-hidden="true" /><span>Voir</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={() => onEdit?.(apt)}>
-                <Edit className="h-4 w-4" />
+              <Button variant="outline" size="sm" className="h-auto min-h-12 flex-col gap-1 px-1 py-2 text-xs" onClick={() => onEdit?.(apt)} aria-label={`Modifier le rendez-vous de ${apt.clientName}`}>
+                <Edit className="h-4 w-4" aria-hidden="true" /><span>Modifier</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={() => onDelete?.(apt)}>
-                <Trash2 className="h-4 w-4" />
+              <Button variant="outline" size="sm" className="h-auto min-h-12 flex-col gap-1 px-1 py-2 text-xs" onClick={() => onDelete?.(apt)} aria-label={`Supprimer le rendez-vous de ${apt.clientName}`}>
+                <Trash2 className="h-4 w-4" aria-hidden="true" /><span>Supprimer</span>
               </Button>
             </div>
           </div>
@@ -128,6 +128,7 @@ export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: Ap
                       size="sm" 
                       onClick={() => onView?.(apt)}
                       title="Voir les détails"
+                      aria-label={`Voir le rendez-vous de ${apt.clientName}`}
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
@@ -136,6 +137,7 @@ export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: Ap
                       size="sm" 
                       onClick={() => onEdit?.(apt)}
                       title="Modifier"
+                      aria-label={`Modifier le rendez-vous de ${apt.clientName}`}
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
@@ -144,6 +146,7 @@ export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: Ap
                       size="sm" 
                       onClick={() => onDelete?.(apt)}
                       title="Supprimer"
+                      aria-label={`Supprimer le rendez-vous de ${apt.clientName}`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

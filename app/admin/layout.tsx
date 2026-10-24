@@ -12,19 +12,11 @@ export default function AdminLayout({
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false
-    try {
-      return Boolean(localStorage.getItem("adminToken"))
-    } catch {
-      return false
-    }
-  })
-  const [isLoginPage, setIsLoginPage] = useState(() => pathname === "/admin/login")
-  const [isChecking, setIsChecking] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const isLoginPage = pathname === "/admin/login"
+  const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
-    setIsLoginPage(pathname === "/admin/login")
 
     const checkAuth = () => {
       try {
@@ -41,6 +33,7 @@ export default function AdminLayout({
     }
 
     checkAuth()
+    setIsChecking(false)
 
     const onStorage = (e: StorageEvent) => {
       if (e.key === "adminToken") {
@@ -51,12 +44,14 @@ export default function AdminLayout({
     return () => window.removeEventListener("storage", onStorage)
   }, [pathname, router])
 
-  // No loading gate here; compute sync and react to changes
+  // Keep the server and first client render identical; then restore the session.
 
   // Login page - no sidebar
   if (isLoginPage) {
     return <>{children}</>
   }
+
+  if (isChecking) return <div role="status" className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Chargement de votre espace…</div>
 
   // Not authenticated and not login page - redirect happening
   if (!isAuthenticated) {

@@ -11,7 +11,7 @@ export function AppointmentPaymentBadge({ appointment, compact = false, iconOnly
   return <span data-payment-state={payment.state} data-payment-channel={payment.channel}
     title={payment.label} aria-label={payment.label}
     className={cn("inline-flex shrink-0 items-center justify-center gap-1 rounded-md border font-semibold leading-none",
-      payment.className, compact ? "px-1 py-0.5 text-[9px]" : "px-2 py-1 text-xs",
+      payment.className, `appointment-tone appointment-tone-${payment.state === "paid" ? payment.channel === "online" ? "blue" : "green" : "red"}`, compact ? "px-1 py-0.5 text-[9px]" : "px-2 py-1 text-xs",
       iconOnly && "h-4 w-4 rounded-full p-0", className)}>
     <Icon aria-hidden="true" className={compact || iconOnly ? "h-2.5 w-2.5" : "h-3 w-3"} strokeWidth={2.5} />
     <span className={iconOnly ? "sr-only" : undefined}>{compact ? payment.short : payment.label}</span>
@@ -19,15 +19,22 @@ export function AppointmentPaymentBadge({ appointment, compact = false, iconOnly
 }
 
 export function AppointmentPaymentLegend() {
-  return <div aria-label="Repères de paiement" className="flex flex-wrap items-center gap-2 text-xs">
-    <span className="font-medium text-muted-foreground">Couleurs du planning :</span>
-    <span className="rounded border border-rose-200 bg-rose-100 px-2 py-1 text-rose-950">À payer</span>
-    <span className="rounded border border-emerald-200 bg-emerald-100 px-2 py-1 text-emerald-950">Payé</span>
-    <span className="rounded border border-blue-200 bg-blue-100 px-2 py-1 text-blue-950">Commencé / terminé</span>
-    <span className="font-medium text-muted-foreground">Paiement :</span>
+  return <div aria-label="Repères de paiement" className="space-y-2 text-xs">
+    <div className="flex flex-wrap items-center gap-1.5">
+    <span className="font-medium text-muted-foreground">Planning :</span>
+    <span className="appointment-tone appointment-tone-red rounded border px-2 py-1">À payer</span>
+    <span className="appointment-tone appointment-tone-green rounded border px-2 py-1">Payé</span>
+    <span className="appointment-tone appointment-tone-blue rounded border px-2 py-1">Effectué</span>
+    <span className="appointment-tone appointment-tone-blocked rounded border px-2 py-1">Bloqué</span>
+    </div>
+    <details>
+    <summary className="w-fit cursor-pointer rounded text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">Comprendre les paiements</summary>
+    <div className="mt-2 flex flex-wrap gap-2">
     <AppointmentPaymentBadge appointment={{payment_status:"paid",payment_method:"stripe"}} />
     <AppointmentPaymentBadge appointment={{payment_status:"paid",payment_method:"cash"}} />
     <AppointmentPaymentBadge appointment={{payment_status:"unpaid"}} />
     <AppointmentPaymentBadge appointment={{payment_status:"partial"}} />
+    </div>
+    </details>
   </div>
 }

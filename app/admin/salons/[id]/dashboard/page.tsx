@@ -15,7 +15,7 @@ import { useSalons } from "@/lib/hooks/use-salons"
 import { useParams } from "next/navigation"
 import { format, addMinutes } from "date-fns"
 import { fr } from "date-fns/locale"
-import { formatInTimeZone } from "date-fns-tz"
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
 import { Clock, CheckCircle, Ban, Calendar as CalendarIcon, User, Plus, X, GripVertical } from "lucide-react"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
@@ -680,41 +680,41 @@ export default function SalonDashboardPage() {
         <div className="px-3 pt-3 sm:px-6"><AppointmentPaymentLegend /></div>
 
         <div className="container mx-auto space-y-5 p-4 md:p-6">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Card className="gap-2 rounded-lg border-l-4 border-l-sky-500 p-4 shadow-sm">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <Card className="gap-2 rounded-lg border-l-4 border-l-blue-200 p-3 shadow-sm sm:p-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-muted-foreground">Rendez-vous</span>
-                <CalendarIcon className="h-4 w-4 text-sky-700" />
+                <CalendarIcon className="h-4 w-4 text-blue-200" />
               </div>
-              <div className="text-3xl font-bold">{dayAppointments.length}</div>
+              <div className="text-2xl font-bold sm:text-3xl">{dayAppointments.length}</div>
               <p className="text-xs text-muted-foreground">
                 {selectedDayHours ? `${selectedDayHours.open} - ${selectedDayHours.close}` : "Salon fermé"}
               </p>
             </Card>
-            <Card className="gap-2 rounded-lg border-l-4 border-l-violet-500 p-4 shadow-sm">
+            <Card className="gap-2 rounded-lg border-l-4 border-l-blue-200 p-3 shadow-sm sm:p-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-muted-foreground">En cours</span>
-                <Clock className="h-4 w-4 text-violet-700" />
+                <Clock className="h-4 w-4 text-blue-200" />
               </div>
-              <div className="text-3xl font-bold">{inProgressAppointments.length}</div>
+              <div className="text-2xl font-bold sm:text-3xl">{inProgressAppointments.length}</div>
               <p className="truncate text-xs text-muted-foreground">
                 {nextAppointment ? `Prochain: ${formatInTimeZone(nextAppointment.start_time, "Europe/Paris", "HH:mm")}` : "Aucun prochain rendez-vous"}
               </p>
             </Card>
-            <Card className="gap-2 rounded-lg border-l-4 border-l-emerald-500 p-4 shadow-sm">
+            <Card className="gap-2 rounded-lg border-l-4 border-l-emerald-200 p-3 shadow-sm sm:p-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-muted-foreground">Terminés</span>
-                <CheckCircle className="h-4 w-4 text-emerald-700" />
+                <CheckCircle className="h-4 w-4 text-emerald-200" />
               </div>
-              <div className="text-3xl font-bold">{completedAppointments.length}</div>
+              <div className="text-2xl font-bold sm:text-3xl">{completedAppointments.length}</div>
               <p className="text-xs text-muted-foreground">{confirmedAppointments.length} à traiter</p>
             </Card>
-            <Card className="gap-2 rounded-lg border-l-4 border-l-stone-500 p-4 shadow-sm">
+            <Card className="gap-2 rounded-lg border-l-4 border-l-slate-300 p-3 shadow-sm sm:p-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-muted-foreground">Bloqués</span>
-                <Ban className="h-4 w-4 text-stone-700" />
+                <Ban className="h-4 w-4 text-slate-300" />
               </div>
-              <div className="text-3xl font-bold">{blockedAppointments.length}</div>
+              <div className="text-2xl font-bold sm:text-3xl">{blockedAppointments.length}</div>
               <p className="text-xs text-muted-foreground">Créneaux indisponibles</p>
             </Card>
           </div>
@@ -727,15 +727,20 @@ export default function SalonDashboardPage() {
                   <h2 className="text-lg font-semibold">Date de travail</h2>
                   <p className="text-sm text-muted-foreground">Changer de jour recharge le planning.</p>
                 </div>
+                <Input type="date" aria-label="Date du planning" className="md:hidden"
+                  value={date ? formatInTimeZone(date, "Europe/Paris", "yyyy-MM-dd") : ""}
+                  onChange={event => {
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(event.target.value)) setDate(fromZonedTime(event.target.value + "T12:00:00", "Europe/Paris"))
+                  }} />
                 <Calendar
                   mode="single"
                   selected={date}
                   onSelect={setDate}
-                  className="w-full rounded-md border shadow-sm"
+                  className="hidden w-full rounded-md border shadow-sm md:block"
                 />
               </Card>
 
-              <Card className="gap-3 rounded-lg p-4 shadow-sm lg:justify-center">
+              <Card className="hidden gap-3 rounded-lg p-4 shadow-sm md:flex lg:justify-center">
                 <div>
                   <h3 className="text-lg font-semibold">Actions rapides</h3>
                   <p className="text-sm text-muted-foreground">Créer, bloquer, puis ajuster au planning.</p>
@@ -760,7 +765,7 @@ export default function SalonDashboardPage() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Planning du jour</p>
                     <h2 className="mt-1 text-2xl font-bold capitalize">
-                      {date ? format(date, "EEEE d MMMM yyyy", { locale: fr }) : "Sélectionnez une date"}
+                      {date ? formatInTimeZone(date, "Europe/Paris", "EEEE d MMMM yyyy", { locale: fr }) : "Sélectionnez une date"}
                     </h2>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -781,7 +786,8 @@ export default function SalonDashboardPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                <p className="mt-3 text-xs leading-5 text-muted-foreground md:hidden">Touchez un rendez-vous pour le consulter ou marquer le massage effectué.</p>
+                <div className="mt-4 hidden rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 md:block">
                   <div className="flex items-start gap-2">
                     <GripVertical className="mt-0.5 h-4 w-4 shrink-0" />
                     <p>
@@ -916,6 +922,7 @@ export default function SalonDashboardPage() {
                                       return (
                                         <button
                                           key={`mobile-${member.id}-${apt.id}`}
+                                          data-appointment-id={apt.id}
                                           type="button"
                                           onClick={(event) => {
                                             event.stopPropagation()
@@ -929,7 +936,7 @@ export default function SalonDashboardPage() {
                                           <div className="flex min-w-0 items-center gap-0.5 text-[8px] font-black leading-tight">
                                             <span>{formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")}</span>
                                                   <AppointmentPaymentBadge appointment={apt} compact iconOnly className="ml-auto h-3 w-3" />
-                                            {isMultiStaffAppointment ? <span className="rounded-sm bg-background/80 px-0.5">x{appointmentStaffIds.length}</span> : null}
+                                            {isMultiStaffAppointment ? <span className="rounded-sm bg-black/10 px-1">x{appointmentStaffIds.length}</span> : null}
                                           </div>
                                           {heightPx >= 26 ? (
                                             <div className="truncate text-[9px] font-bold leading-tight">
@@ -1333,7 +1340,7 @@ export default function SalonDashboardPage() {
 
                 {/* Payment Information (if paid) */}
                 {selectedSlot.payment_status === 'paid' && (
-                  <div className="p-4 bg-emerald-100 text-emerald-950 border border-emerald-200 rounded-lg space-y-2">
+                  <div className="appointment-tone appointment-tone-green rounded-lg border p-4 space-y-2">
                     <h4 className="font-semibold text-emerald-950">Paiement</h4>
                     <div className="text-sm space-y-1">
                       <p className="flex justify-between">

@@ -42,3 +42,17 @@ for (const status of ['in_progress','completed','cancelled','no_show','blocked']
 assert.equal(colour({status:'in_progress',payment_status:'paid'}), colour({status:'completed',payment_status:'paid'}))
 assert.match(colour({status:'completed',payment_status:'paid'}), /bg-blue-100/)
 console.log('PASS: paid / unpaid cards differ; care progress overrides payment colour without changing its state')
+
+const paletteCSS = fs.readFileSync('app/appointment-colors.css', 'utf8')
+const luminance = hex => hex.match(/\w\w/g).map(pair => parseInt(pair, 16) / 255)
+  .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+  .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0)
+for (const tone of ['blue', 'green', 'red', 'blocked']) {
+  const block = paletteCSS.match(new RegExp(`\\.appointment-tone-${tone} \\{([^}]+)\\}`))[1]
+  const background = block.match(/--appointment-bg: #([\da-f]{6})/)[1]
+  const text = block.match(/--appointment-ink: #([\da-f]{6})/)[1]
+  const ratio = (luminance(background) + 0.05) / (luminance(text) + 0.05)
+  assert.ok(ratio >= 4.5, `${tone} contrast ${ratio.toFixed(2)} is too low`)
+}
+assert.match(paletteCSS, /color-scheme:\s*only light/)
+console.log('PASS: every pastel surface has readable text contrast and opts out of automatic darkening')

@@ -45,7 +45,7 @@ export function AppointmentProgressActions({ appointment, onUpdated }: {
   return <div className="space-y-2 rounded-lg border p-3" aria-label="Avancement du soin">
     <p className="text-xs text-muted-foreground">Le client est venu ? Marquez le rendez-vous comme effectué.</p>
     <Button type="button" disabled={saving} onClick={() => void update("completed")}
-      className="w-full border border-blue-200 bg-blue-100 font-semibold text-blue-950 hover:bg-blue-200">
+      className="appointment-tone appointment-tone-blue w-full border font-semibold hover:brightness-95">
       <CheckCheck className="mr-2 h-4 w-4" />
       {saving ? "Enregistrement…" : "Massage effectué"}
     </Button>

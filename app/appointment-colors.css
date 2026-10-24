@@ -1,0 +1,51 @@
+/* One explicit palette for cards, badges, legends and dialogs.
+   `only light` keeps pastel surfaces light under browser auto-darkening. */
+.appointment-tone-blue {
+  --appointment-bg: #dfeafb;
+  --appointment-ink: #223f67;
+  --appointment-border: #b7c9e3;
+}
+.appointment-tone-green {
+  --appointment-bg: #dcefe1;
+  --appointment-ink: #1d4530;
+  --appointment-border: #accdb6;
+}
+.appointment-tone-red {
+  --appointment-bg: #f8dfe2;
+  --appointment-ink: #5e2630;
+  --appointment-border: #ddb2b8;
+}
+.appointment-tone-blocked {
+  --appointment-bg: #e8e4ee;
+  --appointment-ink: #51465e;
+  --appointment-border: #c7c0d1;
+}
+.appointment-tone {
+  color-scheme: only light;
+  background-color: var(--appointment-bg);
+  color: var(--appointment-ink);
+  border-color: var(--appointment-border);
+}
+.appointment-tone .text-muted-foreground { color: inherit; }
+.appointment-tone:focus-visible {
+  outline: 2px solid var(--appointment-ink);
+  outline-offset: 2px;
+}
+
+/* Touch targets exclude the calendar's timed appointment cards. */
+@media (pointer: coarse) {
+  [data-slot="button"], [data-slot="input"], [data-slot="select-trigger"] { min-height: 44px; }
+  [data-slot="button"], [data-slot="dialog-close"] { min-width: 44px; }
+  [data-slot="dialog-close"] { min-height: 44px; }
+  [data-slot="input"], [data-slot="textarea"] { font-size: 16px; }
+}
+button, a, input, select, textarea { touch-action: manipulation; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

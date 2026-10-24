@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { AppointmentPaymentBadge } from "@/components/appointment-payment-badge"
-import { getStatusColor, getStatusLabel } from "@/lib/utils"
+import { AppointmentProgressActions } from "@/components/appointment-progress-actions"
+import { getAppointmentColor, getStatusLabel } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -68,6 +69,8 @@ interface BookingDetailsModalProps {
 export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }: BookingDetailsModalProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const [liveStatus, setLiveStatus] = useState<string | null>(null)
+  useEffect(() => { setLiveStatus(null) }, [appointment?.id, appointment?.status])
   const [isCancelling, setIsCancelling] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [editForm, setEditForm] = useState({
@@ -258,8 +261,8 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
           <DialogTitle className="flex items-center justify-between">
             <span>{isEditMode ? "Modifier le rendez-vous" : "Détails du Rendez-vous"}</span>
             {!isEditMode && (
-              <Badge variant="outline" className={getStatusColor(appointment.status)}>
-                {getStatusLabel(appointment.status)}
+              <Badge variant="outline" className={getAppointmentColor({ ...appointment, status: liveStatus || appointment.status })}>
+                {getStatusLabel(liveStatus || appointment.status)}
               </Badge>
             )}
           </DialogTitle>
@@ -396,6 +399,8 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
           /* View Mode */
 
         <div className="space-y-6">
+          <AppointmentProgressActions appointment={{ ...appointment, status: liveStatus || appointment.status }}
+            onUpdated={status => { setLiveStatus(status); onRefetch?.() }} />
           {/* Date and Time */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">

@@ -20,6 +20,10 @@ export function AppointmentPaymentBadge({ appointment, compact = false, iconOnly
 
 export function AppointmentPaymentLegend() {
   return <div aria-label="Repères de paiement" className="flex flex-wrap items-center gap-2 text-xs">
+    <span className="font-medium text-muted-foreground">Couleurs du planning :</span>
+    <span className="rounded border border-amber-500 bg-amber-950 px-2 py-1 text-amber-100">À payer</span>
+    <span className="rounded border border-emerald-500 bg-emerald-950 px-2 py-1 text-emerald-100">Payé</span>
+    <span className="rounded border border-blue-500 bg-blue-950 px-2 py-1 text-blue-100">Commencé / terminé</span>
     <span className="font-medium text-muted-foreground">Paiement :</span>
     <AppointmentPaymentBadge appointment={{payment_status:"paid",payment_method:"stripe"}} />
     <AppointmentPaymentBadge appointment={{payment_status:"paid",payment_method:"cash"}} />

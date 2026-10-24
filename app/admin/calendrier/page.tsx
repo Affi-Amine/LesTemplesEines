@@ -13,7 +13,7 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, GripVertical, Plus
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, subDays, addMinutes } from "date-fns"
 import { fr } from "date-fns/locale"
 import { formatInTimeZone } from "date-fns-tz"
-import { getStatusColor, getStatusLabel, getStatusDescription } from "@/lib/utils"
+import { getAppointmentColor, getStatusLabel, getStatusDescription } from "@/lib/utils"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
 
@@ -242,7 +242,7 @@ function WeekView({
                             top: `${position.top}px`,
                             height: `${position.height}px`,
                           }}
-                          className={`overflow-hidden rounded border p-0.5 text-[8px] transition-shadow hover:shadow-md sm:p-1 sm:text-xs ${getStatusColor(appointment.status)}`}
+                          className={`overflow-hidden rounded border p-0.5 text-[8px] transition-shadow hover:shadow-md sm:p-1 sm:text-xs ${getAppointmentColor(appointment)}`}
                         >
                           <div
                             className="w-full h-full"
@@ -437,7 +437,7 @@ function DayView({
                         top: `${position.top}px`,
                         height: `${position.height}px`,
                       }}
-                      className={`overflow-hidden rounded-[4px] border p-0.5 text-[9px] shadow-sm transition-shadow hover:shadow-md md:rounded-md md:border-2 md:p-1 md:text-xs ${getStatusColor(appointment.status)}`}
+                      className={`overflow-hidden rounded-[4px] border p-0.5 text-[9px] shadow-sm transition-shadow hover:shadow-md md:rounded-md md:border-2 md:p-1 md:text-xs ${getAppointmentColor(appointment)}`}
                     >
                       <div
                         className="w-full h-full"
@@ -921,7 +921,7 @@ export default function CalendrierPage() {
             <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4 lg:grid-cols-7">
               {["confirmed", "pending", "in_progress", "completed", "cancelled", "no_show", "blocked"].map((status) => (
                 <div key={status} className="flex items-center gap-2">
-                  <Badge variant="outline" className={getStatusColor(status)}>
+                  <Badge variant="outline" className={getAppointmentColor({ status })}>
                     {getStatusLabel(status)}
                   </Badge>
                   <span className="text-xs text-muted-foreground hidden lg:inline">
@@ -1004,7 +1004,7 @@ export default function CalendrierPage() {
                               {dayAppointments.slice(0, 3).map((appointment) => (
                                 <div
                                   key={appointment.id}
-                                  className={`flex h-4 items-center justify-between gap-0.5 overflow-hidden rounded-[3px] border px-0.5 text-[8px] font-bold leading-4 ${getStatusColor(appointment.status)}`}
+                                  className={`flex h-4 items-center justify-between gap-0.5 overflow-hidden rounded-[3px] border px-0.5 text-[8px] font-bold leading-4 ${getAppointmentColor(appointment)}`}
                                   title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}`}
                                 >
                                   <span>{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
@@ -1052,7 +1052,7 @@ export default function CalendrierPage() {
                               {dayAppointments.slice(0, 4).map((appointment) => (
                                 <div
                                   key={appointment.id}
-                                  className={`text-xs p-1.5 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getStatusColor(appointment.status)}`}
+                                  className={`text-xs p-1.5 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getAppointmentColor(appointment)}`}
                                   onClick={() => handleAppointmentClick(appointment)}
                                   title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}
 Service: ${appointment.service?.name || (appointment.status === "blocked" ? 'Créneau bloqué' : 'Service Inconnu')}
@@ -1217,7 +1217,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
       {/* Drag Overlay for visual feedback */}
       <DragOverlay>
         {activeAppointment ? (
-            <div className={`text-xs p-2 rounded border shadow-lg backdrop-blur ${getStatusColor(activeAppointment.status)}`}>
+            <div className={`text-xs p-2 rounded border shadow-lg backdrop-blur ${getAppointmentColor(activeAppointment)}`}>
               <div className="font-medium">
               {activeAppointment.status === "blocked"
                 ? "Créneau bloqué"

@@ -33,6 +33,7 @@ import { Icon } from "@iconify/react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { formatInTimeZone } from "date-fns-tz"
+import { AppointmentProgressActions } from "@/components/appointment-progress-actions"
 import { AppointmentPaymentBadge } from "@/components/appointment-payment-badge"
 import { getPaymentMethodLabel } from "@/lib/payments"
 import { dateTimeInScheduleTimezone } from "@/lib/calendar/scheduling"
@@ -527,6 +528,9 @@ export default function AppointmentsPage() {
             </DialogHeader>
             {selectedAppointment && (
               <div className="grid gap-4 py-4">
+                <AppointmentProgressActions appointment={selectedAppointment} onUpdated={status => {
+                  setSelectedAppointment(current => current?.id === selectedAppointment.id ? { ...current, status } : current)
+                }} />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Client</Label>

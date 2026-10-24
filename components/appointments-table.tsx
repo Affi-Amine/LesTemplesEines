@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Eye, Edit, Trash2 } from "lucide-react"
-import { getStatusColor, getStatusLabel, type AppointmentStatus } from "@/lib/utils"
+import { getAppointmentColor, getStatusLabel, type AppointmentStatus } from "@/lib/utils"
 import { getPaymentMethodLabel } from "@/lib/payments"
 
 export interface AppointmentRow {
@@ -42,7 +42,7 @@ export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: Ap
                   {apt.date} à {apt.time}
                 </div>
               </div>
-              <Badge className={`shrink-0 ${getStatusColor(apt.status)}`}>
+              <Badge className={`shrink-0 ${getAppointmentColor(apt)}`}>
                 {getStatusLabel(apt.status)}
               </Badge>
             </div>
@@ -109,7 +109,7 @@ export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: Ap
                 </td>
                 <td className="px-3 md:px-6 py-4 text-sm">{apt.therapist}</td>
                 <td className="px-3 md:px-6 py-4 text-sm">
-                  <Badge className={getStatusColor(apt.status)}>
+                  <Badge className={getAppointmentColor(apt)}>
                     {getStatusLabel(apt.status)}
                   </Badge>
                 </td>

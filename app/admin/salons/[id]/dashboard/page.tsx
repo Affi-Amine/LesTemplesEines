@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { AppointmentPaymentBadge, AppointmentPaymentLegend } from "@/components/appointment-payment-badge"
-import { getStatusColor, getStatusLabel } from "@/lib/utils"
+import { AppointmentProgressActions } from "@/components/appointment-progress-actions"
+import { getAppointmentColor, getStatusLabel } from "@/lib/utils"
 import { AdminHeader } from "@/components/admin-header"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -178,7 +179,6 @@ export default function SalonDashboardPage() {
   const [paymentLines, setPaymentLines] = useState<{method: string, amount: number}[]>([{ method: "card", amount: 0 }])
 
   const getDashboardStatusLabel = getStatusLabel
-  const getDashboardStatusClass = getStatusColor
 
   const getAppointmentStaffLabel = (appointment: any) => {
     const names = new Map<string, string>()
@@ -310,10 +310,13 @@ export default function SalonDashboardPage() {
         throw new Error(errorData.error || "Erreur lors de la validation")
       }
 
+      const paidAppointment = await response.json()
       toast.success("Paiement validé", {
-        description: "Le statut de prestation reste géré par la vue employée.",
+        description: "Vous pouvez maintenant démarrer le soin depuis ce rendez-vous.",
       })
       setIsValidationOpen(false)
+      setSelectedSlot({ ...selectedSlot, ...paidAppointment })
+      setIsDetailsOpen(true)
       refetchAppointments()
     } catch (error) {
       console.error("Validation error:", error)
@@ -920,7 +923,7 @@ export default function SalonDashboardPage() {
                                               handleValidate(apt)
                                             }
                                           }}
-                                          className={`absolute left-0.5 right-0.5 overflow-hidden rounded-[4px] border px-1 py-0.5 text-left shadow-sm ${getDashboardStatusClass(apt.status)}`}
+                                          className={`absolute left-0.5 right-0.5 overflow-hidden rounded-[4px] border px-1 py-0.5 text-left shadow-sm ${getAppointmentColor(apt)}`}
                                           style={{ top: `${topOffset}px`, height: `${heightPx}px` }}
                                         >
                                           <div className="flex min-w-0 items-center gap-0.5 text-[8px] font-black leading-tight">
@@ -1029,7 +1032,7 @@ export default function SalonDashboardPage() {
                                             top: `${topOffset}px`,
                                             height: `${heightPx}px`,
                                           }}
-                                          className={`overflow-hidden rounded-md border-2 p-1 text-xs shadow-sm transition-shadow hover:shadow-md ${getDashboardStatusClass(apt.status)}`}
+                                          className={`overflow-hidden rounded-md border-2 p-1 text-xs shadow-sm transition-shadow hover:shadow-md ${getAppointmentColor(apt)}`}
                                         >
                                           <div
                                             className="w-full h-full"
@@ -1091,7 +1094,7 @@ export default function SalonDashboardPage() {
                                 <p className="font-semibold">
                                   {apt.client?.first_name || "Client"} {apt.client?.last_name || ""}
                                 </p>
-                                <Badge className={`border ${getDashboardStatusClass(apt.status)}`}>
+                                <Badge className={`border ${getAppointmentColor(apt)}`}>
                                   {getDashboardStatusLabel(apt.status)}
                                 </Badge>
                                 <AppointmentPaymentBadge appointment={apt} />
@@ -1209,7 +1212,7 @@ export default function SalonDashboardPage() {
 
         {/* Booking Details Dialog */}
         <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>Détails du rendez-vous</DialogTitle>
               <DialogDescription>
@@ -1221,11 +1224,16 @@ export default function SalonDashboardPage() {
               <div className="space-y-4 py-4">
                 {/* Status Badge */}
                 <div className="flex items-center justify-between">
-                  <Badge className={`border px-3 py-1 text-sm font-bold ${getDashboardStatusClass(selectedSlot.status)}`}>
+                  <Badge className={`border px-3 py-1 text-sm font-bold ${getAppointmentColor(selectedSlot)}`}>
                     {getDashboardStatusLabel(selectedSlot.status)}
                   </Badge>
                   <AppointmentPaymentBadge appointment={selectedSlot} />
                 </div>
+
+                <AppointmentProgressActions appointment={selectedSlot} onUpdated={status => {
+                  setSelectedSlot((current: any) => current?.id === selectedSlot.id ? { ...current, status } : current)
+                  void refetchAppointments()
+                }} />
 
                 {/* Client Information */}
                 <div className="p-4 bg-muted/50 rounded-lg space-y-2">
@@ -1528,10 +1536,8 @@ export default function SalonDashboardPage() {
       {/* Drag Overlay for visual feedback */}
       <DragOverlay>
         {activeAppointment ? (
-          <div className={`text-xs p-2 rounded border shadow-lg bg-white/90 backdrop-blur ${
-            activeAppointment.status === 'confirmed' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-            activeAppointment.status === 'completed' ? 'bg-green-100 text-green-800 border-green-300' :
-            'bg-gray-100 border-gray-300'
+          <div className={`text-xs p-2 rounded border shadow-lg backdrop-blur ${
+            getAppointmentColor(activeAppointment)
           }`}>
             <div className="font-medium">
               {activeAppointment.client?.first_name} {activeAppointment.client?.last_name?.[0]}.

@@ -15,9 +15,8 @@ export function getStatusColor(status: string): string {
     case "pending":
       return "bg-amber-950 text-amber-100 border-amber-600"
     case "in_progress":
-      return "bg-violet-950 text-violet-100 border-violet-500"
     case "completed":
-      return "bg-slate-800 text-slate-100 border-slate-500"
+      return "bg-blue-950 text-blue-100 border-blue-500"
     case "cancelled":
       return "bg-rose-950 text-rose-100 border-rose-500"
     case "no_show":
@@ -27,6 +26,14 @@ export function getStatusColor(status: string): string {
     default:
       return "bg-zinc-900 text-zinc-200 border-zinc-500"
   }
+}
+
+// Care progress takes precedence; payment only colours appointments awaiting care.
+export function getAppointmentColor(appointment: { status: string; payment_status?: string | null }): string {
+  if (!["confirmed", "pending"].includes(appointment.status)) return getStatusColor(appointment.status)
+  return appointment.payment_status === "paid"
+    ? "bg-emerald-950 text-emerald-100 border-emerald-500"
+    : "bg-amber-950 text-amber-100 border-amber-500"
 }
 
 export function getStatusLabel(status: string): string {

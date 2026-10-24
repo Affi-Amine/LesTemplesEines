@@ -31,14 +31,14 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/utils.ts','utf8'), {
   compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020},
 }).outputText,{exports:utils,require})
 const colour = utils.getAppointmentColor
-assert.match(colour({status:'confirmed',payment_status:'paid'}), /bg-emerald-950/)
+assert.match(colour({status:'confirmed',payment_status:'paid'}), /bg-emerald-100/)
 for (const status of ['unpaid','pending','failed','partial',undefined]) {
-  assert.match(colour({status:'confirmed',payment_status:status}), /bg-amber-950/)
+  assert.match(colour({status:'confirmed',payment_status:status}), /bg-rose-100/)
 }
 for (const status of ['in_progress','completed','cancelled','no_show','blocked']) {
   assert.equal(colour({status,payment_status:'paid'}), utils.getStatusColor(status))
   assert.equal(colour({status,payment_status:'unpaid'}), utils.getStatusColor(status))
 }
 assert.equal(colour({status:'in_progress',payment_status:'paid'}), colour({status:'completed',payment_status:'paid'}))
-assert.match(colour({status:'completed',payment_status:'paid'}), /bg-blue-950/)
+assert.match(colour({status:'completed',payment_status:'paid'}), /bg-blue-100/)
 console.log('PASS: paid / unpaid cards differ; care progress overrides payment colour without changing its state')

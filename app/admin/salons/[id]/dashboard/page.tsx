@@ -1044,7 +1044,7 @@ export default function SalonDashboardPage() {
                                             }}
                                           >
                                             {isDraggable && (
-                                              <GripVertical className="absolute right-0.5 top-0.5 w-3 h-3 text-muted-foreground/50" />
+                                              <GripVertical className="absolute right-0.5 top-0.5 w-3 h-3 text-current opacity-50" />
                                             )}
                                             {apt.status === 'blocked' ? (
                                               <div className="font-semibold text-[10px]">BLOQUÉ</div>
@@ -1333,8 +1333,8 @@ export default function SalonDashboardPage() {
 
                 {/* Payment Information (if paid) */}
                 {selectedSlot.payment_status === 'paid' && (
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-2">
-                    <h4 className="font-semibold text-green-800">Paiement</h4>
+                  <div className="p-4 bg-emerald-100 text-emerald-950 border border-emerald-200 rounded-lg space-y-2">
+                    <h4 className="font-semibold text-emerald-950">Paiement</h4>
                     <div className="text-sm space-y-1">
                       <p className="flex justify-between">
                         <span>Montant:</span>
@@ -1542,7 +1542,7 @@ export default function SalonDashboardPage() {
             <div className="font-medium">
               {activeAppointment.client?.first_name} {activeAppointment.client?.last_name?.[0]}.
             </div>
-            <div className="truncate text-muted-foreground">
+            <div className="truncate opacity-80">
               {activeAppointment.service?.name}
             </div>
             <div className="text-[10px] font-medium">

@@ -11,20 +11,20 @@ export type AppointmentStatus = "confirmed" | "pending" | "in_progress" | "compl
 export function getStatusColor(status: string): string {
   switch (status) {
     case "confirmed":
-      return "bg-sky-950 text-sky-100 border-sky-600"
+      return "bg-blue-100 text-blue-950 border-blue-200"
     case "pending":
-      return "bg-amber-950 text-amber-100 border-amber-600"
+      return "bg-amber-100 text-amber-950 border-amber-200"
     case "in_progress":
     case "completed":
-      return "bg-blue-950 text-blue-100 border-blue-500"
+      return "bg-blue-100 text-blue-950 border-blue-200"
     case "cancelled":
-      return "bg-rose-950 text-rose-100 border-rose-500"
+      return "bg-rose-100 text-rose-950 border-rose-200"
     case "no_show":
-      return "bg-orange-950 text-orange-100 border-orange-500"
+      return "bg-orange-100 text-orange-950 border-orange-200"
     case "blocked":
-      return "bg-zinc-900 text-zinc-200 border-zinc-500"
+      return "bg-slate-200 text-slate-900 border-slate-300"
     default:
-      return "bg-zinc-900 text-zinc-200 border-zinc-500"
+      return "bg-slate-200 text-slate-900 border-slate-300"
   }
 }
 
@@ -32,8 +32,8 @@ export function getStatusColor(status: string): string {
 export function getAppointmentColor(appointment: { status: string; payment_status?: string | null }): string {
   if (!["confirmed", "pending"].includes(appointment.status)) return getStatusColor(appointment.status)
   return appointment.payment_status === "paid"
-    ? "bg-emerald-950 text-emerald-100 border-emerald-500"
-    : "bg-amber-950 text-amber-100 border-amber-500"
+    ? "bg-emerald-100 text-emerald-950 border-emerald-200"
+    : "bg-rose-100 text-rose-950 border-rose-200"
 }
 
 export function getStatusLabel(status: string): string {

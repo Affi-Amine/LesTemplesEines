@@ -176,7 +176,7 @@ function WeekView({
           <div className="p-1 sm:p-2"></div>
           {weekDays.map((day) => (
             <div key={day.toISOString()} className="min-w-0 p-1 text-center font-medium sm:p-2">
-              <div className="truncate text-[10px] text-muted-foreground sm:text-sm">
+              <div className="truncate text-[10px] opacity-80 sm:text-sm">
                 {format(day, "EEE", { locale: fr })}
               </div>
               <div className={`text-sm sm:text-lg ${isSameDay(day, new Date()) ? "text-primary font-bold" : ""}`}>
@@ -252,7 +252,7 @@ function WeekView({
                             }}
                           >
                             {isDraggable && (
-                              <GripVertical className="absolute right-0.5 top-0.5 w-3 h-3 text-muted-foreground/50" />
+                              <GripVertical className="absolute right-0.5 top-0.5 w-3 h-3 text-current opacity-50" />
                             )}
                             <div className="flex items-center gap-1 text-[10px] font-medium"><span className="min-w-0 flex-1 truncate">{getAppointmentTitle(appointment)}</span><AppointmentPaymentBadge appointment={appointment} compact iconOnly={position.height < 55} /></div>
                             <div className="truncate text-[9px]">
@@ -447,7 +447,7 @@ function DayView({
                         }}
                       >
                         {isDraggable && (
-                          <GripVertical className="absolute right-0.5 top-0.5 h-3 w-3 text-muted-foreground/50" />
+                          <GripVertical className="absolute right-0.5 top-0.5 h-3 w-3 text-current opacity-50" />
                         )}
                         <div className="flex items-center gap-1 font-semibold text-[10px]">
                           <span>{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
@@ -461,10 +461,10 @@ function DayView({
                         </div>
                         {position.height >= 38 && (
                           <>
-                            <div className="truncate text-[9px] text-muted-foreground">
+                            <div className="truncate text-[9px] opacity-80">
                               {appointment.service?.name || (appointment.status === "blocked" ? "Indisponible" : "Service")}
                             </div>
-                            <div className="truncate text-[9px] font-medium text-muted-foreground">
+                            <div className="truncate text-[9px] font-medium opacity-80">
                               {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")} · {durationMinutes}min
                             </div>
                           </>
@@ -1223,7 +1223,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
                 ? "Créneau bloqué"
                 : `${activeAppointment.client?.first_name || "Client"} ${activeAppointment.client?.last_name?.[0] || "I"}.`}
               </div>
-              <div className="truncate text-muted-foreground">
+              <div className="truncate opacity-80">
               {activeAppointment.service?.name || (activeAppointment.status === "blocked" ? "Indisponible" : "Service")}
               </div>
             <div className="text-[10px] font-medium">

@@ -1,4 +1,6 @@
 "use client"
+import { AppointmentManagementLinkButton } from "@/components/appointment-management-link-button"
+
 
 import { useState } from "react"
 import { AppointmentPaymentBadge, AppointmentPaymentLegend } from "@/components/appointment-payment-badge"
@@ -1241,6 +1243,8 @@ export default function SalonDashboardPage() {
                   setSelectedSlot((current: any) => current?.id === selectedSlot.id ? { ...current, status } : current)
                   void refetchAppointments()
                 }} />
+
+                <AppointmentManagementLinkButton appointment={selectedSlot} />
 
                 {/* Client Information */}
                 <div className="p-4 bg-muted/50 rounded-lg space-y-2">

@@ -1,4 +1,6 @@
 "use client"
+import { AppointmentManagementLinkButton } from "@/components/appointment-management-link-button"
+
 
 import { AdminHeader } from "@/components/admin-header"
 import { AppointmentsTable, type AppointmentRow } from "@/components/appointments-table"
@@ -528,6 +530,7 @@ export default function AppointmentsPage() {
             </DialogHeader>
             {selectedAppointment && (
               <div className="grid gap-4 py-4">
+                <AppointmentManagementLinkButton appointment={selectedAppointment} />
                 <AppointmentProgressActions appointment={selectedAppointment} onUpdated={status => {
                   setSelectedAppointment(current => current?.id === selectedAppointment.id ? { ...current, status } : current)
                 }} />

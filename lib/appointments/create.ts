@@ -468,6 +468,10 @@ export async function createBookableAppointment(
     })))
 
   if (assignmentError) {
+    // A conflict on a secondary practitioner must not leave a phantom primary
+    // booking behind when the assignment insert is rejected by the DB guard.
+    const cleanup = await supabase.from("appointments").delete().eq("id", appointment.id)
+    if (cleanup.error) console.error("[appointments:create] Assignment rollback failed", { appointmentId: appointment.id, code: cleanup.error.code })
     throw new Error(assignmentError.message)
   }
   logAppointmentTiming(requestId, "insertAssignments", assignmentStartedAt, {

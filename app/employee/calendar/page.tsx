@@ -120,6 +120,8 @@ export default function EmployeeCalendarPage() {
 
   const { data: appointments = [], isLoading } = useQuery({
     queryKey: ["staff-appointments", staffId],
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: "always",
     queryFn: () => staffId ? fetchAPI<EmployeeAppointment[]>(`/staff/${staffId}/appointments`) : [],
     enabled: Boolean(staffId),
     retry: 1,

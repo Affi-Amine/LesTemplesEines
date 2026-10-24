@@ -1,3 +1,4 @@
+import { issueManagementLink } from "@/lib/appointments/management"
 import { sendEmail, isEmailEnabled } from "./resend"
 import { clientAppointmentBookedSubject, clientAppointmentBookedHtml } from "./templates/appointment-confirmation-client"
 import { adminAppointmentBookedSubject, adminAppointmentBookedHtml } from "./templates/appointment-new-booking-admin"
@@ -17,6 +18,11 @@ export async function sendAppointmentBookedEmails(
   const clientEmail: string | undefined = appointment?.client?.email ?? undefined
   const clientPhone: string | undefined = appointment?.client?.phone ?? undefined // ⬅️ pour le SMS
   const bookingSource = options?.bookingSource || "client"
+  let managementUrl: string | null = null
+  if (appointment?.id && ((isEmailEnabled && clientEmail) || (isSmsEnabled && clientPhone))) {
+    try { managementUrl = await issueManagementLink(appointment) }
+    catch { console.error("[booking-management] Confirmation sent without a management link; check the migration") }
+  }
 
   const adminEnv = process.env.NOTIFICATIONS_ADMIN_EMAIL
   const adminEmails = Array.from(
@@ -36,7 +42,7 @@ export async function sendAppointmentBookedEmails(
         sendEmail({
           to: clientEmail,
           subject: clientAppointmentBookedSubject({ salonName }),
-          html: clientAppointmentBookedHtml(appointment),
+          html: clientAppointmentBookedHtml(appointment, managementUrl),
         }),
       )
     } else {
@@ -87,7 +93,7 @@ export async function sendAppointmentBookedEmails(
     tasks.push(
       sendSms({
         to: clientPhone,
-        message: smsMessage,
+        message: `${smsMessage}${managementUrl ? ` Gérer : ${managementUrl} Modification/annulation jusqu’à la veille uniquement. Remboursement : contacter le salon.` : ""}`,
       }),
     )
   } else if (!clientPhone) {

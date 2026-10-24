@@ -1,4 +1,6 @@
 "use client"
+import { AppointmentManagementLinkButton } from "@/components/appointment-management-link-button"
+
 
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
@@ -401,6 +403,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
         <div className="space-y-6">
           <AppointmentProgressActions appointment={{ ...appointment, status: liveStatus || appointment.status }}
             onUpdated={status => { setLiveStatus(status); onRefetch?.() }} />
+          <AppointmentManagementLinkButton appointment={appointment} />
           {/* Date and Time */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">

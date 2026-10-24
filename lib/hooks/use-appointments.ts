@@ -16,6 +16,8 @@ interface UseAppointmentsParams {
 export function useAppointments(params?: UseAppointmentsParams) {
   return useQuery({
     queryKey: ["appointments", params],
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: "always",
     queryFn: () => {
       const searchParams = new URLSearchParams()
       if (params?.salonId) searchParams.append("salon_id", params.salonId)

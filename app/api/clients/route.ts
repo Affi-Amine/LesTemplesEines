@@ -3,6 +3,7 @@ import { findClientByPhone } from "@/lib/client-auth"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { clientSearchFilter } from "@/lib/clients/profile"
 
 const ClientSchema = z.object({
   phone: z.string().regex(/^\+?[0-9]{10,}/),
@@ -27,21 +28,18 @@ export async function GET(request: NextRequest) {
 
     let query = supabase.from("clients").select("*")
 
-    if (search) {
-      query = query.or(
-        `first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone.ilike.%${search}%,email.ilike.%${search}%`,
-      )
-    }
+    const searchFilter = clientSearchFilter(search || "")
+    if (searchFilter) query = query.or(searchFilter)
 
     // Newest first
-    query = query.order("created_at", { ascending: false })
+    query = query.order("created_at", { ascending: false }).limit(limit)
 
     const { data: clients, error } = await query
 
     if (error) throw error
 
     if (!search) {
-      return NextResponse.json((clients || []).slice(0, limit))
+      return NextResponse.json((clients || []).slice(0, limit), { headers: { "Cache-Control": "private, no-store" } })
     }
 
     const normalizedSearch = search.trim().toLowerCase()
@@ -64,7 +62,7 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => scoreClient(a) - scoreClient(b))
       .slice(0, limit)
 
-    return NextResponse.json(rankedClients)
+    return NextResponse.json(rankedClients, { headers: { "Cache-Control": "private, no-store" } })
   } catch (error) {
     console.error("[v0] Get clients error:", error)
     return NextResponse.json({ error: "Failed to fetch clients" }, { status: 500 })

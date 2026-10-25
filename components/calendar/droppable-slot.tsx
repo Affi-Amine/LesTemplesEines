@@ -14,6 +14,7 @@ interface DroppableSlotProps {
   className?: string
   isInvalidDrop?: boolean
   isDragActive?: boolean
+  disabled?: boolean
 }
 
 export function DroppableSlot({
@@ -27,14 +28,16 @@ export function DroppableSlot({
   className = "",
   isInvalidDrop = false,
   isDragActive = false,
+  disabled = false,
 }: DroppableSlotProps) {
   const { setNodeRef, isOver, active } = useDroppable({
     id,
     data: { hour, minute, staffId, date },
+    disabled,
   })
 
   const handleClick = (e: MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget && onEmptyClick) {
+    if (!disabled && e.target === e.currentTarget && onEmptyClick) {
       onEmptyClick({
         hour,
         minute,
@@ -53,8 +56,10 @@ export function DroppableSlot({
   return (
     <div
       ref={setNodeRef}
+      data-calendar-slot={id}
       onClick={handleClick}
-      className={`${className} ${dragClass} cursor-pointer transition-colors hover:bg-muted/30`}
+      aria-disabled={disabled || undefined}
+      className={`${className} ${dragClass} ${disabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted/30"} transition-colors`}
     >
       {children}
     </div>

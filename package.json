@@ -11,6 +11,7 @@
     "test:backend": "ts-node scripts/test-backend.ts",
     "test:booking": "node scripts/test-appointment-cancellation.cjs && node scripts/test-cancellation-rebooking.cjs",
     "test:ui": "node scripts/test-slot-selection.cjs && node scripts/test-payment-presentation.cjs",
+    "test:clients": "node scripts/test-client-profile.cjs",
     "test:management": "node scripts/test-booking-management-api.cjs && node scripts/test-booking-management-sql.cjs && node scripts/test-booking-management-notifications.cjs"
   },
   "dependencies": {

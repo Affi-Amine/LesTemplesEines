@@ -1,5 +1,9 @@
 "use client"
 
+import { CalendarClosedHours, CalendarHourLabel, isCalendarQuarterOpen } from "@/components/calendar/closed-hours"
+import { assertAppointmentFitsSalonHours } from "@/lib/appointments/opening-hours"
+import { getScheduleHoursIncludingAppointments } from "@/lib/calendar/scheduling"
+import { AppointmentPaymentMarker } from "@/components/calendar/appointment-payment-marker"
 import { AppointmentCardContent } from "@/components/calendar/appointment-card-content"
 import { useState, useEffect, useMemo, type CSSProperties } from "react"
 import { useQuery } from "@tanstack/react-query"
@@ -109,12 +113,12 @@ function WeekView({
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 })
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
   const hours = Array.from(
-    new Set(weekDays.flatMap((day) => getScheduleHourRange(openingHours, day)))
+    new Set(weekDays.flatMap((day) => getScheduleHoursIncludingAppointments(openingHours, day, appointments)))
   ).sort((a, b) => a - b)
 
   const getAppointmentsForDayAndHour = (day: Date, hour: number) => {
     return appointments.filter(appointment => {
-      if (appointment.status === "cancelled") return false
+      if (["cancelled", "no_show"].includes(appointment.status)) return false
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const dayDateStr = format(day, "yyyy-MM-dd")
 
@@ -157,6 +161,7 @@ function WeekView({
 
     const targetStart = slotDateTimeInScheduleTimezone(day, hour, minute)
     const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
+    try { if (openingHours !== undefined) assertAppointmentFitsSalonHours(targetStart.toISOString(), targetEnd.toISOString(), openingHours) } catch { return true }
 
     return targetStaffIds.some((staffId) =>
       Boolean(findOverlappingAppointment({
@@ -205,6 +210,7 @@ function WeekView({
 
                 return (
                   <div key={slotId} className={`relative h-[120px] min-w-0 rounded border border-border ${isOpenHour ? "bg-background" : "bg-muted/30"}`}>
+                    <CalendarClosedHours hour={hourStart} date={day} openingHours={openingHours} />
                     {isOpenHour ? (
                       <div className="absolute inset-0 grid grid-rows-4">
                         {[0, 15, 30, 45].map((minute, idx) => (
@@ -215,6 +221,7 @@ function WeekView({
                             minute={minute}
                             date={day}
                             onEmptyClick={(data) => onEmptySlotClick({ ...data, date: day })}
+                            disabled={!isCalendarQuarterOpen(hourStart, minute, day, openingHours)}
                             isInvalidDrop={isInvalidSlotForActive(day, hourStart, minute)}
                             isDragActive={Boolean(activeAppointment)}
                             className={`${idx < 3 ? "border-b border-border/30" : ""}`}
@@ -285,13 +292,13 @@ function DayView({
   onAppointmentClick: (appointment: Appointment) => void
   onEmptySlotClick: (data: { hour: number; minute: number; date: Date; staffId?: string }) => void
 }) {
-  const hours = getScheduleHourRange(openingHours, currentDate)
+  const hours = getScheduleHoursIncludingAppointments(openingHours, currentDate, appointments)
   const activeStaffMembers = staffMembers.filter((member) => member.is_active !== false)
   const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(activeStaffMembers.length, 1) * STAFF_COLUMN_MIN_WIDTH
 
   const getAppointmentsForHour = (hour: number, staffId?: string) => {
     return appointments.filter(appointment => {
-      if (appointment.status === "cancelled") return false
+      if (["cancelled", "no_show"].includes(appointment.status)) return false
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const currentDateStr = format(currentDate, "yyyy-MM-dd")
 
@@ -336,6 +343,7 @@ function DayView({
 
     const targetStart = slotDateTimeInScheduleTimezone(currentDate, hour, minute)
     const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
+    try { if (openingHours !== undefined) assertAppointmentFitsSalonHours(targetStart.toISOString(), targetEnd.toISOString(), openingHours) } catch { return true }
 
     return targetStaffIds.some((staffId) =>
       Boolean(findOverlappingAppointment({
@@ -380,13 +388,14 @@ function DayView({
           return (
             <div key={hourStart} className="flex border-t border-border" style={{ height: SCHEDULE_HOUR_HEIGHT }}>
               <div className="w-10 shrink-0 bg-card pr-1 pt-1 text-right text-[10px] font-medium text-muted-foreground md:w-[84px] md:p-2 md:text-sm">
-                {`${hourStart.toString().padStart(2, "0")}:00`}
+                <CalendarHourLabel hour={hourStart} date={currentDate} openingHours={openingHours} />
               </div>
               {activeStaffMembers.map((member) => {
                 const hourAppointments = getAppointmentsForHour(hourStart, member.id)
 
                 return (
                   <div key={`${member.id}-${hourStart}`} className="relative min-w-0 flex-1 border-l border-border bg-background/80 md:min-w-[152px]">
+                    <CalendarClosedHours hour={hourStart} date={currentDate} openingHours={openingHours} />
                     <div className="absolute inset-0 grid grid-rows-4">
                       {[0, 15, 30, 45].map((minute, idx) => (
                         <DroppableSlot
@@ -397,6 +406,7 @@ function DayView({
                           staffId={member.id}
                           date={currentDate}
                           onEmptyClick={(data) => onEmptySlotClick({ ...data, staffId: member.id })}
+                          disabled={!isCalendarQuarterOpen(hourStart, minute, currentDate, openingHours)}
                           isInvalidDrop={isInvalidSlotForActive(hourStart, minute, member.id)}
                           isDragActive={Boolean(activeAppointment)}
                           className={`${idx < 3 ? "border-b border-dashed border-border/50" : ""} min-h-[19px]`}
@@ -471,7 +481,7 @@ export default function CalendrierPage() {
     [salons, selectedSalon]
   )
   const { data: selectedSalonStaff = [] } = useStaff(selectedSalon !== "all" ? selectedSalon : undefined)
-  const selectedOpeningHours = selectedSalonData?.opening_hours || null
+  const selectedOpeningHours = selectedSalonData ? selectedSalonData.opening_hours || null : undefined
   const selectedDayHours = resolveOpeningHoursForDate(selectedOpeningHours, currentDate)
 
   // Drag-and-drop state
@@ -770,7 +780,7 @@ export default function CalendrierPage() {
   const getAppointmentsForDay = (day: Date) => {
     const dayDateStr = format(day, "yyyy-MM-dd")
     return appointments.filter(appointment =>
-      formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === dayDateStr
+      !["cancelled", "no_show"].includes(appointment.status) && formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === dayDateStr
     )
   }
 
@@ -968,11 +978,11 @@ export default function CalendrierPage() {
                               {dayAppointments.slice(0, 3).map((appointment) => (
                                 <div
                                   key={appointment.id}
-                                  className={`flex h-4 items-center justify-between gap-0.5 overflow-hidden rounded-[3px] border px-0.5 text-[8px] font-bold leading-4 ${getAppointmentColor(appointment)}`}
+                                  className={`@container relative flex min-h-8 items-end justify-between gap-0.5 overflow-hidden rounded-[3px] border px-0.5 pt-3.5 text-[8px] font-bold leading-4 ${getAppointmentColor(appointment)}`}
                                   title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}`}
                                 >
                                   <span>{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
-                                  <AppointmentPaymentBadge appointment={appointment} iconOnly compact className="h-3 w-3" />
+                                  <AppointmentPaymentMarker appointment={appointment} />
                                 </div>
                               ))}
                               {dayAppointments.length > 3 && (
@@ -1016,7 +1026,7 @@ export default function CalendrierPage() {
                               {dayAppointments.slice(0, 4).map((appointment) => (
                                 <div
                                   key={appointment.id}
-                                  className={`text-xs p-1.5 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getAppointmentColor(appointment)}`}
+                                  className={`@container relative text-xs p-1.5 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getAppointmentColor(appointment)}`}
                                   onClick={() => handleAppointmentClick(appointment)}
                                   title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}
 Service: ${appointment.service?.name || (appointment.status === "blocked" ? 'Créneau bloqué' : 'Service Inconnu')}
@@ -1024,9 +1034,9 @@ Masseuse : ${appointment.staff?.first_name || 'Inconnu'} ${appointment.staff?.la
 Salon: ${appointment.salon?.name || 'Salon Inconnu'}
 Statut: ${getStatusLabel(appointment.status)}`}
                                 >
-                                  <div className="flex items-center justify-between gap-1 font-medium">
+                                  <AppointmentPaymentMarker appointment={appointment} />
+                                  <div className="flex items-center justify-between gap-1 pr-4 font-medium">
                                     <span>{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
-                                    <AppointmentPaymentBadge appointment={appointment} compact />
                                   </div>
                                   <div className="truncate">
                                     {appointment.status === "blocked"

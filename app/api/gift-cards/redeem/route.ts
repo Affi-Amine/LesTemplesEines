@@ -136,6 +136,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }
+    if (error instanceof Error && "code" in error && error.code === "SALON_HOURS") return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ error: "Failed to redeem gift card" }, { status: 500 })
   }
 }

@@ -27,6 +27,10 @@ export function AppointmentPaymentLegend() {
     <span className="appointment-tone appointment-tone-blue rounded border px-2 py-1">Effectué</span>
     <span className="appointment-tone appointment-tone-blocked rounded border px-2 py-1">Bloqué</span>
     </div>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+      <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#8a5b12] bg-[#e7bc65] text-[9px] font-black text-[#382304]">L</span>Payé en ligne</span>
+      <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#39785d] bg-[#d3eddf] text-[9px] font-black text-[#17432f]">S</span>Payé sur place</span>
+    </div>
     <details>
     <summary className="w-fit cursor-pointer rounded text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">Comprendre les paiements</summary>
     <div className="mt-2 flex flex-wrap gap-2">

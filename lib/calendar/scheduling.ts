@@ -154,6 +154,22 @@ export function getDefaultStartTimeForDate(openingHours: SalonOpeningHours | nul
   return resolveOpeningHoursForDate(openingHours, date)?.open || "09:00"
 }
 
+// Historical appointments remain visible even when outside the current hours.
+export function getScheduleHoursIncludingAppointments(openingHours: SalonOpeningHours | null | undefined, date: Date, appointments: CalendarAppointmentLike[]): number[] {
+  const hours = getScheduleHourRange(openingHours, date)
+  const day = format(date, "yyyy-MM-dd")
+  for (const appointment of appointments) {
+    if (["cancelled", "no_show"].includes(appointment.status || "") || formatInTimeZone(appointment.start_time, SCHEDULE_TIMEZONE, "yyyy-MM-dd") !== day) continue
+    const start = Number(formatInTimeZone(appointment.start_time, SCHEDULE_TIMEZONE, "H"))
+    const end = formatInTimeZone(appointment.end_time, SCHEDULE_TIMEZONE, "yyyy-MM-dd") !== day ? 24 :
+      Math.ceil((Number(formatInTimeZone(appointment.end_time, SCHEDULE_TIMEZONE, "H")) * 60 + Number(formatInTimeZone(appointment.end_time, SCHEDULE_TIMEZONE, "m"))) / 60)
+    for (let hour = start; hour < Math.max(start + 1, end); hour++) hours.push(hour)
+  }
+  if (!hours.length) return []
+  const start = Math.min(...hours), end = Math.max(...hours)
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index)
+}
+
 export function getAppointmentDurationMinutes(appointment: Pick<CalendarAppointmentLike, "start_time" | "end_time">): number {
   const start = new Date(appointment.start_time)
   const end = new Date(appointment.end_time)

@@ -5,6 +5,7 @@ import { findClientByEmail, findClientByPhone } from "@/lib/client-auth"
 import { formatInTimeZone } from "date-fns-tz"
 import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { resolveSalonGroup } from "@/lib/salons/resolve"
+import { assertAppointmentFitsSalonHours } from "@/lib/appointments/opening-hours"
 
 import { ClientDataSchema } from "@/lib/appointments/client-data"
 
@@ -119,7 +120,10 @@ export async function validateBookableAppointment(
   input: BookableAppointmentInput,
   quote?: SelectedService[]
 ) {
-  const { endTime, service, serviceItems } = await validateAppointmentScheduling(supabase, input, { quote })
+  // New bookings always reserve the full service duration. The rescheduling
+  // validator below still accepts the original duration of an existing booking.
+  const { endTime, service, serviceItems } = await validateAppointmentScheduling(supabase, { ...input, end_time: undefined }, { quote })
+  if (input.end_time && Date.parse(input.end_time) !== Date.parse(endTime)) throw new Error("La durée doit couvrir toutes les prestations.")
   if (input.expected_price_cents !== undefined && input.expected_price_cents !== service.price_cents) throw new Error("Le tarif a changé. Actualisez votre sélection avant de confirmer.")
   if (serviceItems && (input.client_pack_id || input.payment_method === "pack" || input.payment_method === "gift_card")) throw new Error("Les réservations avec plusieurs prestations se règlent en ligne ou sur place.")
 
@@ -140,6 +144,11 @@ export async function validateAppointmentScheduling(
   const { endTime, service, serviceItems } = await resolveAppointmentTiming(supabase, input, options?.quote)
   const salonGroup = await resolveSalonGroup(supabase, input.salon_id)
   const salonIds = salonGroup?.salonIds || [input.salon_id]
+
+  const { data: salon, error: salonError } = await supabase.from("salons")
+    .select("opening_hours").eq("id", input.salon_id).single()
+  if (salonError || !salon) throw new Error("Impossible de vérifier les horaires du salon. Réessayez.")
+  assertAppointmentFitsSalonHours(input.start_time, endTime, salon.opening_hours)
 
   const { data: serviceSalons, error: serviceSalonError } = await supabase
     .from("service_salons")

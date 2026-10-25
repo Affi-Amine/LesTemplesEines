@@ -65,6 +65,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }
 
+    if (error && typeof error === "object" && "code" in error && error.code === "SALON_HOURS") {
+      return NextResponse.json({ error: "message" in error ? String(error.message) : "Ce créneau dépasse les horaires du salon." }, { status: 400 })
+    }
     return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to create checkout session" }, { status: 500 })
   }
 }

@@ -586,7 +586,7 @@ export default function AppointmentsPage() {
                     {selectedAppointment.status === "confirmed" && "Confirmé"}
                     {selectedAppointment.status === "cancelled" && "Annulé"}
                     {selectedAppointment.status === "completed" && "Terminé"}
-                    {selectedAppointment.status === "no_show" && "No Show"}
+                    {selectedAppointment.status === "no_show" && "Absent"}
                     {selectedAppointment.status === "in_progress" && "En cours"}
                     {selectedAppointment.status === "blocked" && "Bloqué"}
                   </p>
@@ -712,7 +712,7 @@ export default function AppointmentsPage() {
                       <SelectItem value="in_progress">En cours</SelectItem>
                       <SelectItem value="cancelled">Annulé</SelectItem>
                       <SelectItem value="completed">Terminé</SelectItem>
-                      <SelectItem value="no_show">No Show</SelectItem>
+                      <SelectItem value="no_show">Absent</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

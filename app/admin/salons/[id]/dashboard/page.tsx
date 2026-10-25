@@ -9,6 +9,9 @@ import { getAppointmentColor, getStatusLabel } from "@/lib/utils"
 import { AdminHeader } from "@/components/admin-header"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { CalendarClosedHours, CalendarHourLabel, isCalendarQuarterOpen } from "@/components/calendar/closed-hours"
+import { assertAppointmentFitsSalonHours } from "@/lib/appointments/opening-hours"
+import { getScheduleHoursIncludingAppointments } from "@/lib/calendar/scheduling"
 import { AppointmentCardContent } from "@/components/calendar/appointment-card-content"
 import { Calendar } from "@/components/ui/calendar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -37,7 +40,6 @@ import {
   getAppointmentStaffIds,
   getStaffDisplayName,
   getDefaultStartTimeForDate,
-  getScheduleHourRange,
   minutesToTimeLabel,
   resolveOpeningHoursForDate,
   dateTimeInScheduleTimezone,
@@ -137,7 +139,7 @@ export default function SalonDashboardPage() {
   const dashboardStaff = Array.from(staffById.values())
   const selectedOpeningHours = salon?.opening_hours || null
   const selectedDayHours = date ? resolveOpeningHoursForDate(selectedOpeningHours, date) : null
-  const scheduleHours = date ? getScheduleHourRange(selectedOpeningHours, date) : []
+  const scheduleHours = date ? getScheduleHoursIncludingAppointments(selectedOpeningHours, date, appointments || []) : []
   const dayAppointments = appointments || []
   const sortedDayAppointments = [...dayAppointments].sort(
     (a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
@@ -146,31 +148,7 @@ export default function SalonDashboardPage() {
     getStaffDisplayName(a).localeCompare(getStaffDisplayName(b), "fr")
   )
   const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * STAFF_COLUMN_MIN_WIDTH
-  const selectedOpenMinutes = selectedDayHours ? timeToMinutes(selectedDayHours.open) : null
-  const selectedCloseMinutes = selectedDayHours ? timeToMinutes(selectedDayHours.close) : null
-  const appointmentHourBounds = sortedDayAppointments.reduce(
-    (bounds, appointment: any) => {
-      const startHour = parseInt(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"), 10)
-      const endHour = parseInt(formatInTimeZone(appointment.end_time, "Europe/Paris", "H"), 10)
-
-      if (Number.isNaN(startHour) || Number.isNaN(endHour)) return bounds
-
-      return {
-        start: Math.min(bounds.start, startHour),
-        end: Math.max(bounds.end, endHour + 1),
-      }
-    },
-    {
-      start: selectedOpenMinutes !== null ? Math.floor(selectedOpenMinutes / 60) : 9,
-      end: selectedCloseMinutes !== null ? Math.ceil(selectedCloseMinutes / 60) : 20,
-    }
-  )
-  const mobileTimelineStartHour = Math.max(0, appointmentHourBounds.start - (selectedDayHours ? 1 : 0))
-  const mobileTimelineEndHour = Math.min(24, appointmentHourBounds.end + (selectedDayHours ? 1 : 0))
-  const mobileTimelineHours = Array.from(
-    { length: Math.max(0, mobileTimelineEndHour - mobileTimelineStartHour) },
-    (_, index) => mobileTimelineStartHour + index
-  )
+  const mobileTimelineHours = scheduleHours
   const confirmedAppointments = dayAppointments.filter((apt: any) => apt.status === "confirmed" || apt.status === "pending")
   const inProgressAppointments = dayAppointments.filter((apt: any) => apt.status === "in_progress")
   const completedAppointments = dayAppointments.filter((apt: any) => apt.status === "completed")
@@ -204,12 +182,7 @@ export default function SalonDashboardPage() {
       return
     }
 
-    if (appointment.payment_status === "paid") {
-      setIsDetailsOpen(true)
-      return
-    }
-
-    handleOpenPayment(appointment)
+    setIsDetailsOpen(true)
   }
 
   const handleOpenPayment = (appointment = selectedSlot) => {
@@ -592,6 +565,7 @@ export default function SalonDashboardPage() {
 
     const targetStart = slotDateTimeInScheduleTimezone(slotDate, hour, minute)
     const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
+    try { assertAppointmentFitsSalonHours(targetStart.toISOString(), targetEnd.toISOString(), selectedOpeningHours) } catch { return true }
 
     const activeStaffIds = getAppointmentStaffIds(activeAppointment)
     const targetStaffIds = activeStaffIds.length > 1 ? activeStaffIds : [slotStaffId]
@@ -851,17 +825,6 @@ export default function SalonDashboardPage() {
                               Salon fermé ce jour.
                             </div>
                           ) : mobileTimelineHours.map((hour) => {
-                            const hourStartMinutes = hour * 60
-                            const hourEndMinutes = hourStartMinutes + 60
-                            const isClosedHour =
-                              selectedOpenMinutes === null ||
-                              selectedCloseMinutes === null ||
-                              hourEndMinutes <= selectedOpenMinutes ||
-                              hourStartMinutes >= selectedCloseMinutes
-                            const isPartialClosedHour =
-                              !isClosedHour &&
-                              (hourStartMinutes < selectedOpenMinutes || hourEndMinutes > selectedCloseMinutes)
-
                             return (
                             <div
                               key={`mobile-${hour}`}
@@ -874,10 +837,11 @@ export default function SalonDashboardPage() {
                               <div
                                 className="sticky left-0 z-10 bg-card pr-1 pt-1 text-right text-[10px] font-bold text-muted-foreground"
                               >
-                                {hour.toString().padStart(2, "0")}:00
+                                <CalendarHourLabel hour={hour} date={date || new Date()} openingHours={selectedOpeningHours} />
                               </div>
                               {bookableStaff.map((member) => {
                                 const staffApts = sortedDayAppointments.filter((apt: any) => {
+                                  if (["cancelled", "no_show"].includes(apt.status)) return false
                                   const aptHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
                                   return getAppointmentStaffIds(apt).includes(member.id) && aptHour === hour
                                 })
@@ -885,36 +849,20 @@ export default function SalonDashboardPage() {
                                 return (
                                   <div
                                     key={`mobile-${member.id}-${hour}`}
-                                    className={`relative min-w-0 border-l border-[#b8c0bd] ${
-                                      isClosedHour
-                                        ? "bg-[repeating-linear-gradient(135deg,#e5e9e7_0,#e5e9e7_8px,#d9dfdc_8px,#d9dfdc_10px)]"
-                                        : isPartialClosedHour
-                                          ? "bg-[#eef2f0]"
-                                          : "bg-white"
-                                    }`}
-                                    onClick={() =>
-                                      handleEmptySlotClick({
-                                        date: date || new Date(),
-                                        hour,
-                                        minute: 0,
-                                        staffId: member.id,
-                                      })
-                                    }
+                                    className="relative min-w-0 border-l border-[#b8c0bd] bg-white"
                                   >
+                                    <CalendarClosedHours hour={hour} date={date || new Date()} openingHours={selectedOpeningHours} />
                                     <div className="absolute inset-0 grid grid-rows-4">
                                       {[0, 15, 30, 45].map((minute, idx) => (
                                         <div
                                           key={`mobile-${member.id}-${hour}-${minute}`}
-                                          className={idx < 3 ? "border-b border-[#cbd2cf]" : ""}
+                                          data-calendar-slot={`mobile-${member.id}-${hour}-${minute}`}
+                                          aria-disabled={!isCalendarQuarterOpen(hour, minute, date || new Date(), selectedOpeningHours)}
+                                          onClick={() => isCalendarQuarterOpen(hour, minute, date || new Date(), selectedOpeningHours) && handleEmptySlotClick({date: date || new Date(), hour, minute, staffId: member.id})}
+                                          className={`${idx < 3 ? "border-b border-[#cbd2cf]" : ""} ${isCalendarQuarterOpen(hour, minute, date || new Date(), selectedOpeningHours) ? "cursor-pointer" : "cursor-not-allowed"}`}
                                         />
                                       ))}
                                     </div>
-                                    {(isClosedHour || isPartialClosedHour) && member.id === bookableStaff[0]?.id ? (
-                                      <div className="pointer-events-none absolute left-1 top-1 rounded-sm bg-[#7b8883]/90 px-1 py-0.5 text-[8px] font-bold uppercase leading-none text-white">
-                                        {isClosedHour ? "Fermé" : "Ouverture"}
-                                      </div>
-                                    ) : null}
-
                                     {staffApts.map((apt: any) => {
                                       const startMinute = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "m"), 10)
                                       const startHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
@@ -979,12 +927,12 @@ export default function SalonDashboardPage() {
                           return (
                             <div key={hour} className="relative flex border-t border-border" style={{ height: SCHEDULE_HOUR_HEIGHT }}>
                               <div className="shrink-0 bg-card pr-3 pt-1 text-right text-sm font-medium text-muted-foreground" style={{ width: TIME_COLUMN_WIDTH }}>
-                                {hour.toString().padStart(2, "0")}:00
+                                <CalendarHourLabel hour={hour} date={date || new Date()} openingHours={selectedOpeningHours} />
                               </div>
                               {bookableStaff.map(s => {
                                 // Find appointments for this staff in this hour
                                 const staffApts = appointments?.filter((apt: any) => {
-                                  if (apt.status === "cancelled") return false
+                                  if (["cancelled", "no_show"].includes(apt.status)) return false
                                   const aptHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
                                   return getAppointmentStaffIds(apt).includes(s.id) && aptHour === hour
                                 })
@@ -993,6 +941,7 @@ export default function SalonDashboardPage() {
 
                                 return (
                                   <div key={`${s.id}-${hour}`} className="relative min-w-[152px] flex-1 border-l border-border bg-background/80">
+                                    <CalendarClosedHours hour={hour} date={date || new Date()} openingHours={selectedOpeningHours} />
                                     <div className="absolute inset-0 grid grid-rows-4">
                                       {[0, 15, 30, 45].map((minute, idx) => (
                                         <DroppableSlot
@@ -1003,6 +952,7 @@ export default function SalonDashboardPage() {
                                           staffId={s.id}
                                           date={date || new Date()}
                                           onEmptyClick={(data) => handleEmptySlotClick({ ...data, date: date || new Date() })}
+                                          disabled={!isCalendarQuarterOpen(hour, minute, date || new Date(), selectedOpeningHours)}
                                           isInvalidDrop={isInvalidSlotForActive(date || new Date(), s.id, hour, minute)}
                                           isDragActive={Boolean(activeAppointment)}
                                           className={`${idx < 3 ? "border-b border-dashed border-border/50" : ""} min-h-[19px]`}
@@ -1092,8 +1042,8 @@ export default function SalonDashboardPage() {
                           </div>
 
                           <div className="flex items-center gap-2 sm:justify-end">
-                            {apt.status !== "blocked" && apt.payment_status !== "paid" && (
-                              <Button size="sm" onClick={() => handleValidate(apt)} className="cursor-pointer">
+                            {!["blocked", "cancelled", "no_show"].includes(apt.status) && apt.payment_status !== "paid" && (
+                              <Button size="sm" onClick={() => handleOpenPayment(apt)} className="cursor-pointer">
                                 <CheckCircle className="mr-2 h-4 w-4" />
                                 Présent / payer
                               </Button>

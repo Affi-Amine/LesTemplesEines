@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button"
 import { ClientSearch } from "@/components/client-search"
 import { ClientDetailsModal } from "@/components/client-details-modal"
 import { Mail, Phone, TrendingUp, User, Plus, Edit, Trash2 } from "lucide-react"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { useTranslations } from "@/lib/i18n/use-translations"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { fetchAPI } from "@/lib/api/client"
 import {
   Dialog,
@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
+import { ClientProfileFormSchema } from "@/lib/clients/profile"
 import { useCreateClient } from "@/lib/hooks/use-create-client"
 
 export default function ClientsPage() {
@@ -33,6 +34,13 @@ export default function ClientsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<any | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [formError, setFormError] = useState("")
+  const [returnToDetails, setReturnToDetails] = useState(false)
+  const [isOpeningEdit, setIsOpeningEdit] = useState(false)
+  const submitLock = useRef(false), editLoadLock = useRef(false)
+  const queryClient = useQueryClient()
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  useEffect(() => { const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 250); return () => clearTimeout(timer) }, [searchQuery])
 
   // Form state
   const [formData, setFormData] = useState({
@@ -45,8 +53,8 @@ export default function ClientsPage() {
 
   // Fetch clients from API
   const { data: clients, isLoading, refetch } = useQuery({
-    queryKey: ["clients"],
-    queryFn: () => fetchAPI<any[]>("/clients"),
+    queryKey: ["clients", { search: debouncedSearch }],
+    queryFn: ({ signal }) => fetchAPI<any[]>(`/clients?limit=50${debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : ""}`, { signal, cache: "no-store" }),
     refetchOnMount: "always",
   })
 
@@ -54,37 +62,43 @@ export default function ClientsPage() {
 
   const filteredClients = useMemo(() => {
     if (!clients) return []
-    const filtered = clients.filter(
-      (client) =>
-        `${client.first_name} ${client.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (client.email && client.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        client.phone.includes(searchQuery),
-    )
+    const filtered = [...clients]
     // Newest first by created_at
     return filtered.sort(
       (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     )
-  }, [clients, searchQuery])
+  }, [clients])
 
   const handleClientClick = (client: any) => {
     setSelectedClient(client)
     setModalOpen(true)
   }
 
-  const handleEdit = (client: any, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setEditingClient(client)
-    setFormData({
-      first_name: client.first_name,
-      last_name: client.last_name,
-      phone: client.phone,
-      email: client.email || "",
-      internal_notes: client.internal_notes || "",
-    })
-    setIsEditDialogOpen(true)
+  const handleEdit = async (client: any, e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    if (editLoadLock.current) return
+    editLoadLock.current = true; setIsOpeningEdit(true)
+    try {
+      const latest = await fetchAPI<any>(`/clients/${client.id}`, { cache: "no-store" })
+      setSelectedClient((current: any) => current?.id === latest.id ? { ...current, ...latest } : current)
+      setEditingClient(latest)
+      setReturnToDetails(!e)
+      setModalOpen(false)
+      setFormError("")
+      setFormData({ first_name: latest.first_name || "", last_name: latest.last_name || "", phone: latest.phone || "", email: latest.email || "", internal_notes: latest.internal_notes || "" })
+      setIsEditDialogOpen(true)
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Impossible d’ouvrir cette fiche.") }
+    finally { editLoadLock.current = false; setIsOpeningEdit(false) }
+  }
+
+  const closeEditor = () => {
+    if (submitLock.current) return
+    setIsEditDialogOpen(false); setFormError("")
+    if (returnToDetails && selectedClient) setModalOpen(true)
   }
 
   const handleCreate = () => {
+    setReturnToDetails(false); setFormError("")
     setEditingClient(null)
     setFormData({
       first_name: "",
@@ -97,79 +111,25 @@ export default function ClientsPage() {
   }
 
   const handleSave = async () => {
-    // Validation
-    if (!formData.first_name || !formData.last_name || !formData.phone) {
-      toast.error("Veuillez remplir tous les champs obligatoires", {
-        description: "Le prénom, le nom et le téléphone sont requis",
-        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-      })
-      return
-    }
-
-    setIsSaving(true)
+    if (submitLock.current) return
+    const parsed = ClientProfileFormSchema.safeParse(formData)
+    if (!parsed.success) { setFormError(parsed.error.issues[0]?.message || "Vérifiez les informations saisies."); return }
+    submitLock.current = true; setIsSaving(true); setFormError("")
     try {
-      if (!editingClient) {
-        // Use React Query mutation for create to auto-invalidate and refresh
-        createClient.mutate(
-          {
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            phone: formData.phone,
-            email: formData.email || undefined,
-            internal_notes: formData.internal_notes || undefined,
-          },
-          {
-            onSuccess: () => {
-              toast.success("Client créé avec succès", {
-                description: `${formData.first_name} ${formData.last_name} a été créé avec succès`,
-                icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
-              })
-              setIsEditDialogOpen(false)
-              refetch()
-            },
-            onError: (error: any) => {
-              toast.error("Erreur lors de la création", {
-                description: error.message || "Une erreur est survenue lors de la création du client",
-                icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-              })
-            },
-          },
-        )
-      } else {
-        // Update existing client
-        const endpoint = `/api/clients/${editingClient.id}`
-        const response = await fetch(endpoint, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            phone: formData.phone,
-            email: formData.email || undefined,
-            internal_notes: formData.internal_notes || undefined,
-          }),
-        })
-
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.error || "Échec de la sauvegarde du client")
-        }
-
-        toast.success("Client mis à jour avec succès", {
-          description: `${formData.first_name} ${formData.last_name} a été mis à jour avec succès`,
-          icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
-        })
-        refetch()
-        setIsEditDialogOpen(false)
-      }
-    } catch (error: any) {
-      toast.error("Erreur lors de la sauvegarde", {
-        description: error.message || "Une erreur est survenue",
-        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-      })
-    } finally {
-      setIsSaving(false)
-    }
+      const values = parsed.data
+      const saved = editingClient
+        ? await fetchAPI<any>(`/clients/${editingClient.id}`, { method: "PUT", body: JSON.stringify({ ...values, expected_updated_at: editingClient.updated_at || null }) })
+        : await createClient.mutateAsync({ ...values, email: values.email || undefined, internal_notes: values.internal_notes || undefined })
+      queryClient.setQueriesData<any[]>({ queryKey: ["clients"] }, old => Array.isArray(old) ? old.map(client => client.id === saved.id ? { ...client, ...saved } : client) : old)
+      if (editingClient?.phone && editingClient.phone !== saved.phone) queryClient.removeQueries({ queryKey: ["client", "phone"] })
+      queryClient.setQueryData(["client", "phone", saved.phone], saved)
+      setSelectedClient((current: any) => current?.id === saved.id ? { ...current, ...saved } : current)
+      await Promise.all(["clients", "client", "appointments", "staff-appointments", "client-packs", "booking-client-packs"].map(key => queryClient.invalidateQueries({ queryKey: [key] })))
+      setIsEditDialogOpen(false)
+      if (returnToDetails) { setSelectedClient((current: any) => ({ ...current, ...saved })); setModalOpen(true) }
+      toast.success(editingClient ? "Fiche client mise à jour" : "Client créé")
+    } catch (error) { setFormError(error instanceof Error ? error.message : "Impossible d’enregistrer la fiche. Réessayez.") }
+    finally { submitLock.current = false; setIsSaving(false) }
   }
 
   const handleDelete = async (client: any, e: React.MouseEvent) => {
@@ -265,10 +225,11 @@ export default function ClientsPage() {
         </div>
 
         {/* Search */}
-        <ClientSearch onSearch={setSearchQuery} />
+        <ClientSearch onSearch={setSearchQuery} onCreate={handleCreate} />
+        {isOpeningEdit && <p role="status" className="text-sm text-muted-foreground">Ouverture de la fiche…</p>}
 
         {/* Liste des clients */}
-        {isLoading ? (
+        {isLoading || searchQuery.trim() !== debouncedSearch ? (
           <Card className="overflow-hidden">
             <div className="divide-y md:hidden">
               {[1,2,3,4,5].map((i) => (
@@ -310,10 +271,11 @@ export default function ClientsPage() {
           <Card className="overflow-hidden">
             <div className="divide-y md:hidden">
               {filteredClients.map((client: any) => (
-                <button
+                <div
                   key={client.id}
-                  type="button"
-                  className="w-full space-y-3 p-4 text-left transition-colors hover:bg-muted/50"
+                  role="button" tabIndex={0}
+                  className="w-full cursor-pointer space-y-3 p-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring"
+                  onKeyDown={event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); handleClientClick(client) } }}
                   onClick={() => handleClientClick(client)}
                 >
                   <div className="flex min-w-0 items-start justify-between gap-3">
@@ -339,7 +301,7 @@ export default function ClientsPage() {
                       <Trash2 className="h-4 w-4" /> Supprimer
                     </Button>
                   </div>
-                </button>
+                </div>
               ))}
               {filteredClients.length === 0 ? (
                 <div className="p-6 text-center text-sm text-muted-foreground">Aucun client</div>
@@ -389,11 +351,11 @@ export default function ClientsPage() {
 
         {/* Client Details Modal */}
         {selectedClient && (
-          <ClientDetailsModal open={modalOpen} onOpenChange={setModalOpen} client={selectedClient} />
+          <ClientDetailsModal open={modalOpen} onOpenChange={setModalOpen} client={selectedClient} onEdit={() => void handleEdit(selectedClient)} isOpeningEdit={isOpeningEdit} />
         )}
 
         {/* Edit/Create Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={(open) => setIsEditDialogOpen(open)}>
+        <Dialog open={isEditDialogOpen} onOpenChange={open => { if (!open) closeEditor() }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingClient ? "Modifier le client" : "Ajouter un client"}</DialogTitle>
@@ -404,41 +366,45 @@ export default function ClientsPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form id="client-profile-form" noValidate onSubmit={event => { event.preventDefault(); void handleSave() }}>
+            <fieldset disabled={isSaving} className="space-y-4">
+              {formError && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-foreground">{formError}</p>}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="firstName">Prénom</Label>
+                  <Label htmlFor="firstName">Prénom *</Label>
                   <Input
-                    id="firstName"
+                    id="firstName" autoComplete="given-name" maxLength={100} required
                     value={formData.first_name}
                     onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="lastName">Nom</Label>
-                  <Input id="lastName" value={formData.last_name} onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} />
+                  <Label htmlFor="lastName">Nom *</Label>
+                  <Input id="lastName" autoComplete="family-name" maxLength={100} required value={formData.last_name} onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} />
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="phone">Téléphone</Label>
-                <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+                <Label htmlFor="phone">Téléphone *</Label>
+                <Input id="phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={32} required value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
               </div>
 
               <div>
-                <Label htmlFor="email">Email (optionnel)</Label>
-                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                <Label htmlFor="email">Email de contact (optionnel)</Label>
+                <Input id="email" type="email" autoComplete="email" maxLength={255} value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
               </div>
 
               <div>
                 <Label htmlFor="notes">Notes internes (optionnel)</Label>
-                <Textarea id="notes" value={formData.internal_notes} onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })} />
+                <Textarea id="notes" maxLength={5000} value={formData.internal_notes} onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })} />
               </div>
-            </div>
+              {editingClient?.auth_user_id && <p className="text-xs leading-5 text-muted-foreground">Ces coordonnées servent à contacter le client. L’adresse de connexion à son compte reste inchangée.</p>}
+            </fieldset>
+            </form>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="cursor-pointer">Annuler</Button>
-              <Button onClick={handleSave} className="cursor-pointer" disabled={isSaving}>
+              <Button type="button" variant="outline" onClick={closeEditor} disabled={isSaving} className="cursor-pointer">Annuler</Button>
+              <Button type="submit" form="client-profile-form" className="cursor-pointer" disabled={isSaving}>
                 {isSaving ? "Sauvegarde..." : editingClient ? "Sauvegarder" : "Créer"}
               </Button>
             </DialogFooter>

@@ -147,6 +147,24 @@ async function main() {
     assert.equal((await change({ status: 'cancelled' })).status, 200)
     console.log(`PASS: ${count} staff — occupied -> cancel -> available in both APIs -> rebook -> occupied; conflicting reactivation refused`)
   }
+  for(const count of [1,2]) {
+    seed(count)
+    Object.assign(tables.appointments[0],{payment_status:'paid',payment_method:'stripe',amount_paid_cents:10000,client_notes:'Historique client conservé'})
+    const original=JSON.stringify(tables.appointments[0])
+    const assignments=JSON.stringify(tables.appointment_assignments)
+    const absent=await change({status:'no_show',salon_id:'',service_id:'',staff_ids:[],start_time:'invalid-stale-form'})
+    assert.equal(absent.status,200)
+    const kept={...tables.appointments[0],status:'confirmed'};delete kept.updated_at
+    assert.equal(JSON.stringify(kept),original,'Absence changes only status and update timestamp, never payment/time/history')
+    assert.equal(JSON.stringify(tables.appointment_assignments),assignments)
+    assert.equal(await isAvailable(count),true)
+    for(const staffId of staffIds.slice(0,count))assert.equal(await staffIsAvailable(staffId),true)
+    const replacement=await createBookableAppointment(db,input(count))
+    assert.ok(replacement.id)
+    assert.equal(tables.appointments.find(a=>a.id===uuid(10)).status,'no_show')
+    assert.equal(await isAvailable(count),false)
+    console.log(`PASS: ${count} staff — client absent releases entire team, keeps paid Stripe history and allows rebooking`)
+  }
   seed(1)
   failedUpdate = true
   assert.notEqual((await change({ status: 'cancelled' })).status, 200)
@@ -176,6 +194,58 @@ async function main() {
   assert.equal(await isAvailable(2), false)
   await assert.rejects(() => createBookableAppointment(db, input(2)), /disponibles/)
   console.log('PASS: cancellation preserves another booking that still occupies one practitioner')
+
+  // Closure is an exact Paris-time boundary. Never rewrite historical bookings.
+  seed(1)
+  tables.appointments[0].status = 'cancelled'
+  const opening = Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(day => [day,{open:'10:30',close:'20:30'}]))
+  tables.salons[0].opening_hours = opening
+  const validateHours = load('lib/appointments/create.ts').validateBookableAppointment
+  const late = {...input(1),start_time:'2099-11-02T18:45:00.000Z'} // 19:45–20:45 in Paris.
+  const baseline = JSON.stringify(tables.appointments)
+  await assert.rejects(() => validateHours(db,late), /20:30/)
+  await assert.rejects(() => createBookableAppointment(db,late), /20:30/)
+  assert.equal(JSON.stringify(tables.appointments),baseline,'A refused booking must not touch existing rows')
+  const exact = await validateHours(db,{...input(1),start_time:'2099-11-02T18:30:00.000Z'})
+  assert.equal(exact.endTime,'2099-11-02T19:30:00.000Z')
+  await assert.rejects(() => validateHours(db,{...input(1),start_time:'2099-11-02T09:15:00.000Z'}), /10:30/)
+  await assert.rejects(() => validateHours(db,{...input(1),start_time:'2099-11-02T18:30:00.000Z',end_time:'2099-11-02T22:00:00.000Z'}), /durée/)
+  await assert.rejects(() => validateHours(db,{...late,end_time:'2099-11-02T19:15:00.000Z'}), /20:30/)
+  tables.stripe_checkout_sessions=[]
+  const previousCheckouts=stripeRequests.length
+  const refusedCheckout=await load('app/api/stripe/checkout/appointment/route.ts').POST({json:async()=>late,nextUrl:new URL('https://example.test')})
+  assert.equal(refusedCheckout.status,400)
+  assert.equal(stripeRequests.length,previousCheckouts,'Never open a payment session for an out-of-hours booking')
+  const slots=await serviceAvailability({nextUrl:new URL(`http://test?date=2099-11-02&salon_id=${salonId}`)},{params:Promise.resolve({service_id:serviceId})})
+  assert.equal(slots.status,200)
+  assert.ok(slots.data.available_slots.length)
+  assert.ok(slots.data.available_slots.every(slot=>Date.parse(slot.end)<=Date.parse('2099-11-02T19:30:00Z')))
+  const old=tables.appointments[0]
+  Object.assign(old,{status:'confirmed',start_time:late.start_time,end_time:'2099-11-02T19:45:00.000Z'})
+  const originalTimes={start:old.start_time,end:old.end_time}
+  const same=await change({salon_id:salonId,service_id:serviceId,start_time:old.start_time,staff_ids:[staffIds[0]],internal_notes:'Note ajoutée sans déplacer'})
+  assert.equal(same.status,200,'Saving unchanged scheduling fields must not reject a historical out-of-hours booking')
+  assert.equal((await change({payment_status:'paid',payment_method:'cash',amount_paid_cents:10000})).status,200)
+  assert.equal((await change({status:'completed'})).status,200)
+  assert.equal(old.start_time,originalTimes.start)
+  assert.equal(old.end_time,originalTimes.end)
+  Object.assign(old,{status:'confirmed',start_time:start,end_time:end})
+  const failedMove=await change({start_time:late.start_time})
+  assert.equal(failedMove.status,400)
+  assert.equal(old.start_time,start)
+  assert.equal(old.end_time,end)
+  const hoursPolicy=load('lib/appointments/opening-hours.ts')
+  for(const [begin,finish] of [['2027-03-28T17:30:00Z','2027-03-28T18:30:00Z'],['2027-10-31T18:30:00Z','2027-10-31T19:30:00Z']]) {
+    hoursPolicy.assertAppointmentFitsSalonHours(begin,finish,opening)
+    assert.throws(()=>hoursPolicy.assertAppointmentFitsSalonHours(begin,new Date(Date.parse(finish)+15*60000).toISOString(),opening),/20:30/)
+  }
+  const closedDayHours={...opening};delete closedDayHours[['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][new Date(start).getUTCDay()]]
+  assert.throws(()=>hoursPolicy.assertAppointmentFitsSalonHours(start,end,closedDayHours),/fermé/)
+  assert.throws(()=>hoursPolicy.assertAppointmentFitsSalonHours(start,'2099-11-03T00:00:00Z',opening),/20:30/)
+  const calendar=load('lib/calendar/scheduling.ts')
+  const visibleHours=calendar.getScheduleHoursIncludingAppointments(opening,new Date('2099-11-02T12:00:00Z'),[{id:uuid(80),status:'confirmed',start_time:'2099-11-02T20:15:00Z',end_time:'2099-11-02T21:15:00Z'}])
+  assert.ok(visibleHours.includes(22),'Historical late bookings remain visible in calendar')
+  console.log('PASS: exact opening/closure, Paris DST, create/move/checkout refusals, unchanged historical appointments and payment/completion remain safe')
 
   seed(1)
   tables.appointments[0].status = 'cancelled'

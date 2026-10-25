@@ -40,10 +40,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const { id } = await context.params
     const body = await request.json()
-    // Cancellation is a status change, not a reschedule. Ignore stale edit-form
+    // Cancellation/absence is a status change, not a reschedule. Ignore stale edit-form
     // fields before validation (a removed service may leave an empty UUID).
-    const updates = UpdateAppointmentSchema.parse(body?.status === "cancelled" ? {
-      status: "cancelled",
+    const updates = UpdateAppointmentSchema.parse(["cancelled", "no_show"].includes(body?.status) ? {
+      status: body.status,
       client_notes: body.client_notes,
       internal_notes: body.internal_notes,
     } : body)
@@ -112,11 +112,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (updates.start_time) updateData.start_time = updates.start_time
 
     const schedulingChanged = Boolean(
-      updates.salon_id ||
-      updates.service_id ||
-      updates.start_time ||
-      updates.staff_id ||
-      updates.staff_ids
+      (updates.salon_id && updates.salon_id !== existing.salon_id) ||
+      (updates.service_id && updates.service_id !== existing.service_id) ||
+      (updates.start_time && Date.parse(updates.start_time) !== Date.parse(existing.start_time)) ||
+      (staffIdsToUpdate && [...new Set(targetStaffIds)].sort().join() !== [...new Set(existingStaffIds)].sort().join())
     )
 
     const reactivating = !blocksAppointmentSchedule(existing.status) &&
@@ -271,7 +270,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }
-    return NextResponse.json({ error: error.message || "Failed to update appointment" }, { status: 500 })
+    return NextResponse.json({ error: error.message || "Failed to update appointment" }, { status: error.code === "SALON_HOURS" ? 400 : 500 })
   }
 }
 

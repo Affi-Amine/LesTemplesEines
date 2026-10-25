@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Clock, User, MapPin, Scissors, Phone, Mail, FileText, Edit, Trash2, X } from "lucide-react"
+import { Calendar, Clock, User, MapPin, Scissors, Phone, Mail, FileText, Edit, X } from "lucide-react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { formatInTimeZone } from "date-fns-tz"
@@ -73,7 +73,6 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
   const queryClient = useQueryClient()
   const [liveStatus, setLiveStatus] = useState<string | null>(null)
   useEffect(() => { setLiveStatus(null) }, [appointment?.id, appointment?.status])
-  const [isCancelling, setIsCancelling] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [editForm, setEditForm] = useState({
     salon_id: "",
@@ -198,45 +197,6 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
     setEditForm({ ...editForm, staff_ids: editForm.staff_ids.filter(id => id !== staffId) })
   }
 
-  const handleCancelAppointment = async () => {
-    if (isCancelling) return
-    if (!confirm("Êtes-vous sûr de vouloir annuler ce rendez-vous ?")) {
-      return
-    }
-
-    setIsCancelling(true)
-    try {
-      const response = await fetch(`/api/appointments/${appointment.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "cancelled" }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || "Échec de l'annulation")
-      }
-
-      toast.success("Rendez-vous annulé", {
-        description: "Le rendez-vous a été annulé avec succès.",
-      })
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
-        queryClient.invalidateQueries({ queryKey: ["staff-appointments"] }),
-        queryClient.invalidateQueries({ queryKey: ["availability"] }),
-      ])
-      onRefetch?.()
-      onClose()
-    } catch (error) {
-      toast.error("Erreur", {
-        description: error instanceof Error ? error.message : "Impossible d'annuler le rendez-vous. Veuillez réessayer.",
-      })
-    } finally {
-      setIsCancelling(false)
-    }
-  }
-
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60)
     const mins = minutes % 60
@@ -268,11 +228,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
               </Badge>
             )}
           </DialogTitle>
-          {isEditMode && (
-            <DialogDescription>
-              Modifier les détails du rendez-vous
-            </DialogDescription>
-          )}
+          <DialogDescription>{isEditMode ? "Modifier les détails du rendez-vous" : "Client, prestation et actions du rendez-vous"}</DialogDescription>
         </DialogHeader>
 
         {!isEditMode && <AppointmentPaymentBadge appointment={appointment} />}
@@ -553,15 +509,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
               <Edit className="w-4 h-4 mr-2" />
               Modifier
             </Button>
-            <Button
-              variant="outline"
-              className="flex-1 cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50"
-              onClick={handleCancelAppointment}
-              disabled={isCancelling || appointment.status === "cancelled"}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Annuler
-            </Button>
+
           </div>
         </div>
         )}

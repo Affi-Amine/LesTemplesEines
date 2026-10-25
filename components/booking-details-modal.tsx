@@ -258,9 +258,9 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
       setIsEditMode(false)
       onClose()
     }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
+          <DialogTitle className="flex flex-wrap items-center justify-between gap-2 leading-snug">
             <span>{isEditMode ? "Modifier le rendez-vous" : "Détails du Rendez-vous"}</span>
             {!isEditMode && (
               <Badge variant="outline" className={getAppointmentColor({ ...appointment, status: liveStatus || appointment.status })}>
@@ -280,7 +280,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
         {isEditMode ? (
           /* Edit Mode */
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="edit-salon">Salon</Label>
                 <Select value={editForm.salon_id} onValueChange={(value) => setEditForm({ ...editForm, salon_id: value, service_id: "", staff_ids: [] })}>
@@ -341,7 +341,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="edit-date">Date</Label>
                 <Input
@@ -449,7 +449,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
                   {appointment.client.email && (
                     <div className="flex items-center gap-2 text-sm">
                       <Mail className="w-4 h-4" />
-                      <span>{appointment.client.email}</span>
+                      <span className="min-w-0 break-all">{appointment.client.email}</span>
                     </div>
                   )}
                 </div>
@@ -544,7 +544,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-2 pt-4">
+          <div className="flex flex-col gap-2 pt-4 sm:flex-row">
             <Button
               variant="outline"
               className="flex-1 cursor-pointer"

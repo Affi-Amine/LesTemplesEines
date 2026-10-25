@@ -9,6 +9,7 @@ import { getAppointmentColor, getStatusLabel } from "@/lib/utils"
 import { AdminHeader } from "@/components/admin-header"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { AppointmentCardContent } from "@/components/calendar/appointment-card-content"
 import { Calendar } from "@/components/ui/calendar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAppointments } from "@/lib/hooks/use-appointments"
@@ -49,7 +50,7 @@ import { useRouter } from "next/navigation"
 const SCHEDULE_HOUR_HEIGHT = 76
 const STAFF_COLUMN_MIN_WIDTH = 152
 const TIME_COLUMN_WIDTH = 84
-const MOBILE_SCHEDULE_HOUR_HEIGHT = 64
+const MOBILE_SCHEDULE_HOUR_HEIGHT = 120
 const MOBILE_TIME_COLUMN_WIDTH = 42
 
 export default function SalonDashboardPage() {
@@ -811,15 +812,16 @@ export default function SalonDashboardPage() {
                     <div className="border-b bg-muted/30 px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Mini planning
+                          Planning du jour
                         </p>
                         <Badge variant="outline" className="px-2 py-0.5 text-[10px]">
                           {bookableStaff.length} masseuses
                         </Badge>
                       </div>
                     </div>
-                    <div className="max-h-[70vh] overflow-y-auto overflow-x-hidden overscroll-contain bg-[#f6f8f7]">
-                      <div className="w-full">
+                    <p className="border-b px-3 py-2 text-xs text-muted-foreground">Toutes les masseuses sont visibles. Touchez un rendez-vous pour voir les détails.</p>
+                    <div className="max-h-[70dvh] overflow-y-auto overflow-x-hidden overscroll-contain bg-[#f6f8f7]">
+                      <div className="w-full min-w-0">
                         <div
                           className="sticky top-0 z-20 grid border-b border-[#b8c0bd] bg-card/95 backdrop-blur"
                           style={{
@@ -830,7 +832,7 @@ export default function SalonDashboardPage() {
                           {bookableStaff.map((member) => (
                             <div
                               key={member.id}
-                              className="min-w-0 border-l border-[#b8c0bd] px-0.5 py-1 text-center"
+                              className="min-w-0 border-l border-[#b8c0bd] px-0.5 py-3 text-center"
                             >
                               <div className="truncate text-[10px] font-bold leading-tight text-foreground">
                                 {getStaffDisplayName(member)}
@@ -932,19 +934,10 @@ export default function SalonDashboardPage() {
                                               handleValidate(apt)
                                             }
                                           }}
-                                          className={`absolute left-0.5 right-0.5 overflow-hidden rounded-[4px] border px-1 py-0.5 text-left shadow-sm ${getAppointmentColor(apt)}`}
+                                          className={`absolute left-0.5 right-0.5 flex flex-col items-stretch justify-start overflow-hidden rounded-md border p-1 text-left shadow-sm ${getAppointmentColor(apt)}`}
                                           style={{ top: `${topOffset}px`, height: `${heightPx}px` }}
                                         >
-                                          <div className="flex min-w-0 items-center gap-0.5 text-[8px] font-black leading-tight">
-                                            <span>{formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")}</span>
-                                                  <AppointmentPaymentBadge appointment={apt} compact iconOnly className="ml-auto h-3 w-3" />
-                                            {isMultiStaffAppointment ? <span className="rounded-sm bg-black/10 px-1">x{appointmentStaffIds.length}</span> : null}
-                                          </div>
-                                          {heightPx >= 26 ? (
-                                            <div className="truncate text-[9px] font-bold leading-tight">
-                                              {apt.status === "blocked" ? "Bloqué" : `${apt.client?.first_name || "Client"} ${apt.client?.last_name?.[0] || ""}`}
-                                            </div>
-                                          ) : null}
+                                          <AppointmentCardContent appointment={apt} height={heightPx} />
                                         </button>
                                       )
                                     })}
@@ -1052,26 +1045,7 @@ export default function SalonDashboardPage() {
                                               }
                                             }}
                                           >
-                                            {isDraggable && (
-                                              <GripVertical className="absolute right-0.5 top-0.5 w-3 h-3 text-current opacity-50" />
-                                            )}
-                                            {apt.status === 'blocked' ? (
-                                              <div className="font-semibold text-[10px]">BLOQUÉ</div>
-                                            ) : (
-                                              <>
-                                                <div className="flex items-center gap-1 font-semibold text-[10px]">
-                                                  <span>{formatInTimeZone(apt.start_time, "Europe/Paris", "HH:mm")}</span>
-                                                  <AppointmentPaymentBadge appointment={apt} compact iconOnly={heightPx < 45} className="ml-auto mr-2" />
-                                                  {isMultiStaffAppointment ? (
-                                                    <span className="rounded bg-black/15 px-1 text-[9px]">x{appointmentStaffIds.length}</span>
-                                                  ) : null}
-                                                </div>
-                                                <div className="truncate text-[9px] font-medium">{apt.client?.first_name} {apt.client?.last_name?.[0]}.</div>
-                                                {heightPx >= 30 && (
-                                                  <div className="truncate text-[8px]">{apt.service?.name}</div>
-                                                )}
-                                              </>
-                                            )}
+                                            <AppointmentCardContent appointment={apt} height={heightPx} />
                                           </div>
                                         </DraggableAppointment>
                                       )
@@ -1164,14 +1138,23 @@ export default function SalonDashboardPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
+            {selectedSlot && <section aria-label="Rendez-vous à encaisser" className="min-w-0 space-y-2 rounded-xl border bg-muted/30 p-4 text-sm">
+              <p className="text-lg font-semibold break-words">{[selectedSlot.client?.first_name, selectedSlot.client?.last_name].filter(Boolean).join(" ") || "Client"}</p>
+              {selectedSlot.client?.phone && <a className="block w-fit underline underline-offset-4" href={`tel:${selectedSlot.client.phone}`}>{selectedSlot.client.phone}</a>}
+              <p className="break-words">{selectedSlot.service?.name || "Massage"}</p>
+              <p className="text-muted-foreground">{formatInTimeZone(selectedSlot.start_time, "Europe/Paris", "dd/MM/yyyy · HH:mm")} – {formatInTimeZone(selectedSlot.end_time, "Europe/Paris", "HH:mm")}</p>
+              <p className="break-words text-muted-foreground">{getAppointmentStaffLabel(selectedSlot)}</p>
+              <p className="font-semibold">Montant du rendez-vous : {((selectedSlot.service?.price_cents || 0) / 100).toFixed(2)} €</p>
+            </section>}
+
+            <div className="min-w-0 space-y-4 py-2">
               {paymentLines.map((line, index) => (
-                <div key={index} className="flex gap-2 items-end">
-                  <div className="space-y-2 flex-1">
-                    <Label>Mode de paiement {paymentLines.length > 1 ? index + 1 : ''}</Label>
+                <div key={index} className="grid grid-cols-[minmax(0,1fr)_2.5rem] items-end gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_6rem_auto]">
+                  <div className="col-span-2 min-w-0 space-y-2 sm:col-span-1">
+                    <Label htmlFor={`payment-method-${index}`}>Mode de paiement {paymentLines.length > 1 ? index + 1 : ''}</Label>
                     <Select value={line.method} onValueChange={(val) => updatePaymentLine(index, 'method', val)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choisir un moyen de paiement" />
+                      <SelectTrigger id={`payment-method-${index}`} className="h-11 w-full min-w-0">
+                        <SelectValue placeholder="Choisir" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="card">Carte Bancaire</SelectItem>
@@ -1183,28 +1166,29 @@ export default function SalonDashboardPage() {
                     </Select>
                   </div>
 
-                  <div className="space-y-2 w-32">
-                    <Label>Montant</Label>
+                  <div className="min-w-0 space-y-2">
+                    <Label htmlFor={`payment-amount-${index}`}>Montant (€)</Label>
                     <Input
-                      type="number"
+                      id={`payment-amount-${index}`}
+                      type="number" min="0" step="0.01" inputMode="decimal" className="h-11 text-base sm:text-sm"
                       value={line.amount}
                       onChange={(e) => updatePaymentLine(index, 'amount', parseFloat(e.target.value) || 0)}
                     />
                   </div>
 
                   {paymentLines.length > 1 && (
-                    <Button variant="ghost" size="icon" className="mb-0.5 text-destructive cursor-pointer" onClick={() => removePaymentLine(index)}>
+                    <Button aria-label={`Retirer le paiement ${index + 1}`} variant="ghost" size="icon" className="h-11 w-10 text-destructive cursor-pointer" onClick={() => removePaymentLine(index)}>
                       <X className="w-4 h-4" />
                     </Button>
                   )}
                 </div>
               ))}
 
-              <Button variant="outline" size="sm" onClick={addPaymentLine} className="w-full cursor-pointer">
+              <Button variant="outline" size="sm" onClick={addPaymentLine} className="h-auto min-h-11 w-full whitespace-normal cursor-pointer">
                 <Plus className="w-4 h-4 mr-2" /> Ajouter un autre moyen de paiement
               </Button>
 
-              <div className="flex justify-between items-center pt-2 border-t">
+              <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t">
                 <span className="font-semibold">Total payé:</span>
                 <span className={paymentLines.reduce((sum, l) => sum + l.amount, 0) === (selectedSlot?.service?.price_cents / 100) ? "text-green-600 font-bold" : "text-red-500 font-bold"}>
                   {paymentLines.reduce((sum, l) => sum + l.amount, 0).toFixed(2)}€ / {(selectedSlot?.service?.price_cents / 100)?.toFixed(2)}€
@@ -1255,12 +1239,12 @@ export default function SalonDashboardPage() {
                   <div className="space-y-1 text-sm">
                     <p className="font-medium">{selectedSlot.client?.first_name} {selectedSlot.client?.last_name}</p>
                     {selectedSlot.client?.phone && <p className="text-muted-foreground">📞 {selectedSlot.client.phone}</p>}
-                    {selectedSlot.client?.email && <p className="text-muted-foreground">✉️ {selectedSlot.client.email}</p>}
+                    {selectedSlot.client?.email && <p className="break-all text-muted-foreground">✉️ {selectedSlot.client.email}</p>}
                   </div>
                 </div>
 
                 {/* Service & Timing */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="p-4 bg-muted/50 rounded-lg space-y-2">
                     <h4 className="font-semibold flex items-center gap-2">
                       <CalendarIcon className="w-4 h-4" />
@@ -1448,7 +1432,7 @@ export default function SalonDashboardPage() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Heure de début</Label>
                   <Input

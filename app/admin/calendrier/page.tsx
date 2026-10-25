@@ -1,5 +1,6 @@
 "use client"
 
+import { AppointmentCardContent } from "@/components/calendar/appointment-card-content"
 import { useState, useEffect, useMemo, type CSSProperties } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { fetchAPI } from "@/lib/api/client"
@@ -143,8 +144,8 @@ function WeekView({
     const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
 
     return {
-      top: topOffset,
-      height: Math.max(durationMinutes, 15),
+      top: topOffset * 2,
+      height: Math.max(durationMinutes * 2, 24),
     }
   }
 
@@ -170,7 +171,7 @@ function WeekView({
 
   return (
     <div className="overflow-x-hidden md:overflow-x-auto">
-      <div className="min-w-0 md:min-w-[800px]">
+      <div className="min-w-0 md:min-w-[1100px]">
         {/* Header with days */}
         <div className="mb-2 grid grid-cols-8 gap-0.5 sm:mb-4 sm:gap-1">
           <div className="p-1 sm:p-2"></div>
@@ -203,7 +204,7 @@ function WeekView({
                 const slotId = `slot-week-${format(day, "yyyy-MM-dd")}-${hourStart}`
 
                 return (
-                  <div className={`relative h-[54px] min-w-0 overflow-hidden rounded border border-border sm:h-[60px] sm:overflow-visible ${isOpenHour ? "bg-background" : "bg-muted/30"}`}>
+                  <div key={slotId} className={`relative h-[120px] min-w-0 rounded border border-border ${isOpenHour ? "bg-background" : "bg-muted/30"}`}>
                     {isOpenHour ? (
                       <div className="absolute inset-0 grid grid-rows-4">
                         {[0, 15, 30, 45].map((minute, idx) => (
@@ -226,7 +227,6 @@ function WeekView({
 
                     {hourAppointments.map((appointment) => {
                       const position = getAppointmentPosition(appointment, hourStart)
-                      const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
                       const isDraggable = appointment.status !== "cancelled" && appointment.status !== "completed"
 
                       return (
@@ -237,8 +237,8 @@ function WeekView({
                           disabled={!isDraggable}
                           style={{
                             position: "absolute",
-                            left: "4px",
-                            right: "4px",
+                            left: "1px",
+                            right: "1px",
                             top: `${position.top}px`,
                             height: `${position.height}px`,
                           }}
@@ -251,20 +251,9 @@ function WeekView({
                               onAppointmentClick(appointment)
                             }}
                           >
-                            {isDraggable && (
-                              <GripVertical className="absolute right-0.5 top-0.5 w-3 h-3 text-current opacity-50" />
-                            )}
-                            <div className="flex items-center gap-1 text-[10px] font-medium"><span className="min-w-0 flex-1 truncate">{getAppointmentTitle(appointment)}</span><AppointmentPaymentBadge appointment={appointment} compact iconOnly={position.height < 55} /></div>
-                            <div className="truncate text-[9px]">
-                              {appointment.service?.name || (appointment.status === "blocked" ? "Indisponible" : "Service")}
-                            </div>
-                            {position.height >= 30 && (
-                              <div className="truncate text-[9px] font-medium">
-                                {formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} ({durationMinutes}min)
-                              </div>
-                            )}
-                          </div>
-                        </DraggableAppointment>
+                            <AppointmentCardContent appointment={appointment} height={position.height} />
+                        </div>
+                    </DraggableAppointment>
                       )
                     })}
                   </div>
@@ -369,7 +358,7 @@ function DayView({
           <div className="sticky top-0 z-20 mb-3 flex border-b border-border bg-card/95 pb-2 backdrop-blur">
             <div className="w-10 shrink-0 md:w-[84px]"></div>
             {activeStaffMembers.map((member) => (
-              <div key={member.id} className="min-w-0 flex-1 border-l border-border px-0.5 text-center md:min-w-[152px] md:px-2 lg:min-w-[190px]">
+              <div key={member.id} className="min-w-0 flex-1 border-l border-border px-0.5 text-center md:min-w-[152px] md:px-2">
                 <div className="truncate text-[10px] font-semibold md:text-sm lg:text-base">{getStaffDisplayName(member)}</div>
                 <div className="hidden text-[10px] uppercase tracking-wide text-muted-foreground sm:block">Masseuse</div>
               </div>
@@ -397,7 +386,7 @@ function DayView({
                 const hourAppointments = getAppointmentsForHour(hourStart, member.id)
 
                 return (
-                  <div key={`${member.id}-${hourStart}`} className="relative min-w-0 flex-1 border-l border-border bg-background/80 md:min-w-[152px] lg:min-w-[190px]">
+                  <div key={`${member.id}-${hourStart}`} className="relative min-w-0 flex-1 border-l border-border bg-background/80 md:min-w-[152px]">
                     <div className="absolute inset-0 grid grid-rows-4">
                       {[0, 15, 30, 45].map((minute, idx) => (
                         <DroppableSlot
@@ -419,10 +408,7 @@ function DayView({
 
                     {hourAppointments.map((appointment) => {
                   const position = getAppointmentPosition(appointment, hourStart)
-                  const durationMinutes = calculateDurationMinutes(appointment.start_time, appointment.end_time)
                   const isDraggable = appointment.status !== "cancelled" && appointment.status !== "completed" && appointment.status !== "blocked"
-                  const appointmentStaffIds = getAppointmentStaffIds(appointment)
-                  const isMultiStaffAppointment = appointmentStaffIds.length > 1
 
                   return (
                     <DraggableAppointment
@@ -432,8 +418,8 @@ function DayView({
                       disabled={!isDraggable}
                       style={{
                         position: "absolute",
-                        left: "4px",
-                        right: "4px",
+                        left: "1px",
+                        right: "1px",
                         top: `${position.top}px`,
                         height: `${position.height}px`,
                       }}
@@ -446,29 +432,7 @@ function DayView({
                           onAppointmentClick(appointment)
                         }}
                       >
-                        {isDraggable && (
-                          <GripVertical className="absolute right-0.5 top-0.5 h-3 w-3 text-current opacity-50" />
-                        )}
-                        <div className="flex items-center gap-1 font-semibold text-[10px]">
-                          <span>{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
-                          <AppointmentPaymentBadge appointment={appointment} compact iconOnly={position.height < 45} className="ml-auto mr-2" />
-                          {isMultiStaffAppointment ? (
-                            <span className="rounded bg-black/15 px-1 text-[9px]">x{appointmentStaffIds.length}</span>
-                          ) : null}
-                        </div>
-                        <div className="truncate text-[10px] font-medium">
-                            {getAppointmentTitle(appointment)}
-                        </div>
-                        {position.height >= 38 && (
-                          <>
-                            <div className="truncate text-[9px] opacity-80">
-                              {appointment.service?.name || (appointment.status === "blocked" ? "Indisponible" : "Service")}
-                            </div>
-                            <div className="truncate text-[9px] font-medium opacity-80">
-                              {formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")} · {durationMinutes}min
-                            </div>
-                          </>
-                        )}
+                        <AppointmentCardContent appointment={appointment} height={position.height} />
                       </div>
                     </DraggableAppointment>
                   )
@@ -876,9 +840,9 @@ export default function CalendrierPage() {
 
         {/* Drag-and-Drop Instructions */}
         {(viewMode === "week" || viewMode === "day") && (
-          <Card className="border-l-4 border-l-blue-500 bg-blue-50/50">
+          <Card className="border-l-4 border-l-blue-400 bg-muted/30">
             <CardContent className="py-3">
-              <div className="flex items-center gap-2 text-sm text-blue-800">
+              <div className="flex items-center gap-2 text-sm text-foreground">
                 <GripVertical className="w-4 h-4" />
                 <span>
                   <strong>Glisser-déposer:</strong> déplace tout le rendez-vous et toute l'équipe. Pour remplacer une seule masseuse, ouvrez le rendez-vous.

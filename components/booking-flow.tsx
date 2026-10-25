@@ -20,6 +20,7 @@ import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
 import { t } from "@/lib/i18n/get-translations"
 import { toast } from "sonner"
 import { Icon } from "@iconify/react"
+import { Plus, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { formatInTimeZone } from "date-fns-tz"
 import type { Locale } from "@/i18n.config"
@@ -69,6 +70,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     paymentOption: "on_site",
     clientPackId: searchParams.get("client_pack_id") || "",
   })
+  const [isAddingService, setIsAddingService] = useState(false)
   const submitLock = useRef(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false)
@@ -80,6 +82,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
   }
 
   const handleSalonChange = (salonId: string) => {
+    setIsAddingService(false)
     setData((current) => ({
       ...current,
       salon: salonId,
@@ -95,6 +98,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     try {
       if (ids.length) combineServices(ids.map(id => services!.find(service => service.id === id)!))
     } catch (error) { toast.error(error instanceof Error ? error.message : "Sélection invalide"); return }
+    setIsAddingService(false)
     setData(current => ({ ...current, service: ids[0] || "", serviceIds: ids, time: "",
       paymentOption: ids.length > 1 && current.paymentOption === "pack" ? "on_site" : current.paymentOption,
       clientPackId: ids.length > 1 ? "" : current.clientPackId }))
@@ -140,6 +144,11 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
     try { return combineServices(selected.filter((service): service is NonNullable<typeof service> => Boolean(service))) }
     catch { return undefined }
   }, [services, data.serviceIds])
+  const selectedServices = data.serviceIds.map(id => services?.find(service => service.id === id)).filter((service): service is NonNullable<typeof service> => Boolean(service))
+  const additionalServices = (services || []).filter(service => {
+    if (data.serviceIds.includes(service.id)) return false
+    try { combineServices([...selectedServices, service]); return true } catch { return false }
+  })
   const schedule = useAppointmentSchedule({
     salonId: currentSalon?.id || "", serviceId: currentService?.id || "", serviceIds: data.serviceIds, date: data.date,
     requiredStaff: currentService?.required_staff_count || 1,
@@ -507,34 +516,48 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             </div>
           ) : null}
 
-          {servicesLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="p-4 border rounded-lg animate-pulse">
-                  <div className="h-4 bg-muted rounded w-1/2 mb-2" />
-                  <div className="h-3 bg-muted rounded w-3/4 mb-2" />
-                  <div className="h-3 bg-muted rounded w-1/4" />
+          {currentService && <section aria-label="Prestations choisies" className="mb-4 space-y-4 rounded-xl border border-primary/30 bg-primary/8 p-4">
+            <h3 className="font-semibold">Votre rendez-vous</h3>
+            <ol className="space-y-3">
+              {selectedServices.map((service, index) => <li key={service.id} className="flex min-w-0 items-start gap-3">
+                <span className="mt-1 text-xs text-muted-foreground">{index + 1}.</span>
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-sm font-medium">{service.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{service.duration_minutes} min · {(service.price_cents / 100).toFixed(2)} €</p>
                 </div>
-              ))}
+                <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Retirer ${service.name}`} onClick={() => handleServiceChange(service.id)}><X className="h-4 w-4" /></Button>
+              </li>)}
+            </ol>
+            <div role="status" aria-live="polite" className="border-t border-primary/20 pt-3">
+              <p className="text-sm text-muted-foreground">Durée et prix total</p>
+              <p className="mt-1 font-semibold text-primary">{currentService.duration_minutes} min · {(currentService.price_cents / 100).toFixed(2)} €</p>
             </div>
-          ) : (
-            <ServiceCatalog
-              services={servicesWithPackInfo}
-              selectedServiceIds={data.serviceIds}
+            <p className="text-xs leading-5 text-muted-foreground">Les soins se suivent, avec la même équipe. Les créneaux proposés couvrent toute la durée du rendez-vous.{data.serviceIds.length > 1 ? " Règlement en ligne ou sur place." : ""}</p>
+            {!isAddingService && additionalServices.length > 0 && <Button type="button" variant="outline" className="h-auto min-h-11 w-full whitespace-normal" aria-expanded={false} aria-controls="additional-service-catalog" onClick={() => setIsAddingService(true)} disabled={servicesLoading}>
+              <Plus className="h-4 w-4 shrink-0" />Ajouter une prestation à la suite
+            </Button>}
+            {isAddingService && <Button type="button" variant="outline" className="min-h-11 w-full" aria-expanded={true} aria-controls="additional-service-catalog" onClick={() => setIsAddingService(false)}>Garder ma sélection</Button>}
+          </section>}
+
+          {(!currentService || isAddingService) && <div id="additional-service-catalog" className="space-y-3">
+            {currentService && <div>
+              <h3 className="font-semibold">Ajouter un soin à la suite</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Choisissez une prestation compatible. Elle sera ajoutée après les soins déjà sélectionnés.</p>
+            </div>}
+            {servicesLoading ? (
+              <div role="status" className="space-y-3" aria-label="Chargement des prestations">
+                {[1, 2, 3].map(i => <div key={i} className="h-20 animate-pulse rounded-lg border bg-muted/30" />)}
+              </div>
+            ) : <ServiceCatalog
+              services={currentService ? additionalServices : servicesWithPackInfo}
+              selectedServiceIds={[]}
               onSelectService={handleServiceChange}
               compact
               getBadge={(service) => {
                 if (!selectedClientPack) return null
                 return selectedPackAllowedServiceIds.has(service.id) ? "Inclus dans votre forfait" : "Hors forfait"
               }}
-            />
-          )}
-
-          {currentService && <div role="status" className="rounded-xl border border-primary/30 bg-primary/8 p-4">
-            <p className="text-sm font-semibold">{data.serviceIds.length} programme{data.serviceIds.length > 1 ? "s" : ""} sélectionné{data.serviceIds.length > 1 ? "s" : ""}</p>
-            <p className="mt-1 text-sm">{currentService.name}</p>
-            <p className="mt-2 font-semibold text-primary">{currentService.duration_minutes} min · {(currentService.price_cents / 100).toFixed(2)} €</p>
-            {data.serviceIds.length > 1 && <p className="mt-1 text-xs text-muted-foreground">Prestations consécutives, avec la même équipe. Règlement en ligne ou sur place.</p>}
+            />}
           </div>}
           <div className={flowActionsClass}>
             <Button variant="outline" onClick={handlePrev} size="lg" className="cursor-pointer w-full sm:w-auto">

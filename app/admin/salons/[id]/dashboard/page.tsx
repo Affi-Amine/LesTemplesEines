@@ -934,7 +934,7 @@ export default function SalonDashboardPage() {
                                               handleValidate(apt)
                                             }
                                           }}
-                                          className={`absolute left-0.5 right-0.5 flex flex-col items-stretch justify-start overflow-hidden rounded-md border p-1 text-left shadow-sm ${getAppointmentColor(apt)}`}
+                                          className={`absolute left-0.5 right-0.5 z-10 flex flex-col items-stretch justify-start overflow-hidden rounded-md border p-1 text-left shadow-sm ${getAppointmentColor(apt)}`}
                                           style={{ top: `${topOffset}px`, height: `${heightPx}px` }}
                                         >
                                           <AppointmentCardContent appointment={apt} height={heightPx} />

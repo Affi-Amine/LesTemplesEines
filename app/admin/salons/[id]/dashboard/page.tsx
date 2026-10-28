@@ -699,7 +699,7 @@ export default function SalonDashboardPage() {
           <div className="grid grid-cols-1 gap-5">
             {/* Left Sidebar - Calendar & Quick Actions */}
             <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-stretch">
-              <Card className="gap-4 rounded-lg p-4 shadow-sm">
+              <Card className="min-w-0 gap-4 rounded-lg p-4 shadow-sm">
                 <div>
                   <h2 className="text-lg font-semibold">Date de travail</h2>
                   <p className="text-sm text-muted-foreground">Changer de jour recharge le planning.</p>
@@ -713,7 +713,7 @@ export default function SalonDashboardPage() {
                   mode="single"
                   selected={date}
                   onSelect={setDate}
-                  className="hidden w-full rounded-md border shadow-sm md:block"
+                  className="mx-auto hidden w-full max-w-[320px] rounded-md border shadow-sm md:block"
                 />
               </Card>
 

@@ -227,7 +227,7 @@ export default function SalonsPage() {
         </div>
 
         {isLoading ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <Card key={i} className="overflow-hidden animate-pulse">
                 <div className="h-48 bg-muted" />
@@ -240,10 +240,10 @@ export default function SalonsPage() {
             ))}
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
             {salons?.map((salon: any) => (
               <Card key={salon.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                <div className="relative h-48 bg-gradient-to-br from-primary/10 to-primary/5">
+                <div className="relative h-32 bg-gradient-to-br from-primary/10 to-primary/5">
                   {/* Show first image from images array, fall back to image_url */}
                   {(salon.images && salon.images.length > 0) ? (
                     <SalonImageFrame
@@ -276,7 +276,7 @@ export default function SalonsPage() {
                     </Badge>
                   </div>
                 </div>
-                <div className="space-y-4 p-4 sm:p-6">
+                <div className="space-y-4 p-4">
                   <div>
                     <h3 className="text-xl font-bold">{salon.name}</h3>
                     <p className="text-sm text-muted-foreground">{salon.city}</p>
@@ -307,18 +307,19 @@ export default function SalonsPage() {
                     )}
                   </div>
 
-                  <div className="flex gap-2 pt-2">
-                    <Button asChild variant="default" size="sm" className="flex-1 cursor-pointer">
+                  <div className="flex flex-wrap gap-3 pt-2">
+                    <Button asChild variant="default" size="sm" className="min-h-12 flex-1 cursor-pointer">
                       <Link href={`/admin/salons/${salon.id}/dashboard`}>
                         <LayoutDashboard className="w-4 h-4 mr-2" />
-                        Dashboard
+                        Ouvrir le planning
                       </Link>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleEdit(salon)}
-                      className="cursor-pointer"
+                      aria-label={`Modifier ${salon.name}`}
+                      className="h-12 w-12 cursor-pointer"
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
@@ -326,7 +327,8 @@ export default function SalonsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleDelete(salon)}
-                      className="text-destructive hover:bg-destructive/10 cursor-pointer"
+                      aria-label={`Supprimer ${salon.name}`}
+                      className="h-12 w-12 text-destructive hover:bg-destructive/10 cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -352,7 +354,7 @@ export default function SalonsPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingSalon ? "Modifier le salon" : "Nouveau salon"}</DialogTitle>
             <DialogDescription>

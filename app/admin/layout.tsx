@@ -60,9 +60,9 @@ export default function AdminLayout({
 
   // Authenticated - show sidebar and content
   return (
-    <div className="flex h-screen bg-background">
+    <div data-admin-shell className="min-h-dvh bg-background">
       <AdminSidebar />
-      <main className="min-w-0 flex-1 overflow-auto pt-14 md:ml-64 md:pt-0">{children}</main>
+      <main id="admin-content" className="min-w-0 pt-16 md:ml-20 2xl:ml-64 2xl:pt-0">{children}</main>
     </div>
   )
 }

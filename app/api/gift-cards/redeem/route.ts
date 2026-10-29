@@ -137,6 +137,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }
     if (error instanceof Error && "code" in error && error.code === "SALON_HOURS") return NextResponse.json({ error: error.message }, { status: 400 })
+    if (error instanceof Error && "status" in error && error.status === 409) return NextResponse.json({ error: error.message }, { status: 409 })
     return NextResponse.json({ error: "Failed to redeem gift card" }, { status: 500 })
   }
 }

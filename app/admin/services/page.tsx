@@ -432,18 +432,20 @@ export default function ServicesPage() {
           <div className="mt-4 grid gap-2 sm:mt-5 sm:grid-cols-3 sm:gap-3">
             <button
               type="button"
+              aria-pressed={statusFilter === "all"}
               onClick={() => setStatusFilter("all")}
-              className={`rounded-lg border p-3 text-left transition ${statusFilter === "all" ? "border-[#123f38] bg-[#eef8f4]" : "bg-background hover:bg-muted/40"}`}
+              className={`rounded-lg border p-3 text-left transition ${statusFilter === "all" ? "border-[#123f38] bg-[#eef8f4] text-[#123f38]" : "bg-background hover:bg-muted/40"}`}
             >
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total</p>
+              <p className="text-xs font-semibold uppercase tracking-wide opacity-80">Total</p>
               <p className="mt-1 text-2xl font-bold">{serviceCounts.all}</p>
             </button>
             <button
               type="button"
+              aria-pressed={statusFilter === "active"}
               onClick={() => setStatusFilter("active")}
-              className={`rounded-lg border p-3 text-left transition ${statusFilter === "active" ? "border-[#0e7f63] bg-[#e8f8ef]" : "bg-background hover:bg-muted/40"}`}
+              className={`rounded-lg border p-3 text-left transition ${statusFilter === "active" ? "border-[#0e7f63] bg-[#e8f8ef] text-[#0b4936]" : "bg-background hover:bg-muted/40"}`}
             >
-              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#0b4936]">
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide opacity-80">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Actives
               </p>
@@ -451,10 +453,11 @@ export default function ServicesPage() {
             </button>
             <button
               type="button"
+              aria-pressed={statusFilter === "inactive"}
               onClick={() => setStatusFilter("inactive")}
-              className={`rounded-lg border p-3 text-left transition ${statusFilter === "inactive" ? "border-[#d99a65] bg-[#fff3e8]" : "bg-background hover:bg-muted/40"}`}
+              className={`rounded-lg border p-3 text-left transition ${statusFilter === "inactive" ? "border-[#d99a65] bg-[#fff3e8] text-[#8b3f12]" : "bg-background hover:bg-muted/40"}`}
             >
-              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#8b3f12]">
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide opacity-80">
                 <XCircle className="h-3.5 w-3.5" />
                 Désactivées
               </p>
@@ -480,7 +483,7 @@ export default function ServicesPage() {
         </div>
 
         {selectedServiceIds.length > 0 ? (
-          <div className="sticky top-16 z-20 flex flex-col gap-3 rounded-lg border border-[#123f38]/20 bg-[#f6f7f2]/95 p-3 shadow-lg backdrop-blur md:top-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="sticky top-16 z-20 flex flex-col gap-3 rounded-lg border border-[#123f38]/20 bg-[#f6f7f2]/95 p-3 shadow-lg backdrop-blur 2xl:top-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="font-semibold text-[#102d28]">
                 {selectedServiceIds.length} prestation{selectedServiceIds.length > 1 ? "s" : ""} sélectionnée{selectedServiceIds.length > 1 ? "s" : ""}
@@ -530,7 +533,7 @@ export default function ServicesPage() {
 
             <TabsContent value="list">
               <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
-                <div className="hidden grid-cols-[44px_minmax(280px,1.5fr)_150px_110px_130px_190px_116px] items-center border-b bg-[#f6f7f2] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid">
+                <div className="hidden grid-cols-[44px_minmax(280px,1.5fr)_150px_110px_130px_190px_116px] items-center border-b bg-[#f6f7f2] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground 2xl:grid">
                   <Checkbox
                     checked={Boolean(filteredServices?.length && filteredServices.every((service) => selectedServiceIds.includes(service.id)))}
                     onCheckedChange={(checked) => toggleAllFilteredServices(checked === true)}
@@ -546,13 +549,14 @@ export default function ServicesPage() {
                   {filteredServices?.map((service: Service) => (
                     <div
                       key={service.id}
-                      className={`grid gap-3 px-3 py-3 text-sm transition-colors hover:bg-muted/35 md:grid-cols-[44px_minmax(280px,1.5fr)_150px_110px_130px_190px_116px] md:items-center ${service.is_active ? "" : "bg-[#fff8f2] text-muted-foreground"}`}
+                      className={`grid gap-3 px-3 py-3 text-sm transition-colors hover:bg-muted/35 2xl:grid-cols-[44px_minmax(280px,1.5fr)_150px_110px_130px_190px_116px] 2xl:items-center ${service.is_active ? "" : "bg-[#fff8f2] text-muted-foreground"}`}
                     >
-                      <div className="flex items-start gap-3 md:contents">
+                      <div className="flex items-start gap-3 2xl:contents">
                         <Checkbox
+                          aria-label={`Sélectionner ${service.name}`}
                           checked={selectedServiceIds.includes(service.id)}
                           onCheckedChange={(checked) => toggleServiceSelection(service.id, checked === true)}
-                          className="mt-1 md:mt-0"
+                          className="mt-1 2xl:mt-0"
                         />
                         <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -572,7 +576,7 @@ export default function ServicesPage() {
                         ) : null}
                         </div>
                       </div>
-                      <div className="flex min-w-0 flex-wrap items-center gap-2 md:block">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2 2xl:block">
                         {service.category ? (
                           <Badge variant="outline">{service.category}</Badge>
                         ) : (
@@ -590,7 +594,7 @@ export default function ServicesPage() {
                         {getSalonNames(service) || "Aucun salon"}
                       </div>
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(service)} className="cursor-pointer">
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(service)} aria-label={`Modifier ${service.name}`} className="cursor-pointer">
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
@@ -717,7 +721,8 @@ export default function ServicesPage() {
                           className={`flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted/35 ${service.is_active ? "" : "bg-[#fff8f2]"}`}
                         >
                           <Checkbox
-                            checked={selectedServiceIds.includes(service.id)}
+                            aria-label={`Sélectionner ${service.name}`}
+                          checked={selectedServiceIds.includes(service.id)}
                             onCheckedChange={(checked) => toggleServiceSelection(service.id, checked === true)}
                           />
                           <span className="min-w-0 flex-1 truncate text-sm font-medium">{service.name}</span>
@@ -750,7 +755,7 @@ export default function ServicesPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingService ? "Modifier le service" : "Nouveau service"}</DialogTitle>
             <DialogDescription>

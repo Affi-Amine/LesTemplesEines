@@ -299,7 +299,7 @@ export default function AdminClientPacksPage() {
       </div>
 
       <Dialog open={saleOpen} onOpenChange={setSaleOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Vendre un pack</DialogTitle>
             <DialogDescription>Ajoute le pack directement au compte client, sans paiement Stripe.</DialogDescription>

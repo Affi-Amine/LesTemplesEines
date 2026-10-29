@@ -436,6 +436,6 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }
-    return NextResponse.json({ error: error.message || "Failed to create appointment" }, { status: error.code === "SALON_HOURS" ? 400 : 500 })
+    return NextResponse.json({ error: error.message || "Failed to create appointment" }, { status: error.code === "SALON_HOURS" ? 400 : [400, 409, 422].includes(error.status) ? error.status : 500 })
   }
 }

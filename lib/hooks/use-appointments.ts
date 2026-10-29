@@ -18,7 +18,7 @@ export function useAppointments(params?: UseAppointmentsParams) {
     queryKey: ["appointments", params],
     refetchInterval: 30_000,
     refetchOnWindowFocus: "always",
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       const searchParams = new URLSearchParams()
       if (params?.salonId) searchParams.append("salon_id", params.salonId)
       if (params?.staffId) searchParams.append("staff_id", params.staffId)
@@ -27,7 +27,7 @@ export function useAppointments(params?: UseAppointmentsParams) {
       if (params?.endDate) searchParams.append("end_date", params.endDate)
       if (params?.status) searchParams.append("status", params.status)
 
-      return fetchAPI<Appointment[]>(`/appointments?${searchParams.toString()}`)
+      return fetchAPI<Appointment[]>(`/appointments?${searchParams.toString()}`, { signal })
     },
   })
 }

@@ -18,7 +18,7 @@ export function useSalons(options?: UseSalonsOptions) {
     queryFn: () =>
       fetchAPI<Salon[]>(includeInactive ? "/salons?include_inactive=true" : "/salons"),
     enabled,
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   })
 }

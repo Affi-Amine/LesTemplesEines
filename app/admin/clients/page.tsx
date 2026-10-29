@@ -231,7 +231,7 @@ export default function ClientsPage() {
         {/* Liste des clients */}
         {isLoading || searchQuery.trim() !== debouncedSearch ? (
           <Card className="overflow-hidden">
-            <div className="divide-y md:hidden">
+            <div className="grid divide-y md:grid-cols-2 md:divide-x 2xl:hidden">
               {[1,2,3,4,5].map((i) => (
                 <div key={i} className="space-y-2 p-4">
                   <div className="h-5 w-32 animate-pulse rounded bg-muted" />
@@ -240,7 +240,7 @@ export default function ClientsPage() {
                 </div>
               ))}
             </div>
-            <div className="hidden overflow-x-auto md:block">
+            <div className="hidden overflow-x-auto 2xl:block">
               <table className="w-full">
                 <thead className="bg-muted border-b">
                   <tr>
@@ -269,7 +269,7 @@ export default function ClientsPage() {
           </Card>
         ) : (
           <Card className="overflow-hidden">
-            <div className="divide-y md:hidden">
+            <div className="grid divide-y md:grid-cols-2 md:divide-x 2xl:hidden">
               {filteredClients.map((client: any) => (
                 <div
                   key={client.id}
@@ -307,7 +307,7 @@ export default function ClientsPage() {
                 <div className="p-6 text-center text-sm text-muted-foreground">Aucun client</div>
               ) : null}
             </div>
-            <div className="hidden overflow-x-auto md:block">
+            <div className="hidden overflow-x-auto 2xl:block">
               <table className="w-full">
                 <thead className="bg-muted border-b">
                   <tr>

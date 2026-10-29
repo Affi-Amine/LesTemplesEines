@@ -376,7 +376,7 @@ export default function AppointmentsPage() {
             }
           }}
         >
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[600px]">
+          <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>Nouveau rendez-vous</DialogTitle>
               <DialogDescription>
@@ -521,7 +521,7 @@ export default function AppointmentsPage() {
 
         {/* View Appointment Dialog */}
         <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
+          <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Détails du rendez-vous</DialogTitle>
               <DialogDescription>
@@ -603,7 +603,7 @@ export default function AppointmentsPage() {
 
         {/* Edit Appointment Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[600px]">
+          <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>Modifier le rendez-vous</DialogTitle>
               <DialogDescription>

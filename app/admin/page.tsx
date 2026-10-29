@@ -350,7 +350,7 @@ export default function AdminDashboard() {
 
       {/* View Appointment Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
+        <DialogContent className="max-h-[90dvh] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Détails du rendez-vous</DialogTitle>
           </DialogHeader>
@@ -397,7 +397,7 @@ export default function AdminDashboard() {
 
       {/* Edit Appointment Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
+        <DialogContent className="max-h-[90dvh] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Modifier le rendez-vous</DialogTitle>
           </DialogHeader>

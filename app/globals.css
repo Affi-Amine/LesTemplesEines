@@ -139,6 +139,107 @@
   }
 }
 
+/* Admin operations can be chained immediately after closing a modal. Keeping
+   an exit animation mounted also keeps Radix's outside pointer lock mounted. */
+body:has([data-admin-shell]) :is([data-slot="dialog-content"], [data-slot="dialog-overlay"]) {
+  animation: none;
+}
+
+/* The tablet workspace uses an opaque, high-contrast working palette. Portals
+   inherit the same tokens from body; the public site's palette stays separate. */
+@media (max-width: 1535px), (pointer: coarse) {
+  body:has([data-admin-shell]) {
+    color-scheme: light;
+    --background: #f3f5f2;
+    --foreground: #213b32;
+    --card: #ffffff;
+    --card-foreground: #213b32;
+    --popover: #ffffff;
+    --popover-foreground: #213b32;
+    --primary: #235648;
+    --primary-foreground: #ffffff;
+    --secondary: #e6eee8;
+    --secondary-foreground: #235648;
+    --muted: #edf1ed;
+    --muted-foreground: #5c6f64;
+    --accent: #e6eee8;
+    --accent-foreground: #213b32;
+    --border: #d8e2da;
+    --input: #d8e2da;
+    --ring: #235648;
+    background: var(--background);
+    color: var(--foreground);
+    scroll-behavior: auto;
+  }
+
+  body:has([data-admin-shell]) :is(a, button, input, select) {
+    transition-duration: 80ms;
+  }
+
+  [data-tablet-agenda] {
+    touch-action: pan-y pinch-zoom;
+    overflow: visible;
+    overflow-anchor: none;
+  }
+
+  body:has([data-admin-shell]) [aria-label="Créneaux disponibles"] {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* Admin touch surfaces: preserve native pan/zoom and keep controls finger-sized.
+   :has also covers Radix dialogs and menus rendered in a body portal. */
+@media (pointer: coarse) {
+  body:has([data-admin-shell]) [data-slot="tabs-list"] {
+    min-height: 50px;
+    height: auto;
+  }
+
+  body:has([data-admin-shell]) [data-slot="calendar"] {
+    --cell-size: 44px;
+  }
+
+  body:has([data-admin-shell]) :is([data-slot="button"], [data-slot="dialog-close"], [data-slot="select-trigger"], [data-slot="tabs-trigger"], [role="tab"]) {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  body:has([data-admin-shell]) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea, [data-slot="select-trigger"]) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  body:has([data-admin-shell]) :is([role="menuitem"], [role="option"]) {
+    min-height: 44px;
+  }
+
+  body:has([data-admin-shell]) :is([role="checkbox"], [role="radio"]) {
+    position: relative;
+  }
+
+  body:has([data-admin-shell]) :is([role="checkbox"], [role="radio"])::before {
+    content: "";
+    position: absolute;
+    inset: -14px;
+  }
+
+  body:has([data-admin-shell]) label:has(input[type="checkbox"]) {
+    min-height: 44px;
+  }
+
+  body:has([data-admin-shell]) [data-appointment-id] {
+    touch-action: auto;
+    cursor: pointer;
+  }
+
+  body:has([data-admin-shell]) [class*="backdrop-blur"] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
 @keyframes soft-float {
   0%, 100% {
     transform: translateY(0px);

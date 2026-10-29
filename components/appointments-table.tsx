@@ -31,7 +31,7 @@ export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: Ap
 
   return (
     <Card className="overflow-hidden">
-      <div className="divide-y md:hidden">
+      <div className="grid divide-y md:grid-cols-2 md:divide-x 2xl:hidden">
         {appointments.map((apt) => (
           <div key={apt.id} className="space-y-3 p-4">
             <div className="flex min-w-0 items-start justify-between gap-3">
@@ -84,7 +84,7 @@ export function AppointmentsTable({ appointments, onView, onEdit, onDelete }: Ap
         ) : null}
       </div>
 
-      <div className="hidden overflow-x-auto md:block">
+      <div className="hidden overflow-x-auto 2xl:block">
         <table className="w-full">
           <thead className="bg-muted border-b">
             <tr>

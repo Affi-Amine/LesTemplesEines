@@ -10,6 +10,7 @@
     "import:clients": "node scripts/import-clients-csv.mjs",
     "test:backend": "ts-node scripts/test-backend.ts",
     "test:booking": "node scripts/test-appointment-cancellation.cjs && node scripts/test-cancellation-rebooking.cjs",
+    "test:calendar": "node scripts/test-appointment-moves.cjs && node scripts/test-admin-reschedule-api.cjs && node scripts/test-admin-reschedule-sql.cjs",
     "test:ui": "node scripts/test-slot-selection.cjs && node scripts/test-payment-presentation.cjs",
     "test:clients": "node scripts/test-client-profile.cjs",
     "test:management": "node scripts/test-booking-management-api.cjs && node scripts/test-booking-management-sql.cjs && node scripts/test-booking-management-notifications.cjs"

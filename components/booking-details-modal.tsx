@@ -2,7 +2,7 @@
 import { AppointmentManagementLinkButton } from "@/components/appointment-management-link-button"
 
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { AppointmentPaymentBadge } from "@/components/appointment-payment-badge"
 import { AppointmentProgressActions } from "@/components/appointment-progress-actions"
@@ -21,10 +21,12 @@ import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { fetchAPI } from "@/lib/api/client"
-import { dateTimeInScheduleTimezone } from "@/lib/calendar/scheduling"
+import { dateTimeInScheduleTimezone, getAppointmentStaffIds, canStaffTakeBookings } from "@/lib/calendar/scheduling"
+import { canProvideService } from "@/lib/appointments/rules"
 
 interface BookingDetailsModalProps {
   isOpen: boolean
+  startInEditMode?: boolean
   onClose: () => void
   onRefetch?: () => void
   appointment: {
@@ -32,6 +34,7 @@ interface BookingDetailsModalProps {
     start_time: string
     end_time: string
     status: string
+    updated_at?: string | null
     payment_status?: string | null
     payment_method?: string | null
     client_notes?: string
@@ -68,12 +71,18 @@ interface BookingDetailsModalProps {
   } | null
 }
 
-export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }: BookingDetailsModalProps) {
+export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, startInEditMode = false }: BookingDetailsModalProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [liveStatus, setLiveStatus] = useState<string | null>(null)
   useEffect(() => { setLiveStatus(null) }, [appointment?.id, appointment?.status])
   const [isEditMode, setIsEditMode] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [editError, setEditError] = useState("")
+  const saving = useRef(false)
+  useEffect(() => {
+    if (isOpen) setIsEditMode(startInEditMode)
+  }, [isOpen, appointment?.id, startInEditMode])
   const [editForm, setEditForm] = useState({
     salon_id: "",
     service_id: "",
@@ -107,18 +116,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
   // Initialize edit form when appointment changes or edit mode is activated
   useEffect(() => {
     if (appointment && isEditMode) {
-      const staffIds: string[] = []
-      if (appointment.staff?.id) {
-        staffIds.push(appointment.staff.id)
-      }
-      if (appointment.assignments) {
-        appointment.assignments.forEach((a: any) => {
-          if (a.staff?.id && !staffIds.includes(a.staff.id)) {
-            staffIds.push(a.staff.id)
-          }
-        })
-      }
-
+      const staffIds: string[] = getAppointmentStaffIds(appointment)
       setEditForm({
         salon_id: appointment.salon_id || appointment.salon?.id || "",
         service_id: appointment.service_id || appointment.service?.id || "",
@@ -142,30 +140,38 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
   }
 
   const handleSaveEdit = async () => {
+    if (saving.current) return
+    saving.current = true
+    setIsSaving(true)
+    setEditError("")
     try {
-      const parisTime = dateTimeInScheduleTimezone(new Date(`${editForm.date}T00:00:00`), editForm.time)
-      if (!parisTime) {
-        throw new Error("Horaire invalide")
+      const releasing = ["cancelled", "no_show"].includes(editForm.status)
+      const payload: Record<string, unknown> = { expected_updated_at: appointment.updated_at || undefined }
+      if (editForm.status !== appointment.status) payload.status = editForm.status
+      if (editForm.notes !== (appointment.client_notes || "")) payload.client_notes = editForm.notes
+      if (!releasing) {
+        if (editForm.salon_id !== (appointment.salon_id || appointment.salon?.id || "")) payload.salon_id = editForm.salon_id
+        if (editForm.service_id !== (appointment.service_id || appointment.service?.id || "")) payload.service_id = editForm.service_id
+        if ([...editForm.staff_ids].sort().join() !== getAppointmentStaffIds(appointment).sort().join()) payload.staff_ids = editForm.staff_ids
+        if (editForm.date !== formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") || editForm.time !== formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")) {
+          const parisTime = dateTimeInScheduleTimezone(new Date(`${editForm.date}T00:00:00`), editForm.time)
+          if (!parisTime) throw new Error("Horaire invalide")
+          payload.start_time = parisTime.toISOString()
+        }
       }
-      const start_time = parisTime.toISOString()
+      if (Object.keys(payload).length === 1) { setIsEditMode(false); onClose(); return }
 
       const response = await fetch(`/api/appointments/${appointment.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          status: editForm.status,
-          client_notes: editForm.notes,
-          salon_id: editForm.salon_id,
-          service_id: editForm.service_id,
-          staff_ids: editForm.staff_ids,
-          start_time: start_time,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
-        throw new Error("Échec de la mise à jour")
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error || "Échec de la mise à jour")
       }
 
       toast.success("Rendez-vous mis à jour", {
@@ -173,7 +179,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
       })
 
       setIsEditMode(false)
-      await Promise.all([
+      await Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: ["appointments"] }),
         queryClient.invalidateQueries({ queryKey: ["staff-appointments"] }),
         queryClient.invalidateQueries({ queryKey: ["availability"] }),
@@ -181,9 +187,14 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
       onRefetch?.()
       onClose()
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Impossible de mettre à jour le rendez-vous"
+      setEditError(message)
       toast.error("Erreur lors de la mise à jour", {
-        description: "Impossible de mettre à jour le rendez-vous",
+        description: message,
       })
+    } finally {
+      saving.current = false
+      setIsSaving(false)
     }
   }
 
@@ -215,10 +226,11 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
 
   return (
     <Dialog open={isOpen} onOpenChange={() => {
+      if (saving.current) return
       setIsEditMode(false)
       onClose()
     }}>
-      <DialogContent className="sm:max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
+      <DialogContent showCloseButton={!isSaving} className="sm:max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center justify-between gap-2 leading-snug">
             <span>{isEditMode ? "Modifier le rendez-vous" : "Détails du Rendez-vous"}</span>
@@ -235,12 +247,12 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
 
         {isEditMode ? (
           /* Edit Mode */
-          <div className="grid gap-4 py-4">
+          <fieldset disabled={isSaving} className="grid gap-4 py-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="edit-salon">Salon</Label>
                 <Select value={editForm.salon_id} onValueChange={(value) => setEditForm({ ...editForm, salon_id: value, service_id: "", staff_ids: [] })}>
-                  <SelectTrigger>
+                  <SelectTrigger id="edit-salon">
                     <SelectValue placeholder="Sélectionner un salon" />
                   </SelectTrigger>
                   <SelectContent>
@@ -255,7 +267,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
               <div className="space-y-2">
                 <Label htmlFor="edit-service">Service</Label>
                 <Select value={editForm.service_id} onValueChange={(value) => setEditForm({ ...editForm, service_id: value })} disabled={!editForm.salon_id}>
-                  <SelectTrigger>
+                  <SelectTrigger id="edit-service">
                     <SelectValue placeholder="Sélectionner un service" />
                   </SelectTrigger>
                   <SelectContent>
@@ -272,11 +284,11 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
             <div className="space-y-2">
               <Label htmlFor="edit-therapist">Thérapeutes</Label>
               <Select onValueChange={handleAddStaff} disabled={!editForm.salon_id}>
-                <SelectTrigger>
+                <SelectTrigger id="edit-therapist">
                   <SelectValue placeholder="Ajouter un thérapeute" />
                 </SelectTrigger>
                 <SelectContent>
-                  {staff?.filter(m => !editForm.staff_ids.includes(m.id)).map((member) => (
+                  {staff?.filter(m => !editForm.staff_ids.includes(m.id) && canStaffTakeBookings(m) && canProvideService(m.allowed_service_ids, editForm.service_id)).map((member) => (
                     <SelectItem key={member.id} value={member.id}>
                       {member.first_name} {member.last_name}
                     </SelectItem>
@@ -321,10 +333,11 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
             <div className="space-y-2">
               <Label htmlFor="edit-status">Statut</Label>
               <Select value={editForm.status} onValueChange={(value) => setEditForm({ ...editForm, status: value })}>
-                <SelectTrigger>
+                <SelectTrigger id="edit-status">
                   <SelectValue placeholder="Sélectionner un statut" />
                 </SelectTrigger>
                 <SelectContent>
+                  {appointment.status === "pending" && <SelectItem value="pending">En attente</SelectItem>}
                   <SelectItem value="confirmed">Confirmé</SelectItem>
                   <SelectItem value="in_progress">En cours</SelectItem>
                   <SelectItem value="cancelled">Annulé</SelectItem>
@@ -344,15 +357,16 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment }:
               />
             </div>
 
+            {editError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">{editError}</p>}
             <DialogFooter>
               <Button variant="outline" onClick={handleCancelEdit}>
                 Annuler
               </Button>
               <Button onClick={handleSaveEdit} className="cursor-pointer">
-                Enregistrer
+                {isSaving ? "Enregistrement…" : "Enregistrer"}
               </Button>
             </DialogFooter>
-          </div>
+          </fieldset>
         ) : (
           /* View Mode */
 

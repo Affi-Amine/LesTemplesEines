@@ -4,15 +4,26 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Calendar, Users, BarChart3, Settings, LogOut, Menu, X, Building2, Scissors, TrendingUp, CalendarDays, UserCheck, Gift, Package, Wallet } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useTranslations } from "@/lib/i18n/use-translations"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 export function AdminSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
+  const menuButton = useRef<HTMLButtonElement>(null)
   const [userInfo, setUserInfo] = useState<any>(null)
   const { t, mounted } = useTranslations()
+
+  useEffect(() => { setIsOpen(false) }, [pathname])
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1536px)")
+    const closeOnDesktop = () => { if (desktop.matches) setIsOpen(false) }
+    desktop.addEventListener("change", closeOnDesktop)
+    return () => desktop.removeEventListener("change", closeOnDesktop)
+  }, [])
 
   useEffect(() => {
     // Get user info from localStorage
@@ -38,7 +49,7 @@ export function AdminSidebar() {
     { href: "/admin", label: mounted ? t("admin.dashboard") : "Dashboard", icon: BarChart3 },
     ...(canViewAnalytics ? [{ href: "/admin/analytics", label: "Analytics", icon: TrendingUp }] : []),
     { href: "/admin/appointments", label: mounted ? t("admin.appointments") : "Appointments", icon: Calendar },
-    { href: "/admin/calendrier", label: "Calendrier", icon: CalendarDays },
+    { href: "/admin/calendrier", label: "Agenda", icon: CalendarDays },
     { href: "/admin/clients", label: mounted ? t("admin.clients") : "Clients", icon: Users },
     ...(canViewStaff ? [{ href: "/admin/staff", label: mounted ? t("admin.staff") : "Staff", icon: UserCheck }] : []),
     { href: "/admin/salons", label: "Salons", icon: Building2 },
@@ -70,67 +81,81 @@ export function AdminSidebar() {
     router.push("/admin/login")
   }
 
+  const navigation = (
+    <div className="flex min-h-full flex-col">
+      <div className="border-b p-5">
+        <p className="text-xl font-bold text-primary">Les Temples</p>
+        <p className="mt-1 text-xs text-muted-foreground">Espace de gestion</p>
+      </div>
+      <nav aria-label="Navigation administration" className="flex-1 space-y-1 p-3">
+        {navItems.map(item => {
+          const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(`${item.href}/`))
+          const IconComponent = item.icon
+          return <Button key={item.href} asChild variant={isActive ? "default" : "ghost"} className="min-h-12 w-full justify-start gap-3 px-4">
+            <Link href={item.href} onClick={() => setIsOpen(false)} aria-current={isActive ? "page" : undefined}>
+              <IconComponent className="h-5 w-5" />{item.label}
+            </Link>
+          </Button>
+        })}
+      </nav>
+      <div className="border-t p-3">
+        <Button variant="outline" className="min-h-12 w-full justify-start gap-3" onClick={handleLogout}>
+          <LogOut className="h-5 w-5" />{mounted ? t("admin.logout") : "Déconnexion"}
+        </Button>
+      </div>
+    </div>
+  )
+
+  const currentSalonPath = pathname.match(/^\/admin\/salons\/[^/]+\/dashboard/)?.[0]
+  const shortcuts = [
+    { href: currentSalonPath || "/admin/calendrier", label: "Agenda", icon: CalendarDays },
+    { href: "/admin/salons", label: "Salons", icon: Building2 },
+    { href: "/admin/clients", label: "Clients", icon: Users },
+    { href: "/admin/appointments", label: "RDV", icon: Calendar },
+  ]
+
   return (
     <>
-      <div className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-3 border-b bg-card/95 px-3 backdrop-blur md:hidden">
+      <div className="fixed inset-x-0 top-0 z-40 flex h-16 items-center gap-3 border-b bg-card px-4 2xl:hidden">
         <Button
+          ref={menuButton}
           variant="outline"
           size="icon"
           onClick={() => setIsOpen(!isOpen)}
-          className="h-9 w-9 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+          className="h-12 w-12 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
           aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
         >
           {isOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
         </Button>
         <div className="min-w-0">
           <div className="truncate text-sm font-bold text-primary">Les Temples</div>
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Admin</div>
+          <div className="truncate text-sm text-muted-foreground">{currentSalonPath ? "Agenda" : navItems.find(item => item.href !== "/admin" && pathname.startsWith(item.href))?.label || "Administration"}</div>
         </div>
       </div>
 
-      {/* Sidebar */}
+      <nav aria-label="Accès rapides" className="fixed bottom-0 left-0 top-16 z-30 hidden w-20 flex-col gap-2 border-r bg-card px-2 py-3 md:flex 2xl:hidden">
+        {shortcuts.map(item => <Link key={item.label} href={item.href} aria-current={pathname === item.href ? "page" : undefined}
+          className={`flex min-h-[68px] flex-col items-center justify-center gap-1.5 rounded-xl px-1 text-[11px] font-medium active:bg-primary/15 ${pathname === item.href ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}>
+          <item.icon className="h-5 w-5" />{item.label}
+        </Link>)}
+      </nav>
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent onCloseAutoFocus={event => { event.preventDefault(); menuButton.current?.focus({ preventScroll: true }) }} overlayClassName="data-[state=open]:animate-none data-[state=closed]:animate-none" className="inset-y-0 left-0 top-0 z-[60] h-dvh max-h-dvh w-[min(320px,calc(100vw-3rem))] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-l-0 p-0 data-[state=open]:animate-none data-[state=closed]:animate-none sm:max-w-none sm:p-0" >
+          <DialogTitle className="sr-only">Menu de l’administration</DialogTitle>
+          <DialogDescription className="sr-only">Choisissez la rubrique à ouvrir.</DialogDescription>
+          {navigation}
+        </DialogContent>
+      </Dialog>
+      {/* Desktop navigation stays in its own scroll area; logout follows links. */}
       <aside
-        className={`fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] w-64 overflow-y-auto border-r bg-card transition-transform duration-300 md:top-0 md:h-screen md:translate-x-0 ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className="fixed inset-y-0 left-0 hidden h-dvh w-64 overflow-y-auto border-r bg-card 2xl:block"
       >
-        <div className="p-6 border-b">
-          <h2 className="text-2xl font-bold text-primary">Les Temples</h2>
-          <p className="text-xs text-muted-foreground">Admin Panel</p>
-        </div>
-
-        <nav className="p-4 space-y-2">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(`${item.href}/`))
-            const IconComponent = item.icon
-            return (
-              <Button key={item.href} asChild
-                  variant={isActive ? "default" : "ghost"}
-                  className="w-full justify-start gap-3"
-                >
-                <Link href={item.href} onClick={() => setIsOpen(false)} aria-current={isActive ? "page" : undefined}>
-                  {IconComponent && <IconComponent className="w-4 h-4" />}
-                  {item.label}
-                </Link>
-              </Button>
-            )
-          })}
-        </nav>
-
-        <div className="absolute bottom-4 left-4 right-4">
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-3 bg-transparent cursor-pointer"
-            onClick={handleLogout}
-          >
-            <LogOut className="w-4 h-4" />
-            {mounted ? t("admin.logout") : "Logout"}
-          </Button>
-        </div>
+        {navigation}
       </aside>
 
-      {/* Mobile Overlay */}
-      {isOpen && <div className="fixed inset-x-0 bottom-0 top-14 z-30 bg-black/50 md:hidden" onClick={() => setIsOpen(false)} />}
     </>
   )
 }

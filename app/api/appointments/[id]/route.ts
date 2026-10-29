@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { validateAppointmentScheduling } from "@/lib/appointments/create"
-import { blocksAppointmentSchedule } from "@/lib/appointments/status"
+import { blocksAppointmentSchedule, canRescheduleAppointmentStatus } from "@/lib/appointments/status"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
@@ -12,6 +12,7 @@ interface RouteContext {
 }
 
 const UpdateAppointmentSchema = z.object({
+  expected_updated_at: z.string().refine(value => Number.isFinite(Date.parse(value)), "Version invalide").optional(),
   status: z.enum(["confirmed", "in_progress", "completed", "cancelled", "no_show", "blocked"]).optional(),
   client_notes: z.string().optional(),
   internal_notes: z.string().optional(),
@@ -42,7 +43,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = await request.json()
     // Cancellation/absence is a status change, not a reschedule. Ignore stale edit-form
     // fields before validation (a removed service may leave an empty UUID).
-    const updates = UpdateAppointmentSchema.parse(["cancelled", "no_show"].includes(body?.status) ? {
+    const { expected_updated_at, ...updates } = UpdateAppointmentSchema.parse(["cancelled", "no_show"].includes(body?.status) ? {
       status: body.status,
       client_notes: body.client_notes,
       internal_notes: body.internal_notes,
@@ -70,6 +71,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (!existing) {
       return NextResponse.json({ error: "Appointment not found" }, { status: 404 })
+    }
+
+    if (expected_updated_at && Date.parse(expected_updated_at) !== Date.parse(existing.updated_at)) {
+      return NextResponse.json({ error: "Ce rendez-vous a été modifié. Actualisez le planning avant de réessayer." }, { status: 409 })
     }
 
     // Prepare update object
@@ -121,8 +126,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const reactivating = !blocksAppointmentSchedule(existing.status) &&
       blocksAppointmentSchedule(updates.status || existing.status)
 
-    if (reactivating && (!targetSalonId || !targetServiceId || targetStaffIds.length === 0)) {
-      return NextResponse.json({ error: "Impossible de réactiver un rendez-vous sans salon, prestation et praticien" }, { status: 400 })
+    if (schedulingChanged && !reactivating && !canRescheduleAppointmentStatus(existing.status)) {
+      return NextResponse.json({ error: "Un soin commencé, terminé, annulé ou bloqué ne peut pas être déplacé. Corrigez son statut dans sa fiche si nécessaire." }, { status: 400 })
+    }
+
+    if ((schedulingChanged || reactivating) && (!targetSalonId || !targetServiceId || targetStaffIds.length === 0)) {
+      return NextResponse.json({ error: "Impossible de planifier ce rendez-vous sans salon, prestation et praticien" }, { status: 400 })
     }
 
     if ((schedulingChanged || reactivating) && targetSalonId && targetServiceId && targetStaffIds.length > 0) {
@@ -161,6 +170,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (normalizedStaffIdsToUpdate) {
       updateData.staff_id = normalizedStaffIdsToUpdate[0] || null
+    }
+
+    if (schedulingChanged) {
+      const { data, error } = await supabase.rpc("admin_reschedule_appointment_atomic", {
+        p_appointment_id: id,
+        p_expected_updated_at: expected_updated_at || existing.updated_at || null,
+        p_updates: updateData,
+        p_staff_ids: targetStaffIds,
+        p_payments: updates.payments || [],
+      })
+      if (error) {
+        const status = ["23P01", "40001"].includes(error.code || "") ? 409 :
+          ["42883", "PGRST202"].includes(error.code || "") ? 503 : 400
+        return NextResponse.json({ error: status === 503 ? "La mise à jour du planning doit être installée avant de déplacer un rendez-vous. Aucun déplacement n’a été effectué." : error.message || "Déplacement impossible" }, { status })
+      }
+      return NextResponse.json(presentAppointmentServices(data))
     }
 
     let assignmentsWereUpdated = false
@@ -270,7 +295,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }
-    return NextResponse.json({ error: error.message || "Failed to update appointment" }, { status: error.code === "SALON_HOURS" ? 400 : 500 })
+    return NextResponse.json({ error: error.message || "Failed to update appointment" }, { status: error.code === "SALON_HOURS" ? 400 : [400, 409, 422].includes(error.status) ? error.status : 500 })
   }
 }
 

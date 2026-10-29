@@ -6,6 +6,7 @@ import { formatInTimeZone } from "date-fns-tz"
 import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { resolveSalonGroup } from "@/lib/salons/resolve"
 import { assertAppointmentFitsSalonHours } from "@/lib/appointments/opening-hours"
+import { SchedulingError } from "@/lib/appointments/rules"
 
 import { ClientDataSchema } from "@/lib/appointments/client-data"
 
@@ -197,7 +198,7 @@ export async function validateAppointmentScheduling(
     }
 
     if (conflicts && conflicts.length > 0) {
-      throw new Error("Un ou plusieurs creneaux ne sont plus disponibles")
+      throw new SchedulingError("Un ou plusieurs créneaux ne sont plus disponibles", 409)
     }
 
     let assignmentConflictQuery = supabase
@@ -219,7 +220,7 @@ export async function validateAppointmentScheduling(
     }
 
     if (deepConflicts && deepConflicts.length > 0) {
-      throw new Error("Un ou plusieurs creneaux ne sont plus disponibles")
+      throw new SchedulingError("Un ou plusieurs créneaux ne sont plus disponibles", 409)
     }
   }
 

@@ -2,7 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
-import { ReactNode, CSSProperties } from "react"
+import { ReactNode, CSSProperties, useId } from "react"
 
 interface DraggableAppointmentProps {
   id: string
@@ -21,8 +21,10 @@ export function DraggableAppointment({
   style: externalStyle,
   className = "",
 }: DraggableAppointmentProps) {
+  const instance = useId()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id,
+    // Duo appointments have one representation per staff column.
+    id: `${id}:${instance}`,
     data: { appointment },
     disabled,
   })

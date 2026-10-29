@@ -57,6 +57,8 @@ export function DroppableSlot({
     <div
       ref={setNodeRef}
       data-calendar-slot={id}
+      data-drop-over={isOver}
+      data-drop-invalid={isInvalidDrop}
       onClick={handleClick}
       aria-disabled={disabled || undefined}
       className={`${className} ${dragClass} ${disabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted/30"} transition-colors`}

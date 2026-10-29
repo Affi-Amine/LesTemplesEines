@@ -1,8 +1,16 @@
 "use client"
 import { AppointmentManagementLinkButton } from "@/components/appointment-management-link-button"
+import { BookingDetailsModal } from "@/components/booking-details-modal"
 
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import { useTabletWorkspace } from "@/lib/hooks/use-tablet-workspace"
+import { TabletAgenda } from "@/components/calendar/tablet-agenda"
+import { appointmentCollisionDetection } from "@/lib/calendar/drag-collision"
+import { useAppointmentMove } from "@/lib/hooks/use-appointment-move"
+import { canMoveAppointment } from "@/lib/calendar/appointment-move"
+import { AppointmentMoveDialog } from "@/components/calendar/appointment-move-dialog"
+import { useScheduleHourHeight } from "@/lib/hooks/use-schedule-hour-height"
 import { AppointmentPaymentBadge, AppointmentPaymentLegend } from "@/components/appointment-payment-badge"
 import { AppointmentProgressActions } from "@/components/appointment-progress-actions"
 import { getAppointmentColor, getStatusLabel } from "@/lib/utils"
@@ -10,7 +18,6 @@ import { AdminHeader } from "@/components/admin-header"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { CalendarClosedHours, CalendarHourLabel, isCalendarQuarterOpen } from "@/components/calendar/closed-hours"
-import { assertAppointmentFitsSalonHours } from "@/lib/appointments/opening-hours"
 import { getScheduleHoursIncludingAppointments } from "@/lib/calendar/scheduling"
 import { AppointmentCardContent } from "@/components/calendar/appointment-card-content"
 import { Calendar } from "@/components/ui/calendar"
@@ -19,7 +26,7 @@ import { useAppointments } from "@/lib/hooks/use-appointments"
 import { useStaff } from "@/lib/hooks/use-staff"
 import { useSalons } from "@/lib/hooks/use-salons"
 import { useParams } from "next/navigation"
-import { format, addMinutes } from "date-fns"
+import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
 import { Clock, CheckCircle, Ban, Calendar as CalendarIcon, User, Plus, X, GripVertical } from "lucide-react"
@@ -31,7 +38,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { DndContext, PointerSensor, TouchSensor, useSensors, useSensor, DragEndEvent, DragStartEvent, DragOverlay } from "@dnd-kit/core"
+import { DndContext, MouseSensor, TouchSensor, useSensors, useSensor, DragOverlay } from "@dnd-kit/core"
 import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
 import {
   findOverlappingAppointment,
@@ -43,19 +50,18 @@ import {
   minutesToTimeLabel,
   resolveOpeningHoursForDate,
   dateTimeInScheduleTimezone,
-  slotDateTimeInScheduleTimezone,
   timeToMinutes,
 } from "@/lib/calendar/scheduling"
 
 import { useRouter } from "next/navigation"
 
-const SCHEDULE_HOUR_HEIGHT = 76
 const STAFF_COLUMN_MIN_WIDTH = 152
 const TIME_COLUMN_WIDTH = 84
-const MOBILE_SCHEDULE_HOUR_HEIGHT = 120
 const MOBILE_TIME_COLUMN_WIDTH = 42
 
 export default function SalonDashboardPage() {
+  const isTablet = useTabletWorkspace()
+  const hourHeight = useScheduleHourHeight()
   const params = useParams()
   const router = useRouter()
   const salonId = params.id as string
@@ -83,18 +89,10 @@ export default function SalonDashboardPage() {
   const [selectedSlot, setSelectedSlot] = useState<any>(null)
   const [isValidationOpen, setIsValidationOpen] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const [isEditingAppointment, setIsEditingAppointment] = useState(false)
   const [isBlockingOpen, setIsBlockingOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
 
-  // Drag-and-drop state
-  const [activeAppointment, setActiveAppointment] = useState<any>(null)
-  const [pendingMove, setPendingMove] = useState<{
-    appointment: any
-    start: Date
-    end: Date
-    staffIds: string[]
-  } | null>(null)
-  const [isMovingAppointment, setIsMovingAppointment] = useState(false)
   const [replacingStaffId, setReplacingStaffId] = useState<string | null>(null)
 
   // Quick create modal state
@@ -106,22 +104,17 @@ export default function SalonDashboardPage() {
     staffId?: string
   } | null>(null)
 
-  // Configure sensors for drag-and-drop (desktop + mobile)
+  // Mouse-only dragging keeps touch gestures available for native scrolling and tapping.
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: { distance: 8 },
     }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 300,
-        tolerance: 5,
-      },
-    })
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   )
 
   // Data fetching
   const { data: salons } = useSalons({ includeInactive: true })
-  const { data: appointments, refetch: refetchAppointments } = useAppointments({
+  const { data: appointments, isPending: isAppointmentsLoading, refetch: refetchAppointments } = useAppointments({
     salonId,
     startDate: date ? format(date, "yyyy-MM-dd") : undefined,
     endDate: date ? format(date, "yyyy-MM-dd") : undefined,
@@ -130,13 +123,13 @@ export default function SalonDashboardPage() {
   const { data: allStaff, isLoading: isAllStaffLoading } = useStaff()
 
   const salon = salons?.find(s => s.id === salonId)
-  const staffById = new Map<string, any>()
-  ;[...(staff || []), ...(allStaff || [])].forEach((member) => {
-    if (member?.id && member.salon_id === salonId && !staffById.has(member.id)) {
-      staffById.set(member.id, member)
+  const dashboardStaff = useMemo(() => {
+    const staffById = new Map<string, any>()
+    for (const member of [...(staff || []), ...(allStaff || [])]) {
+      if (member?.id && member.salon_id === salonId && !staffById.has(member.id)) staffById.set(member.id, member)
     }
-  })
-  const dashboardStaff = Array.from(staffById.values())
+    return Array.from(staffById.values())
+  }, [staff, allStaff, salonId])
   const selectedOpeningHours = salon?.opening_hours || null
   const selectedDayHours = date ? resolveOpeningHoursForDate(selectedOpeningHours, date) : null
   const scheduleHours = date ? getScheduleHoursIncludingAppointments(selectedOpeningHours, date, appointments || []) : []
@@ -144,9 +137,9 @@ export default function SalonDashboardPage() {
   const sortedDayAppointments = [...dayAppointments].sort(
     (a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
   )
-  const bookableStaff = dashboardStaff.filter(canStaffTakeBookings).sort((a: any, b: any) =>
+  const bookableStaff = useMemo(() => dashboardStaff.filter(canStaffTakeBookings).sort((a, b) =>
     getStaffDisplayName(a).localeCompare(getStaffDisplayName(b), "fr")
-  )
+  ), [dashboardStaff])
   const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * STAFF_COLUMN_MIN_WIDTH
   const mobileTimelineHours = scheduleHours
   const confirmedAppointments = dayAppointments.filter((apt: any) => apt.status === "confirmed" || apt.status === "pending")
@@ -396,190 +389,13 @@ export default function SalonDashboardPage() {
     setIsQuickCreateOpen(true)
   }
 
-  // Handle drag start
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event
-    const appointment = active.data.current?.appointment
-    if (appointment) {
-      setActiveAppointment(appointment)
-    }
-  }
-
-  const moveAppointment = async (move: { appointment: any; start: Date; end: Date }) => {
-    setIsMovingAppointment(true)
-
-    try {
-      const response = await fetch(`/api/appointments/${move.appointment.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          start_time: move.start.toISOString(),
-          end_time: move.end.toISOString(),
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || "Erreur lors du déplacement")
-      }
-
-      toast.success("Rendez-vous déplacé", {
-        description: `Nouveau créneau: ${format(move.start, "HH:mm")} - ${format(move.end, "HH:mm")}`,
-        icon: <Icon icon="solar:calendar-bold" className="w-5 h-5 text-green-500" />,
-      })
-
-      refetchAppointments()
-    } catch (error: any) {
-      toast.error("Impossible de déplacer le rendez-vous", {
-        description: error.message || "Le créneau est peut-être déjà occupé",
-        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-      })
-    } finally {
-      setIsMovingAppointment(false)
-      setPendingMove(null)
-    }
-  }
-
-  // Handle drag end - update appointment time and/or staff
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event
-    setActiveAppointment(null)
-
-    if (!over) return
-
-    const appointment = active.data.current?.appointment
-    const dropData = over.data.current as { hour: number; minute?: number; date: Date; staffId?: string }
-
-    if (!appointment || !dropData) return
-
-    // Calculate new start time
-    const newDate = dropData.date
-    const newHour = dropData.hour
-    const newMinute = dropData.minute || 0
-
-    // Create new start time
-    const newStartTime = slotDateTimeInScheduleTimezone(newDate, newHour, newMinute)
-
-    // Calculate duration to determine new end time
-    const durationMinutes = getAppointmentDurationMinutes(appointment)
-    const newEndTime = addMinutes(newStartTime, durationMinutes)
-    const assignedStaffIds = getAppointmentStaffIds(appointment)
-    const primaryStaffId = assignedStaffIds[0] || appointment.staff_id || appointment.staff?.id
-    const isMultiStaffMove = assignedStaffIds.length > 1
-    const targetStaffId = dropData.staffId || appointment.staff_id || appointment.staff?.id
-    const targetStaffIds = isMultiStaffMove
-      ? assignedStaffIds
-      : targetStaffId
-        ? [targetStaffId]
-        : assignedStaffIds
-
-    // Check if anything actually changed
-    const oldStart = new Date(appointment.start_time)
-    const staffChanged = Boolean(dropData.staffId && (
-      isMultiStaffMove ? !assignedStaffIds.includes(dropData.staffId) : dropData.staffId !== primaryStaffId
-    ))
-    const timeChanged = oldStart.getHours() !== newHour || oldStart.getMinutes() !== newMinute
-
-    if (!staffChanged && !timeChanged) {
-      return
-    }
-
-    if (isMultiStaffMove && staffChanged) {
-      toast.error("Déplacement multi-masseuses bloqué", {
-        description: "Un rendez-vous à plusieurs masseuses se déplace seulement en heure. Pour changer l'équipe, ouvrez les détails du rendez-vous.",
-        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-      })
-      return
-    }
-
-    const overlap = targetStaffIds.find((staffId) =>
-      findOverlappingAppointment({
-        appointments: appointments || [],
-        staffId,
-        start: newStartTime,
-        end: newEndTime,
-        ignoreAppointmentId: appointment.id,
-      })
-    )
-
-    if (overlap) {
-      toast.error("Créneau indisponible", {
-        description: "Ce déplacement chevauche un autre rendez-vous pour au moins une masseuse concernée.",
-        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-      })
-      return
-    }
-
-    if (isMultiStaffMove) {
-      setPendingMove({
-        appointment,
-        start: newStartTime,
-        end: newEndTime,
-        staffIds: assignedStaffIds,
-      })
-      return
-    }
-
-    try {
-      const updateData: any = {
-        start_time: newStartTime.toISOString(),
-        end_time: newEndTime.toISOString(),
-      }
-
-      // If staff changed, update staff_id
-      if (dropData.staffId && dropData.staffId !== primaryStaffId) {
-        updateData.staff_id = dropData.staffId
-        updateData.staff_ids = [dropData.staffId]
-      }
-
-      const response = await fetch(`/api/appointments/${appointment.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updateData),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || "Erreur lors du déplacement")
-      }
-
-      const staffMember = dropData.staffId ? bookableStaff.find(s => s.id === dropData.staffId) : null
-      toast.success("Rendez-vous déplacé", {
-        description: staffChanged
-          ? `Nouveau créneau: ${format(newStartTime, "HH:mm")} avec ${staffMember ? getStaffDisplayName(staffMember) : "la masseuse"}`
-          : `Nouveau créneau: ${format(newStartTime, "HH:mm")} - ${format(newEndTime, "HH:mm")}`,
-        icon: <Icon icon="solar:calendar-bold" className="w-5 h-5 text-green-500" />,
-      })
-
-      refetchAppointments()
-    } catch (error: any) {
-      toast.error("Impossible de déplacer le rendez-vous", {
-        description: error.message || "Le créneau est peut-être déjà occupé",
-        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
-      })
-    }
-  }
-
-  const isInvalidSlotForActive = (slotDate: Date, slotStaffId: string, hour: number, minute: number) => {
-    if (!activeAppointment) return false
-
-    const targetStart = slotDateTimeInScheduleTimezone(slotDate, hour, minute)
-    const targetEnd = addMinutes(targetStart, getAppointmentDurationMinutes(activeAppointment))
-    try { assertAppointmentFitsSalonHours(targetStart.toISOString(), targetEnd.toISOString(), selectedOpeningHours) } catch { return true }
-
-    const activeStaffIds = getAppointmentStaffIds(activeAppointment)
-    const targetStaffIds = activeStaffIds.length > 1 ? activeStaffIds : [slotStaffId]
-
-    return targetStaffIds.some((staffId) =>
-      Boolean(findOverlappingAppointment({
-        appointments: appointments || [],
-        staffId,
-        start: targetStart,
-        end: targetEnd,
-        ignoreAppointmentId: activeAppointment.id,
-      }))
-    )
-  }
+  const { activeAppointment, pendingMove, isMovingAppointment, moveError, handleDragStart, handleDragEnd,
+    handleDragCancel, confirmMove, cancelMove, isInvalidDestination } = useAppointmentMove({
+      appointments: appointments || [], staff: dashboardStaff, openingHours: selectedOpeningHours,
+      onRefresh: refetchAppointments,
+    })
+  const isInvalidSlotForActive = (slotDate: Date, staffId: string, hour: number, minute: number) =>
+    isInvalidDestination({ date: slotDate, staffId, hour, minute })
 
   // Visualizer Component
   const AvailabilityVisualizer = ({ staffIds, appointments }: { staffIds: string[], appointments: any[] }) => {
@@ -645,11 +461,70 @@ export default function SalonDashboardPage() {
 
   return (
     <DndContext
+      collisionDetection={appointmentCollisionDetection}
       sensors={sensors}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <div className="min-h-screen bg-muted/20">
+        {isTablet ? <TabletAgenda
+          salonName={salon?.name || "Chargement du salon…"}
+          date={date || new Date()}
+          onDateChange={setDate}
+          staff={bookableStaff}
+          appointments={appointments || []}
+          hours={scheduleHours}
+          openingHours={selectedOpeningHours}
+          loading={isAppointmentsLoading || isStaffLoading || isAllStaffLoading}
+          onAppointmentClick={handleValidate}
+          onEmptySlotClick={handleEmptySlotClick}
+          onCreate={handleOpenCreate}
+          onBlock={handleBlockSlot}
+          movingAppointment={activeAppointment}
+          isInvalidDestination={isInvalidDestination}
+          summary={<><AppointmentPaymentLegend />
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <Card className="gap-2 rounded-lg border-l-4 border-l-blue-200 p-3 shadow-sm sm:p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">Rendez-vous</span>
+                <CalendarIcon className="h-4 w-4 text-blue-200" />
+              </div>
+              <div className="text-2xl font-bold sm:text-3xl">{dayAppointments.length}</div>
+              <p className="text-xs text-muted-foreground">
+                {selectedDayHours ? `${selectedDayHours.open} - ${selectedDayHours.close}` : "Salon fermé"}
+              </p>
+            </Card>
+            <Card className="gap-2 rounded-lg border-l-4 border-l-blue-200 p-3 shadow-sm sm:p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">En cours</span>
+                <Clock className="h-4 w-4 text-blue-200" />
+              </div>
+              <div className="text-2xl font-bold sm:text-3xl">{inProgressAppointments.length}</div>
+              <p className="truncate text-xs text-muted-foreground">
+                {nextAppointment ? `Prochain: ${formatInTimeZone(nextAppointment.start_time, "Europe/Paris", "HH:mm")}` : "Aucun prochain rendez-vous"}
+              </p>
+            </Card>
+            <Card className="gap-2 rounded-lg border-l-4 border-l-emerald-200 p-3 shadow-sm sm:p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">Terminés</span>
+                <CheckCircle className="h-4 w-4 text-emerald-200" />
+              </div>
+              <div className="text-2xl font-bold sm:text-3xl">{completedAppointments.length}</div>
+              <p className="text-xs text-muted-foreground">{confirmedAppointments.length} à traiter</p>
+            </Card>
+            <Card className="gap-2 rounded-lg border-l-4 border-l-slate-300 p-3 shadow-sm sm:p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">Bloqués</span>
+                <Ban className="h-4 w-4 text-slate-300" />
+              </div>
+              <div className="text-2xl font-bold sm:text-3xl">{blockedAppointments.length}</div>
+              <p className="text-xs text-muted-foreground">Créneaux indisponibles</p>
+            </Card>
+          </div>
+
+          </>}
+        /> : <>
         <AdminHeader
           title={`Tableau de bord - ${salon?.name || "Chargement..."}`}
           description="Gestion opérationnelle du salon"
@@ -698,7 +573,7 @@ export default function SalonDashboardPage() {
 
           <div className="grid grid-cols-1 gap-5">
             {/* Left Sidebar - Calendar & Quick Actions */}
-            <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-stretch">
+            <div className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)] lg:items-stretch">
               <Card className="min-w-0 gap-4 rounded-lg p-4 shadow-sm">
                 <div>
                   <h2 className="text-lg font-semibold">Date de travail</h2>
@@ -713,7 +588,7 @@ export default function SalonDashboardPage() {
                   mode="single"
                   selected={date}
                   onSelect={setDate}
-                  className="mx-auto hidden w-full max-w-[320px] rounded-md border shadow-sm md:block"
+                  className="mx-auto hidden w-full max-w-[344px] rounded-md border shadow-sm md:block"
                 />
               </Card>
 
@@ -768,7 +643,7 @@ export default function SalonDashboardPage() {
                   <div className="flex items-start gap-2">
                     <GripVertical className="mt-0.5 h-4 w-4 shrink-0" />
                     <p>
-                      Colonnes = masseuses. Glissez un rendez-vous vers une autre heure ou une autre masseuse.
+                      Colonnes = masseuses. À la souris, glissez un rendez-vous pour le déplacer. Au doigt, touchez-le pour le modifier.
                       Les rendez-vous à plusieurs masseuses gardent toute l'équipe ensemble.
                     </p>
                   </div>
@@ -794,7 +669,7 @@ export default function SalonDashboardPage() {
                       </div>
                     </div>
                     <p className="border-b px-3 py-2 text-xs text-muted-foreground">Toutes les masseuses sont visibles. Touchez un rendez-vous pour voir les détails.</p>
-                    <div className="max-h-[70dvh] overflow-y-auto overflow-x-hidden overscroll-contain bg-[#f6f8f7]">
+                    <div className="overflow-x-auto bg-[#f6f8f7]">
                       <div className="w-full min-w-0">
                         <div
                           className="sticky top-0 z-20 grid border-b border-[#b8c0bd] bg-card/95 backdrop-blur"
@@ -830,7 +705,7 @@ export default function SalonDashboardPage() {
                               key={`mobile-${hour}`}
                               className="relative grid border-t border-[#b8c0bd]"
                               style={{
-                                height: MOBILE_SCHEDULE_HOUR_HEIGHT,
+                                height: hourHeight,
                                 gridTemplateColumns: `${MOBILE_TIME_COLUMN_WIDTH}px repeat(${bookableStaff.length}, minmax(0, 1fr))`,
                               }}
                             >
@@ -866,8 +741,8 @@ export default function SalonDashboardPage() {
                                     {staffApts.map((apt: any) => {
                                       const startMinute = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "m"), 10)
                                       const startHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
-                                      const topOffset = startHour === hour ? (startMinute / 60) * MOBILE_SCHEDULE_HOUR_HEIGHT : 0
-                                      const heightPx = Math.max((getAppointmentDurationMinutes(apt) / 60) * MOBILE_SCHEDULE_HOUR_HEIGHT, 22)
+                                      const topOffset = startHour === hour ? (startMinute / 60) * hourHeight : 0
+                                      const heightPx = Math.max((getAppointmentDurationMinutes(apt) / 60) * hourHeight, 22)
                                       const appointmentStaffIds = getAppointmentStaffIds(apt)
                                       const isMultiStaffAppointment = appointmentStaffIds.length > 1
 
@@ -925,7 +800,7 @@ export default function SalonDashboardPage() {
                           </div>
                         ) : scheduleHours.map((hour) => {
                           return (
-                            <div key={hour} className="relative flex border-t border-border" style={{ height: SCHEDULE_HOUR_HEIGHT }}>
+                            <div key={hour} className="relative flex border-t border-border" style={{ height: hourHeight }}>
                               <div className="shrink-0 bg-card pr-3 pt-1 text-right text-sm font-medium text-muted-foreground" style={{ width: TIME_COLUMN_WIDTH }}>
                                 <CalendarHourLabel hour={hour} date={date || new Date()} openingHours={selectedOpeningHours} />
                               </div>
@@ -965,9 +840,9 @@ export default function SalonDashboardPage() {
                                     {staffApts?.map((apt: any) => {
                                       const startMinute = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "m"), 10)
                                       const startHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
-                                      const topOffset = startHour === hour ? (startMinute / 60) * SCHEDULE_HOUR_HEIGHT : 0
-                                      const heightPx = Math.max((getAppointmentDurationMinutes(apt) / 60) * SCHEDULE_HOUR_HEIGHT, 20)
-                                      const isDraggable = apt.status !== 'blocked' && apt.status !== 'completed' && apt.status !== 'cancelled'
+                                      const topOffset = startHour === hour ? (startMinute / 60) * hourHeight : 0
+                                      const heightPx = Math.max((getAppointmentDurationMinutes(apt) / 60) * hourHeight, 20)
+                                      const isDraggable = canMoveAppointment(apt)
                                       const appointmentStaffIds = getAppointmentStaffIds(apt)
                                       const isMultiStaffAppointment = appointmentStaffIds.length > 1
 
@@ -1077,6 +952,8 @@ export default function SalonDashboardPage() {
             </div>
           </div>
         </div>
+
+        </>}
 
         {/* Validation Dialog */}
         <Dialog open={isValidationOpen} onOpenChange={setIsValidationOpen}>
@@ -1329,6 +1206,12 @@ export default function SalonDashboardPage() {
 
             {selectedSlot && selectedSlot.status !== "blocked" ? (
               <div className="grid gap-2 border-t pt-4 sm:grid-cols-2">
+                {!["completed", "cancelled", "no_show"].includes(selectedSlot.status) && (
+                  <Button variant="outline" onClick={() => {
+                    setIsDetailsOpen(false)
+                    setIsEditingAppointment(true)
+                  }}>Modifier la date ou l’heure</Button>
+                )}
                 {selectedSlot.payment_status !== "paid" && !["cancelled", "no_show"].includes(selectedSlot.status) ? (
                   <Button onClick={() => handleOpenPayment(selectedSlot)} className="cursor-pointer">
                     <CheckCircle className="mr-2 h-4 w-4" />
@@ -1343,6 +1226,14 @@ export default function SalonDashboardPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {isEditingAppointment && <BookingDetailsModal
+          isOpen={isEditingAppointment}
+          startInEditMode
+          appointment={selectedSlot}
+          onClose={() => setIsEditingAppointment(false)}
+          onRefetch={() => { void refetchAppointments() }}
+        />}
 
         {/* Blocking Dialog */}
         <Dialog open={isBlockingOpen} onOpenChange={setIsBlockingOpen}>
@@ -1421,7 +1312,7 @@ export default function SalonDashboardPage() {
         </Dialog>
 
         {/* The button and calendar now share the same slot-first form. */}
-        <QuickCreateModal
+        {isCreateOpen && <QuickCreateModal
           isOpen={isCreateOpen}
           onClose={() => setIsCreateOpen(false)}
           salonId={salonId}
@@ -1429,10 +1320,10 @@ export default function SalonDashboardPage() {
           existingAppointments={appointments || []}
           openingHours={selectedOpeningHours}
           onSuccess={() => refetchAppointments()}
-        />
+        />}
 
         {/* Quick Create Modal */}
-        <QuickCreateModal
+        {isQuickCreateOpen && <QuickCreateModal
           isOpen={isQuickCreateOpen}
           onClose={() => {
             setIsQuickCreateOpen(false)
@@ -1443,39 +1334,10 @@ export default function SalonDashboardPage() {
           existingAppointments={appointments || []}
           openingHours={selectedOpeningHours}
           onSuccess={() => refetchAppointments()}
-        />
+        />}
 
-        <Dialog open={Boolean(pendingMove)} onOpenChange={(open) => !open && setPendingMove(null)}>
-          <DialogContent className="sm:max-w-[460px]">
-            <DialogHeader>
-              <DialogTitle>Déplacer tout le rendez-vous ?</DialogTitle>
-              <DialogDescription>
-                Ce rendez-vous mobilise {pendingMove?.staffIds.length || 0} masseuses. Le déplacement changera le créneau pour toute l'équipe assignée.
-              </DialogDescription>
-            </DialogHeader>
-            {pendingMove ? (
-              <div className="rounded-md border bg-muted/40 p-3 text-sm">
-                <div className="font-medium">
-                  {pendingMove.appointment.client?.first_name || "Client"} {pendingMove.appointment.client?.last_name || ""}
-                </div>
-                <div className="mt-1 text-muted-foreground">
-                  {format(pendingMove.start, "dd/MM/yyyy HH:mm")} - {format(pendingMove.end, "HH:mm")}
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Pour changer seulement une masseuse, annulez puis ouvrez les détails du rendez-vous.
-                </div>
-              </div>
-            ) : null}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setPendingMove(null)} disabled={isMovingAppointment}>
-                Annuler
-              </Button>
-              <Button onClick={() => pendingMove && moveAppointment(pendingMove)} disabled={isMovingAppointment}>
-                {isMovingAppointment ? "Déplacement..." : "Déplacer tout le rendez-vous"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <AppointmentMoveDialog move={pendingMove} staff={dashboardStaff} saving={isMovingAppointment}
+          error={moveError} onCancel={cancelMove} onConfirm={() => void confirmMove()} />
         </div>
 
       {/* Drag Overlay for visual feedback */}

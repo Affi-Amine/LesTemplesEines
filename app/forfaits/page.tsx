@@ -139,8 +139,8 @@ function ForfaitsContent() {
   }, [checkoutState])
 
   useEffect(() => {
-    if (selectedPack && !selectedPack.allowed_installments.includes(Number(installmentCount))) {
-      setInstallmentCount(String(selectedPack.allowed_installments[0] || 1))
+    if (installmentCount !== "1") {
+      setInstallmentCount("1")
     }
   }, [installmentCount, selectedPack])
 
@@ -311,7 +311,7 @@ function ForfaitsContent() {
                         <div className="text-left sm:text-right">
                           <p className="text-2xl font-bold text-primary">{Number(pack.price).toFixed(2)}€</p>
                           <p className="text-xs text-muted-foreground">
-                            {pack.allowed_installments.join("x, ")}x possible
+                            {pack.allowed_installments.includes(1) ? "Paiement en une fois" : "Contactez le salon pour acheter ce forfait"}
                           </p>
                         </div>
                       </div>
@@ -432,8 +432,9 @@ function ForfaitsContent() {
 
               <div className="space-y-3">
                 <Label>Paiement</Label>
+                <p className="text-sm text-muted-foreground">Le paiement en plusieurs fois est temporairement indisponible. Pour cette option, contactez le salon.</p>
                 <RadioGroup value={installmentCount} onValueChange={setInstallmentCount}>
-                  {(selectedPack?.allowed_installments || [1]).map((value) => (
+                  {(selectedPack?.allowed_installments || [1]).filter(value => value === 1).map((value) => (
                     <div key={value} className="flex items-center gap-3 rounded-lg border p-3">
                       <RadioGroupItem value={String(value)} id={`installment-${value}`} />
                       <Label htmlFor={`installment-${value}`} className="cursor-pointer">
@@ -444,7 +445,7 @@ function ForfaitsContent() {
                 </RadioGroup>
               </div>
 
-              <Button onClick={handlePurchase} disabled={!selectedPack || isSubmitting} className="w-full">
+              <Button onClick={handlePurchase} disabled={!selectedPack || !selectedPack.allowed_installments.includes(1) || isSubmitting} className="w-full">
                 {isSubmitting ? "Redirection vers Stripe..." : "Acheter"}
               </Button>
 

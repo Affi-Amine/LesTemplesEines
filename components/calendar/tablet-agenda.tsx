@@ -54,8 +54,6 @@ export const TabletAgenda = memo(function TabletAgenda({
   onAppointmentClick, onEmptySlotClick, onCreate, onBlock, summary, salonControl, movingAppointment, isInvalidDestination,
 }: TabletAgendaProps) {
   const root = useRef<HTMLElement>(null)
-  const [pageSize, setPageSize] = useState(3)
-  const [teamPage, setTeamPage] = useState(0)
   const [memberId, setMemberId] = useState("all")
   const [interval, setInterval] = useState<15 | 30>(30)
   const [view, setView] = useState<"grid" | "list">("grid")
@@ -67,21 +65,8 @@ export const TabletAgenda = memo(function TabletAgenda({
   useEffect(() => { setMoveMode(false) }, [dayKey, salonName, view])
   useDndMonitor({ onDragEnd: () => setMoveMode(false), onDragCancel: () => setMoveMode(false) })
 
-  useEffect(() => {
-    const node = root.current
-    if (!node) return
-    const observer = new ResizeObserver(([entry]) => {
-      // A single width observation on resize, never JavaScript work during scrolling.
-      setPageSize(Math.max(1, Math.min(4, Math.floor((entry.contentRect.width - 56) / 170))))
-    })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-
-  const pageCount = Math.max(1, Math.ceil(staff.length / pageSize))
-  const page = Math.min(teamPage, pageCount - 1)
   const activeMember = staff.find(member => member.id === memberId)
-  const visibleStaff = activeMember ? [activeMember] : staff.slice(page * pageSize, (page + 1) * pageSize)
+  const visibleStaff = activeMember ? [activeMember] : staff
   const dayAppointments = useMemo(() => appointments.filter(appointment =>
     !["cancelled", "no_show"].includes(appointment.status) &&
     formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === dayKey
@@ -97,7 +82,7 @@ export const TabletAgenda = memo(function TabletAgenda({
     }
     return map
   }, [dayAppointments])
-  const columns = `56px repeat(${Math.max(visibleStaff.length, 1)}, minmax(0, 1fr))`
+  const columns = `40px repeat(${Math.max(visibleStaff.length, 1)}, minmax(0, 1fr))`
   const changeDate = (next: Date) => onDateChange(next)
   const selectClass = "h-11 min-w-0 rounded-lg border bg-card px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
@@ -135,7 +120,7 @@ export const TabletAgenda = memo(function TabletAgenda({
 
       <div className="flex flex-wrap items-center gap-2 border-t bg-muted/30 px-3 py-2 sm:px-5">
         {salonControl}
-        <select aria-label="Afficher une masseuse" value={activeMember ? memberId : "all"} onChange={event => { setMemberId(event.target.value); setTeamPage(0) }} className={`${selectClass} max-w-[170px] flex-1`}>
+        <select aria-label="Afficher une masseuse" value={activeMember ? memberId : "all"} onChange={event => setMemberId(event.target.value)} className={`${selectClass} max-w-[170px] flex-1`}>
           <option value="all">Toute l’équipe</option>
           {staff.map(member => <option key={member.id} value={member.id}>{getStaffDisplayName(member)}</option>)}
         </select>
@@ -148,19 +133,10 @@ export const TabletAgenda = memo(function TabletAgenda({
         </div>
       </div>
 
-      {!activeMember && pageCount > 1 && view === "grid" && <div className="flex items-center justify-between gap-2 border-t px-3 py-1 text-xs sm:px-5">
-        <span className="font-medium text-muted-foreground">Équipe {page * pageSize + 1}–{Math.min((page + 1) * pageSize, staff.length)} sur {staff.length}</span>
-        <div className="flex gap-1">
-          <Button variant="ghost" size="icon" disabled={page === 0} aria-label="Masseuses précédentes" onClick={() => setTeamPage(page - 1)} className="h-11 w-11"><ChevronLeft /></Button>
-          <Button variant="ghost" size="icon" disabled={page === pageCount - 1} aria-label="Masseuses suivantes" onClick={() => setTeamPage(page + 1)} className="h-11 w-11"><ChevronRight /></Button>
-        </div>
-      </div>}
-
       {view === "grid" && <div data-agenda-team className="grid border-t bg-card" style={{ gridTemplateColumns: columns }}>
         <div className="self-center text-center text-[10px] font-medium text-muted-foreground">Heure</div>
-        {visibleStaff.map(member => <div key={member.id} className="flex min-h-14 min-w-0 items-center gap-2 border-l px-2 py-2 sm:px-3">
-          <span aria-hidden="true" className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary min-[600px]:inline-flex">{getStaffDisplayName(member).slice(0, 1)}</span>
-          <div className="min-w-0"><p className="truncate text-sm font-semibold">{getStaffDisplayName(member)}</p><p className="text-[10px] text-muted-foreground">{byStaff.get(member.id)?.length || 0} rendez-vous</p></div>
+        {visibleStaff.map(member => <div key={member.id} className="flex min-h-14 min-w-0 items-center gap-1 border-l px-1 py-2 sm:px-2">
+          <div className="min-w-0"><p className="truncate text-[10px] font-semibold sm:text-sm">{getStaffDisplayName(member)}</p><p className="text-[10px] text-muted-foreground">{byStaff.get(member.id)?.length || 0} rendez-vous</p></div>
         </div>)}
       </div>}
     </div>
@@ -194,13 +170,13 @@ export const TabletAgenda = memo(function TabletAgenda({
             const minute = Number(formatInTimeZone(appointment.start_time, "Europe/Paris", "m"))
             const height = Math.max(22, getAppointmentDurationMinutes(appointment) / 60 * hourHeight - 2)
             if (moveMode && canMoveAppointment(appointment)) return <DraggableAppointment key={appointment.id} id={appointment.id} appointment={appointment}
-              className={`absolute inset-x-1 z-10 select-none overflow-hidden rounded-lg border border-l-[3px] p-2 text-left ring-1 ring-primary/50 ${getAppointmentColor(appointment)}`}
+              className={`absolute inset-x-1 z-10 select-none overflow-hidden rounded-lg border border-l-[3px] p-0.5 text-left sm:p-2 ring-1 ring-primary/50 ${getAppointmentColor(appointment)}`}
               style={{ top: (startHour - hours[0] + minute / 60) * hourHeight + 1, height, touchAction: "none", WebkitTouchCallout: "none" }}>
               <div className="pointer-events-none"><AppointmentCardContent appointment={appointment} height={height} /></div>
             </DraggableAppointment>
             return <button key={appointment.id} type="button" data-appointment-id={appointment.id}
               disabled={moveMode || appointment.status === "blocked"} onClick={() => onAppointmentClick(appointment)}
-              className={`absolute inset-x-1 z-10 overflow-hidden rounded-lg border border-l-[3px] p-2 text-left focus-visible:outline-2 focus-visible:outline-ring ${getAppointmentColor(appointment)}`}
+              className={`absolute inset-x-1 z-10 overflow-hidden rounded-lg border border-l-[3px] p-0.5 text-left sm:p-2 focus-visible:outline-2 focus-visible:outline-ring ${getAppointmentColor(appointment)}`}
               style={{ top: (startHour - hours[0] + minute / 60) * hourHeight + 1, height }}>
               <AppointmentCardContent appointment={appointment} height={height} />
             </button>

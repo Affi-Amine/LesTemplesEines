@@ -24,15 +24,15 @@ propres aux Temples.
 - Commandes et noms des masseuses dans un seul en-tête sticky, opaque.
 - Navigation permanente de 80 px sur tablette : Agenda, Salons, Clients et RDV.
   Le menu complet reste accessible. Le retour du focus ne déplace pas la page.
-- Palette claire de travail sur tablette ; mêmes couleurs de paiement et de soin.
-  Les fenêtres rendues dans un portail héritent également de cette palette.
+- Correction du 29 octobre à la demande du propriétaire : palette sombre et dorée
+  d’origine conservée sur téléphone et tablette, y compris dans les fenêtres.
 - Une seule grille native sur tablette. En mode normal, aucun `useDraggable` ou
   `useDroppable` dans les cellules et aucun listener de scroll. Le mode Déplacer
   active temporairement ces éléments pour un geste volontaire, puis se désactive.
-- Aucun conteneur de défilement horizontal dans la grille tablette. Une à quatre
-  colonnes selon la largeur ; pagination explicite pour les grandes équipes et
-  filtre individuel. Les rendez-vous multi-masseuses restent représentés dans
-  chaque colonne concernée.
+- Aucun conteneur de défilement horizontal dans la grille tablette. Toutes les
+  masseuses sont visibles côte à côte par défaut, sans pagination, sur téléphone
+  et tablette. Le filtre individuel reste disponible. Les rendez-vous multi-masseuses
+  restent représentés dans chaque colonne concernée.
 - Mode 30 minutes par défaut, avec des cellules d’environ 48 px. Mode 15 minutes
   disponible, avec des cellules d’au moins 44 px. La durée et la position des
   rendez-vous suivent la même échelle ; aucune modification des disponibilités.
@@ -56,7 +56,7 @@ propres aux Temples.
 
 Les vérifications utilisent des API de démonstration interceptées ; aucune
 réservation réelle n’est modifiée. Elles couvrent la visibilité initiale de la
-grille, la sélection du 29 novembre, la pagination des équipes, les deux
+grille, la sélection du 29 novembre, la vue complète de l’équipe et sa palette d’origine, les deux
 précisions, la modification d’horaire, les accès rapides et la rotation.
 
 Le geste est vérifié par des événements tactiles de début, déplacement et fin,
@@ -67,8 +67,8 @@ imbriquées. Le changement d’heure simulé conserve le fuseau Europe/Paris.
 
 Résultats : six formats validés (768 × 1024, 820 × 1180, 1024 × 768,
 1180 × 820, 1366 × 1024, 390 × 844). Pour chaque format : grille visible à
-l’arrivée, pas de surface de scroll imbriquée dans ses ancêtres, pagination
-d’équipe et 29 novembre sélectionnables. Le geste de 200 px fait descendre le
+l’arrivée, pas de surface de scroll imbriquée dans ses ancêtres, équipe complète visible, palette d’origine
+et 29 novembre sélectionnable. Le geste de 200 px fait descendre le
 document de 185 px dans cette émulation, sans ouvrir un rendez-vous. Modification
 d’horaire, précision 15 minutes, agenda général et retour ordinateur validés.
 

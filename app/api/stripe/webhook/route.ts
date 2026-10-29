@@ -13,6 +13,7 @@ import { ensureClientAuthUser } from "@/lib/client-auth"
 import { sendPackReadyEmail } from "@/lib/email/packs"
 import { sendPackPaymentFailedAdminEmail } from "@/lib/email/pack-alerts"
 import { getPackPaymentStatus } from "@/lib/packs"
+import { getInvoiceSubscriptionId, getPaidPackInvoices, protectPackSubscription, reconcilePackBilling } from "@/lib/stripe-pack-billing"
 
 const GiftCardPayloadSchema = z.object({
   service_id: z.string().uuid(),
@@ -54,13 +55,14 @@ async function markCheckoutSession(
   sessionId: string,
   updates: Record<string, unknown>
 ) {
-  await supabase
+  const { error } = await supabase
     .from("stripe_checkout_sessions")
     .update({
       ...updates,
       updated_at: new Date().toISOString(),
     })
     .eq("stripe_checkout_session_id", sessionId)
+  if (error) throw error
 }
 
 async function handleGiftCardCheckout(
@@ -221,7 +223,11 @@ async function handlePackCheckout(
   checkoutSession: Stripe.Checkout.Session,
   storedSession: any
 ) {
-  if (storedSession.client_pack_id) {
+  const { data: existing, error: existingError } = await supabase.from("client_packs").select("*").eq("stripe_checkout_session_id", checkoutSession.id).maybeSingle()
+  if (existingError) throw existingError
+  if (existing) {
+    if (existing?.stripe_subscription_id) await reconcilePackBilling(getStripeClient(), supabase, existing)
+    await markCheckoutSession(supabase, checkoutSession.id, { status: "completed", completed_at: new Date().toISOString(), client_pack_id: existing.id, stripe_subscription_id: existing.stripe_subscription_id })
     return
   }
 
@@ -248,12 +254,12 @@ async function handlePackCheckout(
   const subscriptionId = typeof checkoutSession.subscription === "string" ? checkoutSession.subscription : null
 
   if (subscriptionId && payload.installment_count > 1) {
-    await stripe.subscriptions.update(subscriptionId, {
-      cancel_at_period_end: false,
-    })
+    await protectPackSubscription(stripe, subscriptionId, payload.installment_count)
   }
 
-  const paidInstallments = checkoutSession.mode === "subscription" ? 1 : payload.installment_count
+  const paidInstallments = subscriptionId
+    ? Math.min(payload.installment_count, (await getPaidPackInvoices(stripe, subscriptionId)).length)
+    : payload.installment_count
   const paymentStatus =
     payload.installment_count === 1
       ? "paid"
@@ -281,6 +287,8 @@ async function handlePackCheckout(
   if (insertError || !clientPack) {
     throw new Error(insertError?.message || "Failed to create client pack")
   }
+
+  if (subscriptionId) await reconcilePackBilling(stripe, supabase, clientPack)
 
   await markCheckoutSession(supabase, checkoutSession.id, {
     status: "completed",
@@ -319,7 +327,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.text()
     const stripe = getStripeClient()
-    const event = stripe.webhooks.constructEvent(body, signature, stripeWebhookSecret)
+    let event: Stripe.Event
+    try {
+      event = stripe.webhooks.constructEvent(body, signature, stripeWebhookSecret)
+    } catch {
+      return NextResponse.json({ error: "Invalid Stripe signature" }, { status: 400 })
+    }
     const supabase = createAdminClient()
     console.log("[stripe] webhook received", {
       requestId,
@@ -374,6 +387,7 @@ export async function POST(request: NextRequest) {
       } catch (processingError) {
         console.error("[stripe] Webhook processing error:", processingError)
         await markCheckoutSession(supabase, checkoutSession.id, { status: "failed" })
+        throw processingError
       }
       console.log("[stripe] checkout.session.completed handled", {
         requestId,
@@ -423,39 +437,13 @@ export async function POST(request: NextRequest) {
     if (event.type === "invoice.paid") {
       const eventStartedAt = Date.now()
       const invoice = event.data.object as any
-      const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : null
+      const subscriptionId = getInvoiceSubscriptionId(invoice)
 
       if (subscriptionId) {
-        const { data: clientPack } = await supabase
-          .from("client_packs")
-          .select("*")
-          .eq("stripe_subscription_id", subscriptionId)
-          .maybeSingle()
-
-        if (clientPack) {
-          if (invoice.billing_reason === "subscription_create" && (clientPack.paid_installments || 0) >= 1) {
-            return NextResponse.json({ received: true })
-          }
-
-          const nextPaidInstallments = Math.min(
-            clientPack.installment_count || 1,
-            Math.max(clientPack.paid_installments || 0, 0) + 1
-          )
-
-          if (nextPaidInstallments >= (clientPack.installment_count || 1)) {
-            await stripe.subscriptions.update(subscriptionId, {
-              cancel_at_period_end: true,
-            })
-          }
-
-          await supabase
-            .from("client_packs")
-            .update({
-              paid_installments: nextPaidInstallments,
-              payment_status: getPackPaymentStatus(clientPack.installment_count || 1, nextPaidInstallments),
-            })
-            .eq("id", clientPack.id)
-        }
+        const { data: clientPack, error } = await supabase
+          .from("client_packs").select("*").eq("stripe_subscription_id", subscriptionId).maybeSingle()
+        if (error) throw error
+        if (clientPack) await reconcilePackBilling(stripe, supabase, clientPack, invoice)
       }
       console.log("[stripe] invoice.paid handled", {
         requestId,
@@ -466,10 +454,10 @@ export async function POST(request: NextRequest) {
     if (event.type === "invoice.payment_failed") {
       const eventStartedAt = Date.now()
       const invoice = event.data.object as any
-      const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : null
+      const subscriptionId = getInvoiceSubscriptionId(invoice)
 
       if (subscriptionId) {
-        const { data: failedPack } = await supabase
+        const { data: failedPack, error: failedPackError } = await supabase
           .from("client_packs")
           .select(`
             *,
@@ -479,12 +467,11 @@ export async function POST(request: NextRequest) {
           .eq("stripe_subscription_id", subscriptionId)
           .maybeSingle()
 
-        await supabase
-          .from("client_packs")
-          .update({
-            payment_status: "failed",
-          })
-          .eq("stripe_subscription_id", subscriptionId)
+        if (failedPackError) throw failedPackError
+        if (failedPack) {
+          const result = await reconcilePackBilling(stripe, supabase, failedPack)
+          if (result.paymentStatus !== "failed") return NextResponse.json({ received: true })
+        }
 
         if (failedPack) {
           try {
@@ -531,6 +518,6 @@ export async function POST(request: NextRequest) {
       durationMs: Date.now() - requestStartedAt,
       error,
     })
-    return NextResponse.json({ error: "Webhook error" }, { status: 400 })
+    return NextResponse.json({ error: "Webhook error" }, { status: 500 })
   }
 }

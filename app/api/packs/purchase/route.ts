@@ -12,6 +12,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const payload = PackPurchaseSchema.parse(body)
+    // Emergency containment: no new open-ended monthly subscriptions.
+    if (payload.installment_count > 1) {
+      return NextResponse.json({ error: "Le paiement en plusieurs fois est temporairement indisponible. Contactez le salon pour votre forfait." }, { status: 503 })
+    }
     const supabase = createAdminClient()
     const normalizedEmail = payload.customer_email.trim().toLowerCase()
 
@@ -59,68 +63,34 @@ export async function POST(request: NextRequest) {
     const amountCents = eurosToCents(Number(pack.price))
     const installmentAmounts = getInstallmentAmounts(amountCents, payload.installment_count)
 
-    const session =
-      payload.installment_count === 1
-        ? await stripe.checkout.sessions.create({
-            mode: "payment",
-            success_url: `${baseUrl}/forfaits?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${baseUrl}/forfaits?checkout=cancel`,
-            customer_email: payload.customer_email,
-            metadata: {
-              type: "pack",
-              pack_id: pack.id,
-              installment_count: String(payload.installment_count),
-              customer_email: normalizedEmail,
-              customer_name: `${payload.customer_first_name} ${payload.customer_last_name}`.trim(),
-              customer_first_name: payload.customer_first_name,
-              customer_last_name: payload.customer_last_name,
-              customer_phone: payload.customer_phone,
-              account_mode: hasAuthAccount ? "existing" : "new",
-            },
-            line_items: [{
-              quantity: 1,
-              price_data: {
-                currency: "eur",
-                unit_amount: amountCents,
-                product_data: {
-                  name: pack.name,
-                  description: `${pack.number_of_sessions} séances`,
-                },
-              },
-            }],
-          })
-        : await stripe.checkout.sessions.create({
-            mode: "subscription",
-            success_url: `${baseUrl}/forfaits?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${baseUrl}/forfaits?checkout=cancel`,
-            customer_email: payload.customer_email,
-            metadata: {
-              type: "pack",
-              pack_id: pack.id,
-              installment_count: String(payload.installment_count),
-              customer_email: normalizedEmail,
-              customer_name: `${payload.customer_first_name} ${payload.customer_last_name}`.trim(),
-              customer_first_name: payload.customer_first_name,
-              customer_last_name: payload.customer_last_name,
-              customer_phone: payload.customer_phone,
-              account_mode: hasAuthAccount ? "existing" : "new",
-            },
-            line_items: [{
-              quantity: 1,
-              price_data: {
-                currency: "eur",
-                unit_amount: installmentAmounts[0],
-                recurring: {
-                  interval: "month",
-                  interval_count: 1,
-                },
-                product_data: {
-                  name: pack.name,
-                  description: `Paiement fractionné sur ${payload.installment_count} échéances`,
-                },
-              },
-            }],
-          })
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      success_url: `${baseUrl}/forfaits?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/forfaits?checkout=cancel`,
+      customer_email: payload.customer_email,
+      metadata: {
+        type: "pack",
+        pack_id: pack.id,
+        installment_count: String(payload.installment_count),
+        customer_email: normalizedEmail,
+        customer_name: `${payload.customer_first_name} ${payload.customer_last_name}`.trim(),
+        customer_first_name: payload.customer_first_name,
+        customer_last_name: payload.customer_last_name,
+        customer_phone: payload.customer_phone,
+        account_mode: hasAuthAccount ? "existing" : "new",
+      },
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: "eur",
+          unit_amount: amountCents,
+          product_data: {
+            name: pack.name,
+            description: `${pack.number_of_sessions} séances`,
+          },
+        },
+      }],
+    })
 
     const { error: insertError } = await supabase
       .from("stripe_checkout_sessions")

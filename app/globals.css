@@ -145,30 +145,9 @@ body:has([data-admin-shell]) :is([data-slot="dialog-content"], [data-slot="dialo
   animation: none;
 }
 
-/* The tablet workspace uses an opaque, high-contrast working palette. Portals
-   inherit the same tokens from body; the public site's palette stays separate. */
+/* Keep the existing admin palette on every screen size. */
 @media (max-width: 1535px), (pointer: coarse) {
   body:has([data-admin-shell]) {
-    color-scheme: light;
-    --background: #f3f5f2;
-    --foreground: #213b32;
-    --card: #ffffff;
-    --card-foreground: #213b32;
-    --popover: #ffffff;
-    --popover-foreground: #213b32;
-    --primary: #235648;
-    --primary-foreground: #ffffff;
-    --secondary: #e6eee8;
-    --secondary-foreground: #235648;
-    --muted: #edf1ed;
-    --muted-foreground: #5c6f64;
-    --accent: #e6eee8;
-    --accent-foreground: #213b32;
-    --border: #d8e2da;
-    --input: #d8e2da;
-    --ring: #235648;
-    background: var(--background);
-    color: var(--foreground);
     scroll-behavior: auto;
   }
 

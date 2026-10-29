@@ -35,6 +35,7 @@ interface TabletAgendaProps {
   onBlock?: () => void
   summary: ReactNode
   salonControl?: ReactNode
+  salonTitleControl?: ReactNode
   movingAppointment?: Booking | null
   isInvalidDestination?: (destination: MoveDestination) => boolean
 }
@@ -51,7 +52,7 @@ function MoveTarget({ id, destination, invalid, closed, height }: {
 // In normal use all cells are native buttons. Drag registrations exist only in move mode.
 export const TabletAgenda = memo(function TabletAgenda({
   salonName, date, onDateChange, staff, appointments, hours, openingHours, loading,
-  onAppointmentClick, onEmptySlotClick, onCreate, onBlock, summary, salonControl, movingAppointment, isInvalidDestination,
+  onAppointmentClick, onEmptySlotClick, onCreate, onBlock, summary, salonControl, salonTitleControl, movingAppointment, isInvalidDestination,
 }: TabletAgendaProps) {
   const root = useRef<HTMLElement>(null)
   const [memberId, setMemberId] = useState("all")
@@ -89,9 +90,9 @@ export const TabletAgenda = memo(function TabletAgenda({
   return <section ref={root} data-tablet-agenda data-move-mode={moveMode} onKeyDown={event => { if (event.key === "Escape") setMoveMode(false) }} aria-label={`Agenda de ${salonName}`} className="min-w-0 bg-background">
     <div data-agenda-toolbar className="sticky top-16 z-30 border-b bg-card">
       <div className="flex min-h-14 items-center justify-between gap-3 px-3 py-2 sm:px-5">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Les Temples · Agenda</p>
-          <h1 className="truncate text-lg font-semibold tracking-tight">{salonName}</h1>
+          <h1 className="truncate text-lg font-semibold tracking-tight">{salonTitleControl || salonName}</h1>
         </div>
         <Button variant="ghost" onClick={() => setSummaryOpen(true)} aria-label="Résumé et repères du planning" className="h-11 shrink-0 gap-2 px-3">
           <span className="hidden text-sm sm:inline">{dayAppointments.length} rendez-vous</span><SlidersHorizontal className="h-5 w-5" />

@@ -6,6 +6,7 @@ import { BookingDetailsModal } from "@/components/booking-details-modal"
 import { useMemo, useState } from "react"
 import { useTabletWorkspace } from "@/lib/hooks/use-tablet-workspace"
 import { TabletAgenda } from "@/components/calendar/tablet-agenda"
+import { SalonSwitcher } from "@/components/calendar/salon-switcher"
 import { appointmentCollisionDetection } from "@/lib/calendar/drag-collision"
 import { useAppointmentMove } from "@/lib/hooks/use-appointment-move"
 import { canMoveAppointment } from "@/lib/calendar/appointment-move"
@@ -25,8 +26,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAppointments } from "@/lib/hooks/use-appointments"
 import { useStaff } from "@/lib/hooks/use-staff"
 import { useSalons } from "@/lib/hooks/use-salons"
-import { useParams } from "next/navigation"
-import { format } from "date-fns"
+import { useParams, useSearchParams } from "next/navigation"
+import { format, isValid, parseISO } from "date-fns"
 import { fr } from "date-fns/locale"
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
 import { Clock, CheckCircle, Ban, Calendar as CalendarIcon, User, Plus, X, GripVertical } from "lucide-react"
@@ -64,8 +65,13 @@ export default function SalonDashboardPage() {
   const hourHeight = useScheduleHourHeight()
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const salonId = params.id as string
-  const [date, setDate] = useState<Date | undefined>(new Date())
+  const [date, setDate] = useState<Date | undefined>(() => {
+    const value = searchParams.get("date")
+    const selected = value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseISO(value) : null
+    return selected && isValid(selected) ? selected : new Date()
+  })
 
   // Validate UUID
   const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
@@ -470,6 +476,10 @@ export default function SalonDashboardPage() {
       <div className="min-h-screen bg-muted/20">
         {isTablet ? <TabletAgenda
           salonName={salon?.name || "Chargement du salon…"}
+          salonTitleControl={<SalonSwitcher value={salonId}
+            salons={(salons || []).filter(item => item.is_active !== false || item.id === salonId)}
+            fallbackName={salon?.name || "Chargement du salon…"}
+            onChange={id => router.push(`/admin/salons/${id}/dashboard?date=${format(date || new Date(), "yyyy-MM-dd")}`, { scroll: false })} />}
           date={date || new Date()}
           onDateChange={setDate}
           staff={bookableStaff}

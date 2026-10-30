@@ -6,6 +6,7 @@ import { getAppointmentStaffIds } from "@/lib/calendar/scheduling"
 export function AppointmentCardContent({ appointment, height }: { appointment: any; height: number }) {
   const blocked = appointment.status === "blocked"
   const teamSize = getAppointmentStaffIds(appointment).length
+  const duo = !blocked && (teamSize > 1 || appointment.service?.required_staff_count === 2)
   const name = blocked ? "Bloqué" : [appointment.client?.first_name, appointment.client?.last_name].filter(Boolean).join(" ") || "Client"
   const start = formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")
   const end = formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")
@@ -13,10 +14,11 @@ export function AppointmentCardContent({ appointment, height }: { appointment: a
   const paid = appointment.payment_status === "paid" && !blocked
   return <div className="@container relative min-w-0 space-y-0.5 leading-4" title={`${start}–${end} · ${name}${blocked ? "" : ` · ${appointment.service?.name || "Massage"}`}`}>
     <AppointmentPaymentMarker appointment={appointment} />
-    <div className={`${paid && height < 40 ? "hidden @min-[64px]:flex" : "flex"} min-w-0 items-center gap-0.5 text-[8px] font-semibold @min-[38px]:text-[10px] @min-[100px]:text-xs ${paid ? "pt-3.5 @min-[64px]:pt-0" : ""}`}>
+    {duo && <span data-duo-marker title="Massage duo · même rendez-vous dans les deux colonnes" aria-label="Massage duo, rendez-vous lié à deux masseuses"
+      className="absolute left-0 top-0 z-10 inline-flex h-4 min-w-5 items-center justify-center rounded border border-[#382304] bg-[#e7bc65] px-0.5 text-[10px] font-black leading-none text-[#382304] shadow-sm">×2</span>}
+    <div className={`${paid && height < 40 ? "hidden @min-[64px]:flex" : "flex"} min-w-0 items-center gap-0.5 text-[8px] font-semibold @min-[38px]:text-[10px] @min-[100px]:text-xs ${duo ? "pt-4" : paid ? "pt-3.5 @min-[64px]:pt-0" : ""}`}>
       <span className={`shrink-0 tabular-nums ${paid ? "@min-[64px]:pr-4" : ""}`}><span className="@min-[20px]:hidden" aria-hidden="true">{start.slice(0, 2)}<br />{start.slice(2)}</span><span className="hidden @min-[20px]:inline">{start}</span></span>
       {height < 48 && <span className="hidden min-w-0 truncate @min-[90px]:inline">{name}</span>}
-      {teamSize > 1 && <span className="hidden shrink-0 rounded bg-black/10 px-1 text-[10px] @min-[100px]:inline">×{teamSize}</span>}
     </div>
     {height >= 48 && <p className={`${paid && height < 68 ? "hidden @min-[64px]:block" : ""} truncate text-[10px] font-semibold @min-[100px]:text-xs`}><span className="@min-[45px]:hidden" aria-hidden="true">{initials}</span><span className="hidden @min-[45px]:inline">{name}</span></p>}
     {height >= 84 && !blocked && <p className="hidden text-[10px] leading-3.5 opacity-85 @min-[65px]:block @min-[100px]:text-[11px]"><span className="line-clamp-2">{appointment.service?.name || "Massage"}</span></p>}

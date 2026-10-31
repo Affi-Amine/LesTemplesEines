@@ -93,7 +93,7 @@ export async function sendAppointmentBookedEmails(
     tasks.push(
       sendSms({
         to: clientPhone,
-        message: `${smsMessage}${managementUrl ? ` Gérer : ${managementUrl} Modification/annulation jusqu’à la veille uniquement. Remboursement : contacter le salon.` : ""}`,
+        message: smsMessage,
       }),
     )
   } else if (!clientPhone) {

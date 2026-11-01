@@ -98,7 +98,7 @@ export function HomeSalonsSection() {
             {salonCount > 0 ? `${salonCount} adresse${salonCount > 1 ? "s" : ""}, un même niveau d'exigence` : "Nos adresses Les Temples "}
           </h2>
           <p className="mx-auto max-w-2xl text-sm text-muted-foreground sm:text-base">
-            Dans chaque maison, le même accueil, le même soin juste et la même sérénité.
+            Dans chaque maison, le même accueil, le même soin et la même sérénité.
           </p>
         </div>
         <div className="relative">

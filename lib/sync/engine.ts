@@ -121,6 +121,8 @@ export async function runPlatformSync(options: {
   platforms?: Platform[]
   /** Paris days to sync instead of today + PLATFORM_SYNC_DAYS, e.g. to test on an empty future day. */
   window?: { from: string; to: string }
+  /** Who started the run from the back office; the cron leaves it empty. */
+  triggeredBy?: string
 }): Promise<SyncReport | { skipped: string }> {
   const supabase = createAdminClient()
   const startedAt = Date.now()
@@ -134,7 +136,11 @@ export async function runPlatformSync(options: {
   if (lockError) throw new Error(`${lockError.message} (migration 2026-10-30_platform_sync.sql appliquée ?)`)
   if (running?.length) return { skipped: "Une synchronisation est déjà en cours." }
 
-  const { data: run, error: runError } = await supabase.from("platform_sync_runs").insert({ mode: options.mode }).select("id").single()
+  const { data: run, error: runError } = await supabase
+    .from("platform_sync_runs")
+    .insert({ mode: options.mode, ...(options.triggeredBy ? { triggered_by: options.triggeredBy } : {}) })
+    .select("id")
+    .single()
   if (runError || !run) throw new Error(runError?.message || "Impossible d'enregistrer la synchronisation")
 
   const days = Number(process.env.PLATFORM_SYNC_DAYS) || DEFAULT_WINDOW_DAYS

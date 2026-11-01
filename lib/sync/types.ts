@@ -59,6 +59,8 @@ export interface PushBookingInput {
 
 export interface PlatformAdapter {
   platform: Platform
+  /** Signs in again with the stored credentials and replaces the saved session. Absent when a person has to sign in (Treatwell). */
+  login?(): Promise<void>
   listVenues(): Promise<ExternalVenue[]>
   listBookings(venue: ExternalVenue, fromDay: string, toDay: string): Promise<ExternalBooking[]>
   /** Re-reads one booking (e.g. moved outside the window); null when it no longer exists. */

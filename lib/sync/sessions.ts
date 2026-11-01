@@ -16,6 +16,19 @@ export async function loadSession<T>(supabase: SupabaseClient, platform: Platfor
   }
 }
 
+/** When the stored session was last written, and whether this deployment can still read it. */
+export async function describeSession(supabase: SupabaseClient, platform: Platform): Promise<{ updatedAt: string | null; readable: boolean }> {
+  const { data, error } = await supabase.from("platform_sessions").select("payload, updated_at").eq("platform", platform).maybeSingle()
+  if (error) throw new Error(`platform_sessions: ${error.message} (migration 2026-10-30_platform_sync.sql appliquée ?)`)
+  if (!data) return { updatedAt: null, readable: false }
+  try {
+    open(data.payload)
+    return { updatedAt: data.updated_at, readable: true }
+  } catch {
+    return { updatedAt: data.updated_at, readable: false }
+  }
+}
+
 export async function saveSession(supabase: SupabaseClient, platform: Platform, value: unknown) {
   const { error } = await supabase
     .from("platform_sessions")
@@ -24,5 +37,6 @@ export async function saveSession(supabase: SupabaseClient, platform: Platform, 
 }
 
 export async function clearSession(supabase: SupabaseClient, platform: Platform) {
-  await supabase.from("platform_sessions").delete().eq("platform", platform)
+  const { error } = await supabase.from("platform_sessions").delete().eq("platform", platform)
+  if (error) throw new Error(`platform_sessions: ${error.message}`)
 }

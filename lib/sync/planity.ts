@@ -1,6 +1,7 @@
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
 
 import type { createAdminClient } from "@/lib/supabase/admin"
+import { loadCredentials } from "@/lib/sync/credentials"
 import { loadSession, saveSession } from "@/lib/sync/sessions"
 import { toE164 } from "@/lib/sync/matching"
 import {
@@ -109,13 +110,23 @@ export function createPlanityAdapter(supabase: ReturnType<typeof createAdminClie
   const businesses = new Map<string, PlanityBusiness>()
 
   async function login() {
-    const email = process.env.PLANITY_USERNAME
-    const password = process.env.PLANITY_PASSWORD
-    if (!email || !password) throw new PlatformUnavailableError("planity", "PLANITY_USERNAME / PLANITY_PASSWORD manquants")
-    const first = await postJson<{ localId: string; idToken: string }>(
-      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_KEY}`,
-      { email, password, returnSecureToken: true, clientType: "CLIENT_TYPE_WEB" }
-    )
+    const { credentials } = await loadCredentials(supabase, "planity")
+    if (!credentials) {
+      throw new PlatformUnavailableError("planity", "Identifiants Planity manquants : saisissez-les dans Administration › Synchronisation (ou PLANITY_USERNAME / PLANITY_PASSWORD)")
+    }
+    let first: { localId: string; idToken: string }
+    try {
+      first = await postJson<{ localId: string; idToken: string }>(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_KEY}`,
+        { email: credentials.username, password: credentials.password, returnSecureToken: true, clientType: "CLIENT_TYPE_WEB" }
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (/INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND|USER_DISABLED/.test(message)) {
+        throw new PlatformUnavailableError("planity", "Planity refuse l'identifiant ou le mot de passe : vérifiez-les dans Administration › Synchronisation")
+      }
+      throw error
+    }
     const { token } = await postJson<{ token: string }>(`${PRO_API}/getProAuthToken`, {
       uid: first.localId, token: first.idToken, idToken: first.idToken, isBusinessSharded: true, isUserSharded: true, source: "web",
     })
@@ -247,6 +258,14 @@ export function createPlanityAdapter(supabase: ReturnType<typeof createAdminClie
 
   return {
     platform: "planity",
+
+    async login() {
+      idToken = null
+      uid = null
+      const result = await login()
+      idToken = result.idToken
+      uid = result.uid
+    },
 
     async listVenues() {
       const { uid: me } = await auth()

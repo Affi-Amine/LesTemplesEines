@@ -74,7 +74,8 @@ CREATE TABLE IF NOT EXISTS public.platform_sync_runs (
 
 CREATE INDEX IF NOT EXISTS platform_sync_runs_started_idx ON public.platform_sync_runs (started_at DESC);
 
--- Server only, like every other operational table (2026-10-30_lock_down_public_api.sql).
+-- Server only: the API reaches these tables with the service role; the browser
+-- roles get nothing (platform_sessions holds platform logins).
 REVOKE ALL ON
   public.appointment_platform_links,
   public.platform_mappings,

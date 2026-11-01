@@ -8,6 +8,8 @@ statusModule._compile(ts.transpileModule(fs.readFileSync('lib/appointments/statu
 const source = fs.readFileSync('app/api/appointments/[id]/route.ts', 'utf8');
 const serviceSelectionModule = new Module(require('node:path').join(process.cwd(), 'service-selection-test.cjs'));
 serviceSelectionModule._compile(ts.transpileModule(fs.readFileSync('lib/appointments/service-selection.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, serviceSelectionModule.id);
+const rulesModule = new Module(require('node:path').join(process.cwd(), 'rules-test.cjs'));
+rulesModule._compile(ts.transpileModule(fs.readFileSync('lib/appointments/rules.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, rulesModule.id);
 async function scenario(status, body, conflict) {
   let validations = 0;
   let persisted;
@@ -28,6 +30,9 @@ async function scenario(status, body, conflict) {
     require(name) {
       if (name === '@/lib/appointments/status') return statusModule.exports;
       if (name === '@/lib/appointments/service-selection') return serviceSelectionModule.exports;
+      if (name === '@/lib/appointments/rules') return rulesModule.exports;
+      // Cancellation never changes the prestation, so its payment rules are not reached.
+      if (name === '@/lib/appointments/service-change') return { planServiceChangePayment: () => ({ updates: {} }) };
       if (name === '@/lib/supabase/admin') return { createAdminClient: () => db };
       if (name === '@/lib/appointments/create') return { validateAppointmentScheduling: async () => { validations++; if (conflict) throw new Error('conflict'); return { endTime: '2026-11-02T11:00:00Z' } } };
       if (name === '@/lib/auth/api-auth') return { requireStaffAuth: () => ({ payload: { role: 'admin' } }) };

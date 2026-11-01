@@ -129,6 +129,42 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
     }
   }, [appointment, isEditMode])
 
+  // Same rules as the save (free slot, masseuses, duo/solo, hours, pack, price):
+  // the server runs them without writing, so the admin sees the outcome first.
+  const [check, setCheck] = useState<EditCheck>({ state: "idle" })
+  const editKey = JSON.stringify(editForm)
+  useEffect(() => {
+    if (!appointment || !isEditMode) return setCheck({ state: "idle" })
+    let payload: Record<string, unknown>
+    try {
+      payload = buildEditPayload(appointment, editForm)
+    } catch (error) {
+      return setCheck({ state: "error", message: error instanceof Error ? error.message : "Horaire invalide" })
+    }
+    if (!["salon_id", "service_id", "staff_ids", "start_time"].some(key => key in payload)) return setCheck({ state: "idle" })
+    if (!editForm.service_id) return setCheck({ state: "error", message: "Choisissez une prestation." })
+    if (!editForm.staff_ids.length) return setCheck({ state: "error", message: "Choisissez au moins une masseuse." })
+
+    setCheck({ state: "checking" })
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/appointments/${appointment.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...payload, dry_run: true }),
+          signal: controller.signal,
+        })
+        const data = await response.json().catch(() => ({}))
+        setCheck(response.ok ? { state: "ok", preview: data } : { state: "error", message: data.error || "Vérification impossible" })
+      } catch {
+        if (!controller.signal.aborted) setCheck({ state: "error", message: "Vérification impossible. Réessayez." })
+      }
+    }, 400)
+    return () => { clearTimeout(timer); controller.abort() }
+    // editKey stands for editForm; the appointment version restarts the check after a refresh.
+  }, [appointment?.id, appointment?.updated_at, isEditMode, editKey])
+
   if (!appointment) return null
 
   const handleEdit = () => {
@@ -145,20 +181,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
     setIsSaving(true)
     setEditError("")
     try {
-      const releasing = ["cancelled", "no_show"].includes(editForm.status)
-      const payload: Record<string, unknown> = { expected_updated_at: appointment.updated_at || undefined }
-      if (editForm.status !== appointment.status) payload.status = editForm.status
-      if (editForm.notes !== (appointment.client_notes || "")) payload.client_notes = editForm.notes
-      if (!releasing) {
-        if (editForm.salon_id !== (appointment.salon_id || appointment.salon?.id || "")) payload.salon_id = editForm.salon_id
-        if (editForm.service_id !== (appointment.service_id || appointment.service?.id || "")) payload.service_id = editForm.service_id
-        if ([...editForm.staff_ids].sort().join() !== getAppointmentStaffIds(appointment).sort().join()) payload.staff_ids = editForm.staff_ids
-        if (editForm.date !== formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") || editForm.time !== formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")) {
-          const parisTime = dateTimeInScheduleTimezone(new Date(`${editForm.date}T00:00:00`), editForm.time)
-          if (!parisTime) throw new Error("Horaire invalide")
-          payload.start_time = parisTime.toISOString()
-        }
-      }
+      const payload = buildEditPayload(appointment, editForm)
       if (Object.keys(payload).length === 1) { setIsEditMode(false); onClose(); return }
 
       const response = await fetch(`/api/appointments/${appointment.id}`, {
@@ -174,8 +197,9 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
         throw new Error(error.error || "Échec de la mise à jour")
       }
 
+      const saved = await response.json().catch(() => ({}))
       toast.success("Rendez-vous mis à jour", {
-        description: `Le rendez-vous a été mis à jour avec succès`,
+        description: describeServicePayment(saved.service_change_payment) || "Le rendez-vous a été mis à jour avec succès",
       })
 
       setIsEditMode(false)
@@ -273,7 +297,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
                   <SelectContent>
                     {services?.map((service) => (
                       <SelectItem key={service.id} value={service.id}>
-                        {service.name}
+                        {[service.name, service.duration_minutes ? `${service.duration_minutes} min` : null, typeof service.price_cents === "number" ? euros(service.price_cents) : null].filter(Boolean).join(" · ")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -357,12 +381,34 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
               />
             </div>
 
+            {check.state !== "idle" && (
+              <div role="status" aria-live="polite" className={`space-y-1 rounded-lg border p-3 text-sm ${
+                check.state === "error" ? "border-destructive/30 bg-destructive/10"
+                  : check.state === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+                    : "bg-muted/40 text-muted-foreground"}`}>
+                {check.state === "checking" && <p>Vérification du créneau et du tarif…</p>}
+                {check.state === "error" && <><p className="font-semibold">Modification impossible</p><p>{check.message}</p></>}
+                {check.state === "ok" && check.preview && <>
+                  <p className="font-semibold">
+                    Créneau libre · {formatInTimeZone(check.preview.start_time, "Europe/Paris", "HH:mm")} – {formatInTimeZone(check.preview.end_time, "Europe/Paris", "HH:mm")}
+                    {check.preview.staff_ids.length > 0 && ` · ${check.preview.staff_ids.map(id => {
+                      const member = staff?.find(item => item.id === id)
+                      return member ? `${member.first_name || ""} ${member.last_name || ""}`.trim() : "Masseuse"
+                    }).join(" + ")}`}
+                  </p>
+                  {check.preview.payment && check.preview.payment.previous_price_cents !== check.preview.payment.price_cents && (
+                    <p>Prix : {euros(check.preview.payment.previous_price_cents)} → {euros(check.preview.payment.price_cents)}</p>
+                  )}
+                  {check.preview.payment && <p>{describeServicePayment(check.preview.payment)}</p>}
+                </>}
+              </div>
+            )}
             {editError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">{editError}</p>}
             <DialogFooter>
               <Button variant="outline" onClick={handleCancelEdit}>
                 Annuler
               </Button>
-              <Button onClick={handleSaveEdit} className="cursor-pointer">
+              <Button onClick={handleSaveEdit} disabled={check.state === "checking" || check.state === "error"} className="cursor-pointer">
                 {isSaving ? "Enregistrement…" : "Enregistrer"}
               </Button>
             </DialogFooter>
@@ -530,4 +576,52 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
       </DialogContent>
     </Dialog>
   )
+}
+
+type EditableAppointment = NonNullable<BookingDetailsModalProps["appointment"]>
+type EditForm = { salon_id: string; service_id: string; staff_ids: string[]; date: string; time: string; status: string; notes: string }
+
+interface ServicePaymentPreview {
+  previous_price_cents: number
+  price_cents: number
+  paid_cents: number
+  due_cents: number
+  overpaid_cents: number
+  covered_by_pack: boolean
+}
+
+type EditCheck =
+  | { state: "idle" | "checking" }
+  | { state: "error"; message: string }
+  | { state: "ok"; preview: { start_time: string; end_time: string; staff_ids: string[]; payment: ServicePaymentPreview | null } }
+
+const euros = (cents: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100)
+
+/** Only the fields that differ from the booking, plus its version for the stale-edit check. */
+function buildEditPayload(appointment: EditableAppointment, form: EditForm) {
+  const releasing = ["cancelled", "no_show"].includes(form.status)
+  const payload: Record<string, unknown> = { expected_updated_at: appointment.updated_at || undefined }
+  if (form.status !== appointment.status) payload.status = form.status
+  if (form.notes !== (appointment.client_notes || "")) payload.client_notes = form.notes
+  if (!releasing) {
+    if (form.salon_id !== (appointment.salon_id || appointment.salon?.id || "")) payload.salon_id = form.salon_id
+    if (form.service_id !== (appointment.service_id || appointment.service?.id || "")) payload.service_id = form.service_id
+    if ([...form.staff_ids].sort().join() !== getAppointmentStaffIds(appointment).sort().join()) payload.staff_ids = form.staff_ids
+    if (form.date !== formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") || form.time !== formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")) {
+      const parisTime = dateTimeInScheduleTimezone(new Date(`${form.date}T00:00:00`), form.time)
+      if (!parisTime) throw new Error("Horaire invalide")
+      payload.start_time = parisTime.toISOString()
+    }
+  }
+  return payload
+}
+
+/** What the new prestation means for the till; empty when the service did not change. */
+function describeServicePayment(payment?: ServicePaymentPreview | null) {
+  if (!payment) return ""
+  if (payment.covered_by_pack) return "Couvert par le forfait du client : rien à encaisser."
+  if (payment.paid_cents === 0) return `À régler sur place : ${euros(payment.price_cents)}.`
+  if (payment.due_cents > 0) return `Déjà réglé ${euros(payment.paid_cents)} · supplément à encaisser : ${euros(payment.due_cents)}.`
+  if (payment.overpaid_cents > 0) return `Trop-perçu de ${euros(payment.overpaid_cents)} : à rembourser ou à garder en avoir.`
+  return "Déjà réglé : rien de plus à encaisser."
 }

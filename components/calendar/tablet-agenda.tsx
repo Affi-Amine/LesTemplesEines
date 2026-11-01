@@ -9,9 +9,9 @@ import { useDndMonitor, useDroppable } from "@dnd-kit/core"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { AppointmentCardContent } from "@/components/calendar/appointment-card-content"
+import { AppointmentCardContent, RELEASED_CARD_CLASS } from "@/components/calendar/appointment-card-content"
 import { CalendarClosedHours, CalendarHourLabel, isCalendarQuarterOpen } from "@/components/calendar/closed-hours"
-import { getAppointmentDurationMinutes, getAppointmentStaffIds, getStaffDisplayName, type SalonOpeningHours } from "@/lib/calendar/scheduling"
+import { getAppointmentDurationMinutes, getAppointmentStaffIds, getLaneBox, getStaffDisplayName, isBookedAppointment, isReleasedAppointment, layoutAppointmentLanes, type SalonOpeningHours } from "@/lib/calendar/scheduling"
 import { getAppointmentColor } from "@/lib/utils"
 import { DraggableAppointment } from "@/components/calendar/draggable-appointment"
 import { canMoveAppointment, type MoveDestination } from "@/lib/calendar/appointment-move"
@@ -68,10 +68,11 @@ export const TabletAgenda = memo(function TabletAgenda({
 
   const activeMember = staff.find(member => member.id === memberId)
   const visibleStaff = activeMember ? [activeMember] : staff
+  // Cancelled and absent bookings stay on the planning as a trace; they never block a slot.
   const dayAppointments = useMemo(() => appointments.filter(appointment =>
-    !["cancelled", "no_show"].includes(appointment.status) &&
     formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === dayKey
   ).sort((a, b) => a.start_time.localeCompare(b.start_time)), [appointments, dayKey])
+  const bookedCount = dayAppointments.filter(appointment => isBookedAppointment(appointment.status)).length
   const byStaff = useMemo(() => {
     const map = new Map<string, Booking[]>()
     for (const appointment of dayAppointments) {
@@ -83,6 +84,7 @@ export const TabletAgenda = memo(function TabletAgenda({
     }
     return map
   }, [dayAppointments])
+  const lanesByStaff = useMemo(() => new Map([...byStaff].map(([id, items]) => [id, layoutAppointmentLanes(items)])), [byStaff])
   const columns = `40px repeat(${Math.max(visibleStaff.length, 1)}, minmax(0, 1fr))`
   const changeDate = (next: Date) => onDateChange(next)
   const selectClass = "h-11 min-w-0 rounded-lg border bg-card px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -95,7 +97,7 @@ export const TabletAgenda = memo(function TabletAgenda({
           <h1 className="truncate text-lg font-semibold tracking-tight">{salonTitleControl || salonName}</h1>
         </div>
         <Button variant="ghost" onClick={() => setSummaryOpen(true)} aria-label="Résumé et repères du planning" className="h-11 shrink-0 gap-2 px-3">
-          <span className="hidden text-sm sm:inline">{dayAppointments.length} rendez-vous</span><SlidersHorizontal className="h-5 w-5" />
+          <span className="hidden text-sm sm:inline">{bookedCount} rendez-vous</span><SlidersHorizontal className="h-5 w-5" />
         </Button>
       </div>
 
@@ -137,7 +139,7 @@ export const TabletAgenda = memo(function TabletAgenda({
       {view === "grid" && <div data-agenda-team className="grid border-t bg-card" style={{ gridTemplateColumns: columns }}>
         <div className="self-center text-center text-[10px] font-medium text-muted-foreground">Heure</div>
         {visibleStaff.map(member => <div key={member.id} className="flex min-h-14 min-w-0 items-center gap-1 border-l px-1 py-2 sm:px-2">
-          <div className="min-w-0"><p className="truncate text-[10px] font-semibold sm:text-sm">{getStaffDisplayName(member)}</p><p className="text-[10px] text-muted-foreground">{byStaff.get(member.id)?.length || 0} rendez-vous</p></div>
+          <div className="min-w-0"><p className="truncate text-[10px] font-semibold sm:text-sm">{getStaffDisplayName(member)}</p><p className="text-[10px] text-muted-foreground">{byStaff.get(member.id)?.filter(appointment => isBookedAppointment(appointment.status)).length || 0} rendez-vous</p></div>
         </div>)}
       </div>}
     </div>
@@ -170,23 +172,25 @@ export const TabletAgenda = memo(function TabletAgenda({
             const startHour = Number(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"))
             const minute = Number(formatInTimeZone(appointment.start_time, "Europe/Paris", "m"))
             const height = Math.max(22, getAppointmentDurationMinutes(appointment) / 60 * hourHeight - 2)
+            const released = isReleasedAppointment(appointment.status)
+            const box = getLaneBox(lanesByStaff.get(member.id)?.get(appointment.id), 4)
             if (moveMode && canMoveAppointment(appointment)) return <DraggableAppointment key={appointment.id} id={appointment.id} appointment={appointment}
-              className={`absolute inset-x-1 z-10 select-none overflow-hidden rounded-lg border border-l-[3px] p-0.5 text-left sm:p-2 ring-1 ring-primary/50 ${getAppointmentColor(appointment)}`}
-              style={{ top: (startHour - hours[0] + minute / 60) * hourHeight + 1, height, touchAction: "none", WebkitTouchCallout: "none" }}>
+              className={`absolute z-10 select-none overflow-hidden rounded-lg border border-l-[3px] p-0.5 text-left sm:p-2 ring-1 ring-primary/50 ${getAppointmentColor(appointment)}`}
+              style={{ top: (startHour - hours[0] + minute / 60) * hourHeight + 1, height, ...box, touchAction: "none", WebkitTouchCallout: "none" }}>
               <div className="pointer-events-none"><AppointmentCardContent appointment={appointment} height={height} /></div>
             </DraggableAppointment>
             return <button key={appointment.id} type="button" data-appointment-id={appointment.id}
-              disabled={moveMode || appointment.status === "blocked"} onClick={() => onAppointmentClick(appointment)}
-              className={`absolute inset-x-1 z-10 overflow-hidden rounded-lg border border-l-[3px] p-0.5 text-left sm:p-2 focus-visible:outline-2 focus-visible:outline-ring ${getAppointmentColor(appointment)}`}
-              style={{ top: (startHour - hours[0] + minute / 60) * hourHeight + 1, height }}>
+              disabled={moveMode} onClick={() => onAppointmentClick(appointment)}
+              className={`absolute overflow-hidden rounded-lg border border-l-[3px] p-0.5 text-left sm:p-2 focus-visible:outline-2 focus-visible:outline-ring ${released ? `z-[5] ${RELEASED_CARD_CLASS}` : "z-10"} ${getAppointmentColor(appointment)}`}
+              style={{ top: (startHour - hours[0] + minute / 60) * hourHeight + 1, height, ...box }}>
               <AppointmentCardContent appointment={appointment} height={height} />
             </button>
           })}
         </div>)}
       </div>
     ) : <div className="space-y-2 p-3 sm:p-5">
-      {dayAppointments.filter(appointment => !activeMember || getAppointmentStaffIds(appointment).includes(activeMember.id)).map(appointment => <button key={appointment.id} type="button" disabled={appointment.status === "blocked"}
-        onClick={() => onAppointmentClick(appointment)} className={`flex min-h-24 w-full items-start gap-4 rounded-xl border p-4 text-left ${getAppointmentColor(appointment)}`}>
+      {dayAppointments.filter(appointment => !activeMember || getAppointmentStaffIds(appointment).includes(activeMember.id)).map(appointment => <button key={appointment.id} type="button"
+        onClick={() => onAppointmentClick(appointment)} className={`flex min-h-24 w-full items-start gap-4 rounded-xl border p-4 text-left ${isReleasedAppointment(appointment.status) ? "border-dashed opacity-60" : ""} ${getAppointmentColor(appointment)}`}>
         <span className="shrink-0 text-sm font-semibold tabular-nums">{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
         <AppointmentCardContent appointment={appointment} height={96} />
       </button>)}

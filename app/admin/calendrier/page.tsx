@@ -9,7 +9,7 @@ import { useTabletWorkspace } from "@/lib/hooks/use-tablet-workspace"
 import { CalendarClosedHours, CalendarHourLabel, isCalendarQuarterOpen } from "@/components/calendar/closed-hours"
 import { getScheduleHoursIncludingAppointments } from "@/lib/calendar/scheduling"
 import { AppointmentPaymentMarker } from "@/components/calendar/appointment-payment-marker"
-import { AppointmentCardContent } from "@/components/calendar/appointment-card-content"
+import { AppointmentCardContent, RELEASED_CARD_CLASS } from "@/components/calendar/appointment-card-content"
 import { useState, useEffect, useMemo, type CSSProperties } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { fetchAPI } from "@/lib/api/client"
@@ -29,15 +29,19 @@ import { Icon } from "@iconify/react"
 
 import { BookingDetailsModal } from "@/components/booking-details-modal"
 import { DndContext, MouseSensor, TouchSensor, useSensors, useSensor, DragOverlay } from "@dnd-kit/core"
-import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
+import { BlockedSlotDialog, DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
 import { AppointmentPaymentBadge, AppointmentPaymentLegend } from "@/components/appointment-payment-badge"
 import { useScheduleHourHeight } from "@/lib/hooks/use-schedule-hour-height"
 import { useStaff } from "@/lib/hooks/use-staff"
 import {
   getAppointmentStaffIds,
+  getLaneBox,
   getStaffDisplayName,
   getDefaultStartTimeForDate,
   getScheduleHourRange,
+  isBookedAppointment,
+  isReleasedAppointment,
+  layoutAppointmentLanes,
   resolveOpeningHoursForDate,
   type SalonOpeningHours,
 } from "@/lib/calendar/scheduling"
@@ -114,9 +118,15 @@ function WeekView({
     new Set(weekDays.flatMap((day) => getScheduleHoursIncludingAppointments(openingHours, day, appointments)))
   ).sort((a, b) => a - b)
 
+  // Every masseuse shares the day column here, so overlapping cards sit side by side.
+  const dayLanes = new Map(weekDays.map((day) => {
+    const dayDateStr = format(day, "yyyy-MM-dd")
+    return [dayDateStr, layoutAppointmentLanes(appointments.filter((appointment) =>
+      formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === dayDateStr))]
+  }))
+
   const getAppointmentsForDayAndHour = (day: Date, hour: number) => {
     return appointments.filter(appointment => {
-      if (["cancelled", "no_show"].includes(appointment.status)) return false
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const dayDateStr = format(day, "yyyy-MM-dd")
 
@@ -215,6 +225,7 @@ function WeekView({
                     {hourAppointments.map((appointment) => {
                       const position = getAppointmentPosition(appointment, hourStart)
                       const isDraggable = canMoveAppointment(appointment)
+                      const released = isReleasedAppointment(appointment.status)
 
                       return (
                         <DraggableAppointment
@@ -224,12 +235,12 @@ function WeekView({
                           disabled={!isDraggable}
                           style={{
                             position: "absolute",
-                            left: "1px",
-                            right: "1px",
                             top: `${position.top}px`,
                             height: `${position.height}px`,
+                            ...getLaneBox(dayLanes.get(format(day, "yyyy-MM-dd"))?.get(appointment.id), 1),
+                            ...(released ? { zIndex: 5 } : {}),
                           }}
-                          className={`overflow-hidden rounded border p-0.5 text-[8px] transition-shadow hover:shadow-md sm:p-1 sm:text-xs ${getAppointmentColor(appointment)}`}
+                          className={`overflow-hidden rounded border p-0.5 text-[8px] transition-shadow hover:shadow-md sm:p-1 sm:text-xs ${released ? RELEASED_CARD_CLASS : ""} ${getAppointmentColor(appointment)}`}
                         >
                           <div
                             className="w-full h-full"
@@ -279,9 +290,13 @@ function DayView({
   const activeStaffMembers = staffMembers.filter((member) => member.is_active !== false)
   const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(activeStaffMembers.length, 1) * STAFF_COLUMN_MIN_WIDTH
 
+  const currentDayStr = format(currentDate, "yyyy-MM-dd")
+  const staffLanes = new Map(activeStaffMembers.map((member) => [member.id, layoutAppointmentLanes(appointments.filter((appointment) =>
+    formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === currentDayStr &&
+    getAppointmentStaffIds(appointment).includes(member.id)))]))
+
   const getAppointmentsForHour = (hour: number, staffId?: string) => {
     return appointments.filter(appointment => {
-      if (["cancelled", "no_show"].includes(appointment.status)) return false
       const aptDateStr = formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd")
       const currentDateStr = format(currentDate, "yyyy-MM-dd")
 
@@ -383,6 +398,7 @@ function DayView({
                     {hourAppointments.map((appointment) => {
                   const position = getAppointmentPosition(appointment, hourStart)
                   const isDraggable = canMoveAppointment(appointment)
+                  const released = isReleasedAppointment(appointment.status)
 
                   return (
                     <DraggableAppointment
@@ -392,12 +408,12 @@ function DayView({
                       disabled={!isDraggable}
                       style={{
                         position: "absolute",
-                        left: "1px",
-                        right: "1px",
                         top: `${position.top}px`,
                         height: `${position.height}px`,
+                        ...getLaneBox(staffLanes.get(member.id)?.get(appointment.id), 1),
+                        ...(released ? { zIndex: 5 } : {}),
                       }}
-                      className={`overflow-hidden rounded-[4px] border p-0.5 text-[9px] shadow-sm transition-shadow hover:shadow-md md:rounded-md md:border-2 md:p-1 md:text-xs ${getAppointmentColor(appointment)}`}
+                      className={`overflow-hidden rounded-[4px] border p-0.5 text-[9px] shadow-sm transition-shadow hover:shadow-md md:rounded-md md:border-2 md:p-1 md:text-xs ${released ? RELEASED_CARD_CLASS : ""} ${getAppointmentColor(appointment)}`}
                     >
                       <div
                         className="w-full h-full"
@@ -522,7 +538,13 @@ export default function CalendrierPage() {
     }
   }
 
+  const [blockedSlot, setBlockedSlot] = useState<Appointment | null>(null)
+
   const handleAppointmentClick = (appointment: Appointment) => {
+    if (appointment.status === "blocked") {
+      setBlockedSlot(appointment)
+      return
+    }
     setSelectedAppointment(appointment)
     setIsModalOpen(true)
   }
@@ -566,11 +588,12 @@ export default function CalendrierPage() {
     end: calendarEnd,
   })
 
+  // Cancelled/absent traces come after the day's live bookings.
   const getAppointmentsForDay = (day: Date) => {
     const dayDateStr = format(day, "yyyy-MM-dd")
     return appointments.filter(appointment =>
-      !["cancelled", "no_show"].includes(appointment.status) && formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === dayDateStr
-    )
+      formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === dayDateStr
+    ).sort((a, b) => Number(isReleasedAppointment(a.status)) - Number(isReleasedAppointment(b.status)))
   }
 
   return (
@@ -796,7 +819,7 @@ export default function CalendrierPage() {
                               {dayAppointments.slice(0, 3).map((appointment) => (
                                 <div
                                   key={appointment.id}
-                                  className={`@container relative flex min-h-8 items-end justify-between gap-0.5 overflow-hidden rounded-[3px] border px-0.5 pt-3.5 text-[8px] font-bold leading-4 ${getAppointmentColor(appointment)}`}
+                                  className={`@container relative flex min-h-8 items-end justify-between gap-0.5 overflow-hidden rounded-[3px] border px-0.5 pt-3.5 text-[8px] font-bold leading-4 ${isReleasedAppointment(appointment.status) ? "border-dashed line-through opacity-55" : ""} ${getAppointmentColor(appointment)}`}
                                   title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}`}
                                 >
                                   <span>{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
@@ -844,7 +867,7 @@ export default function CalendrierPage() {
                               {dayAppointments.slice(0, 4).map((appointment) => (
                                 <div
                                   key={appointment.id}
-                                  className={`@container relative text-xs p-1.5 rounded border cursor-pointer hover:shadow-sm transition-shadow ${getAppointmentColor(appointment)}`}
+                                  className={`@container relative text-xs p-1.5 rounded border cursor-pointer hover:shadow-sm transition-shadow ${isReleasedAppointment(appointment.status) ? "border-dashed opacity-55 [&_.truncate]:line-through" : ""} ${getAppointmentColor(appointment)}`}
                                   onClick={() => handleAppointmentClick(appointment)}
                                   title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}
 Service: ${appointment.service?.name || (appointment.status === "blocked" ? 'Créneau bloqué' : 'Service Inconnu')}
@@ -915,7 +938,7 @@ Statut: ${getStatusLabel(appointment.status)}`}
               <CardTitle className="text-sm font-medium">Total Rendez-vous</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{appointments.length}</div>
+              <div className="text-2xl font-bold">{appointments.filter(a => isBookedAppointment(a.status)).length}</div>
               <p className="text-xs text-muted-foreground">
                 {format(currentDate, "MMMM yyyy", { locale: fr })}
               </p>
@@ -979,6 +1002,8 @@ Statut: ${getStatusLabel(appointment.status)}`}
 
         <AppointmentMoveDialog move={pendingMove} staff={selectedSalonStaff} saving={isMovingAppointment}
           error={moveError} onCancel={cancelMove} onConfirm={() => void confirmMove()} />
+        <BlockedSlotDialog slot={blockedSlot} open={Boolean(blockedSlot)}
+          onOpenChange={open => { if (!open) setBlockedSlot(null) }} onChanged={() => void fetchAppointments()} />
       </div>
 
       {/* Drag Overlay for visual feedback */}

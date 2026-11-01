@@ -159,7 +159,8 @@ export function getScheduleHoursIncludingAppointments(openingHours: SalonOpening
   const hours = getScheduleHourRange(openingHours, date)
   const day = format(date, "yyyy-MM-dd")
   for (const appointment of appointments) {
-    if (["cancelled", "no_show"].includes(appointment.status || "") || formatInTimeZone(appointment.start_time, SCHEDULE_TIMEZONE, "yyyy-MM-dd") !== day) continue
+    // Cancelled and absent bookings count too: they stay on the planning as a trace.
+    if (formatInTimeZone(appointment.start_time, SCHEDULE_TIMEZONE, "yyyy-MM-dd") !== day) continue
     const start = Number(formatInTimeZone(appointment.start_time, SCHEDULE_TIMEZONE, "H"))
     const end = formatInTimeZone(appointment.end_time, SCHEDULE_TIMEZONE, "yyyy-MM-dd") !== day ? 24 :
       Math.ceil((Number(formatInTimeZone(appointment.end_time, SCHEDULE_TIMEZONE, "H")) * 60 + Number(formatInTimeZone(appointment.end_time, SCHEDULE_TIMEZONE, "m"))) / 60)
@@ -215,6 +216,48 @@ export function getStaffDisplayName(staff: { first_name?: string | null; last_na
 
 export function rangesOverlap(startA: Date, endA: Date, startB: Date, endB: Date): boolean {
   return startA < endB && startB < endA
+}
+
+/** Cancelled and absent bookings free their slot but stay on the planning, see-through. */
+export function isReleasedAppointment(status?: string | null): boolean {
+  return status === "cancelled" || status === "no_show"
+}
+
+/** A real booking for the day's counters: not a blocked slot, not a released one. */
+export function isBookedAppointment(status?: string | null): boolean {
+  return status !== "blocked" && !isReleasedAppointment(status)
+}
+
+export interface AppointmentLane { lane: number; lanes: number }
+
+/**
+ * Side-by-side lanes for the overlapping cards of one calendar column. Live
+ * bookings take the first lane, so a cancelled booking whose slot was rebooked
+ * sits next to the new booking instead of hiding under it.
+ */
+export function layoutAppointmentLanes(appointments: CalendarAppointmentLike[]): Map<string, AppointmentLane> {
+  const sorted = [...appointments].sort((a, b) =>
+    Number(isReleasedAppointment(a.status)) - Number(isReleasedAppointment(b.status)) ||
+    Date.parse(a.start_time) - Date.parse(b.start_time))
+  const placed: Array<{ id: string; lane: number; start: number; end: number }> = []
+  for (const appointment of sorted) {
+    const start = Date.parse(appointment.start_time)
+    const end = Date.parse(appointment.end_time)
+    const taken = new Set(placed.filter(item => item.start < end && start < item.end).map(item => item.lane))
+    let lane = 0
+    while (taken.has(lane)) lane++
+    placed.push({ id: appointment.id, lane, start, end })
+  }
+  return new Map(placed.map(item => [item.id, {
+    lane: item.lane,
+    lanes: 1 + Math.max(...placed.filter(other => other.start < item.end && item.start < other.end).map(other => other.lane)),
+  }]))
+}
+
+/** CSS `left`/`width` for a card in its lane, keeping `insetPx` clear on each side. */
+export function getLaneBox(lane: AppointmentLane | undefined, insetPx: number) {
+  const { lane: index, lanes } = lane || { lane: 0, lanes: 1 }
+  return { left: `calc(${(index / lanes) * 100}% + ${insetPx}px)`, width: `calc(${100 / lanes}% - ${insetPx * 2}px)` }
 }
 
 export function findOverlappingAppointment({

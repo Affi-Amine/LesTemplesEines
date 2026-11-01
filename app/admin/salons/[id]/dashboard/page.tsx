@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { CalendarClosedHours, CalendarHourLabel, isCalendarQuarterOpen } from "@/components/calendar/closed-hours"
 import { getScheduleHoursIncludingAppointments } from "@/lib/calendar/scheduling"
-import { AppointmentCardContent } from "@/components/calendar/appointment-card-content"
+import { AppointmentCardContent, RELEASED_CARD_CLASS } from "@/components/calendar/appointment-card-content"
 import { Calendar } from "@/components/ui/calendar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAppointments } from "@/lib/hooks/use-appointments"
@@ -40,13 +40,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { DndContext, MouseSensor, TouchSensor, useSensors, useSensor, DragOverlay } from "@dnd-kit/core"
-import { DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
+import { BlockedSlotDialog, DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
 import {
   findOverlappingAppointment,
   canStaffTakeBookings,
   getAppointmentDurationMinutes,
   getAppointmentStaffIds,
+  getLaneBox,
   getStaffDisplayName,
+  isBookedAppointment,
+  isReleasedAppointment,
+  layoutAppointmentLanes,
   getDefaultStartTimeForDate,
   minutesToTimeLabel,
   resolveOpeningHoursForDate,
@@ -97,6 +101,7 @@ export default function SalonDashboardPage() {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isEditingAppointment, setIsEditingAppointment] = useState(false)
   const [isBlockingOpen, setIsBlockingOpen] = useState(false)
+  const [blockedSlot, setBlockedSlot] = useState<any>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   const [replacingStaffId, setReplacingStaffId] = useState<string | null>(null)
@@ -148,6 +153,10 @@ export default function SalonDashboardPage() {
   ), [dashboardStaff])
   const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * STAFF_COLUMN_MIN_WIDTH
   const mobileTimelineHours = scheduleHours
+  // Counters show real bookings only: blocked slots and cancelled/absent traces are not appointments.
+  const bookedAppointments = dayAppointments.filter((apt: any) => isBookedAppointment(apt.status))
+  const staffLanes = new Map(bookableStaff.map((member) => [member.id,
+    layoutAppointmentLanes(dayAppointments.filter((apt: any) => getAppointmentStaffIds(apt).includes(member.id)))]))
   const confirmedAppointments = dayAppointments.filter((apt: any) => apt.status === "confirmed" || apt.status === "pending")
   const inProgressAppointments = dayAppointments.filter((apt: any) => apt.status === "in_progress")
   const completedAppointments = dayAppointments.filter((apt: any) => apt.status === "completed")
@@ -175,20 +184,23 @@ export default function SalonDashboardPage() {
   }
 
   const handleValidate = async (appointment: any) => {
-    setSelectedSlot(appointment)
-
     if (appointment.status === "blocked") {
+      setBlockedSlot(appointment)
       return
     }
 
+    setSelectedSlot(appointment)
     setIsDetailsOpen(true)
   }
 
+  // A partly paid booking (its prestation was changed for a dearer one) only owes the supplement.
+  const alreadyPaidCents = (appointment: any) => appointment?.payment_status === "partial" ? appointment.amount_paid_cents || 0 : 0
+  const amountDue = (appointment: any) => Math.max(0, (appointment?.service?.price_cents || 0) - alreadyPaidCents(appointment)) / 100
+
   const handleOpenPayment = (appointment = selectedSlot) => {
     if (!appointment) return
-    const price = appointment.service?.price_cents ? appointment.service.price_cents / 100 : 0
     setSelectedSlot(appointment)
-    setPaymentLines([{ method: "card", amount: price }])
+    setPaymentLines([{ method: "card", amount: amountDue(appointment) }])
     setIsDetailsOpen(false)
     setIsValidationOpen(true)
   }
@@ -256,10 +268,10 @@ export default function SalonDashboardPage() {
     if (!selectedSlot) return
 
     const totalPaid = paymentLines.reduce((sum, line) => sum + line.amount, 0)
-    const price = selectedSlot.service?.price_cents ? selectedSlot.service.price_cents / 100 : 0
+    const price = amountDue(selectedSlot)
 
     if (totalPaid !== price) {
-      toast.error("Le montant total payé doit correspondre au prix du service")
+      toast.error(alreadyPaidCents(selectedSlot) ? "Le montant encaissé doit correspondre au supplément restant" : "Le montant total payé doit correspondre au prix du service")
       return
     }
 
@@ -272,7 +284,7 @@ export default function SalonDashboardPage() {
         body: JSON.stringify({
           payment_status: "paid",
           payment_method: paymentLines.length > 1 ? "mixed" : paymentLines[0].method,
-          amount_paid_cents: totalPaid * 100,
+          amount_paid_cents: Math.round(totalPaid * 100) + alreadyPaidCents(selectedSlot),
           payments: paymentLines.map(line => ({
             method: line.method,
             amount_cents: line.amount * 100
@@ -301,8 +313,7 @@ export default function SalonDashboardPage() {
 
   const addPaymentLine = () => {
     const currentTotal = paymentLines.reduce((sum, line) => sum + line.amount, 0)
-    const price = selectedSlot?.service?.price_cents ? selectedSlot.service.price_cents / 100 : 0
-    const remaining = Math.max(0, price - currentTotal)
+    const remaining = Math.max(0, amountDue(selectedSlot) - currentTotal)
     setPaymentLines([...paymentLines, { method: "cash", amount: remaining }])
   }
 
@@ -500,7 +511,7 @@ export default function SalonDashboardPage() {
                 <span className="text-sm font-medium text-muted-foreground">Rendez-vous</span>
                 <CalendarIcon className="h-4 w-4 text-blue-200" />
               </div>
-              <div className="text-2xl font-bold sm:text-3xl">{dayAppointments.length}</div>
+              <div className="text-2xl font-bold sm:text-3xl">{bookedAppointments.length}</div>
               <p className="text-xs text-muted-foreground">
                 {selectedDayHours ? `${selectedDayHours.open} - ${selectedDayHours.close}` : "Salon fermé"}
               </p>
@@ -548,7 +559,7 @@ export default function SalonDashboardPage() {
                 <span className="text-sm font-medium text-muted-foreground">Rendez-vous</span>
                 <CalendarIcon className="h-4 w-4 text-blue-200" />
               </div>
-              <div className="text-2xl font-bold sm:text-3xl">{dayAppointments.length}</div>
+              <div className="text-2xl font-bold sm:text-3xl">{bookedAppointments.length}</div>
               <p className="text-xs text-muted-foreground">
                 {selectedDayHours ? `${selectedDayHours.open} - ${selectedDayHours.close}` : "Salon fermé"}
               </p>
@@ -632,7 +643,7 @@ export default function SalonDashboardPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="outline" className="px-3 py-1">
-                      {dayAppointments.length} rendez-vous
+                      {bookedAppointments.length} rendez-vous
                     </Badge>
                     <Badge variant="secondary" className="px-3 py-1">
                       {selectedDayHours ? `${selectedDayHours.open} - ${selectedDayHours.close}` : "Salon fermé"}
@@ -726,7 +737,6 @@ export default function SalonDashboardPage() {
                               </div>
                               {bookableStaff.map((member) => {
                                 const staffApts = sortedDayAppointments.filter((apt: any) => {
-                                  if (["cancelled", "no_show"].includes(apt.status)) return false
                                   const aptHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
                                   return getAppointmentStaffIds(apt).includes(member.id) && aptHour === hour
                                 })
@@ -753,8 +763,7 @@ export default function SalonDashboardPage() {
                                       const startHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
                                       const topOffset = startHour === hour ? (startMinute / 60) * hourHeight : 0
                                       const heightPx = Math.max((getAppointmentDurationMinutes(apt) / 60) * hourHeight, 22)
-                                      const appointmentStaffIds = getAppointmentStaffIds(apt)
-                                      const isMultiStaffAppointment = appointmentStaffIds.length > 1
+                                      const released = isReleasedAppointment(apt.status)
 
                                       return (
                                         <button
@@ -763,12 +772,10 @@ export default function SalonDashboardPage() {
                                           type="button"
                                           onClick={(event) => {
                                             event.stopPropagation()
-                                            if (apt.status !== "blocked") {
-                                              handleValidate(apt)
-                                            }
+                                            handleValidate(apt)
                                           }}
-                                          className={`absolute left-0.5 right-0.5 z-10 flex flex-col items-stretch justify-start overflow-hidden rounded-md border p-1 text-left shadow-sm ${getAppointmentColor(apt)}`}
-                                          style={{ top: `${topOffset}px`, height: `${heightPx}px` }}
+                                          className={`absolute flex flex-col items-stretch justify-start overflow-hidden rounded-md border p-1 text-left shadow-sm ${released ? `z-[5] ${RELEASED_CARD_CLASS}` : "z-10"} ${getAppointmentColor(apt)}`}
+                                          style={{ top: `${topOffset}px`, height: `${heightPx}px`, ...getLaneBox(staffLanes.get(member.id)?.get(apt.id), 2) }}
                                         >
                                           <AppointmentCardContent appointment={apt} height={heightPx} />
                                         </button>
@@ -817,7 +824,6 @@ export default function SalonDashboardPage() {
                               {bookableStaff.map(s => {
                                 // Find appointments for this staff in this hour
                                 const staffApts = appointments?.filter((apt: any) => {
-                                  if (["cancelled", "no_show"].includes(apt.status)) return false
                                   const aptHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
                                   return getAppointmentStaffIds(apt).includes(s.id) && aptHour === hour
                                 })
@@ -853,8 +859,7 @@ export default function SalonDashboardPage() {
                                       const topOffset = startHour === hour ? (startMinute / 60) * hourHeight : 0
                                       const heightPx = Math.max((getAppointmentDurationMinutes(apt) / 60) * hourHeight, 20)
                                       const isDraggable = canMoveAppointment(apt)
-                                      const appointmentStaffIds = getAppointmentStaffIds(apt)
-                                      const isMultiStaffAppointment = appointmentStaffIds.length > 1
+                                      const released = isReleasedAppointment(apt.status)
 
                                       return (
                                         <DraggableAppointment
@@ -864,20 +869,18 @@ export default function SalonDashboardPage() {
                                           disabled={!isDraggable}
                                           style={{
                                             position: "absolute",
-                                            left: "4px",
-                                            right: "4px",
                                             top: `${topOffset}px`,
                                             height: `${heightPx}px`,
+                                            ...getLaneBox(staffLanes.get(s.id)?.get(apt.id), 4),
+                                            ...(released ? { zIndex: 5 } : {}),
                                           }}
-                                          className={`overflow-hidden rounded-md border-2 p-1 text-xs shadow-sm transition-shadow hover:shadow-md ${getAppointmentColor(apt)}`}
+                                          className={`overflow-hidden rounded-md border-2 p-1 text-xs shadow-sm transition-shadow hover:shadow-md ${released ? RELEASED_CARD_CLASS : ""} ${getAppointmentColor(apt)}`}
                                         >
                                           <div
                                             className="w-full h-full"
                                             onClick={(e) => {
                                               e.stopPropagation()
-                                              if (apt.status !== 'blocked') {
-                                                handleValidate(apt)
-                                              }
+                                              handleValidate(apt)
                                             }}
                                           >
                                             <AppointmentCardContent appointment={apt} height={heightPx} />
@@ -900,7 +903,7 @@ export default function SalonDashboardPage() {
                 <TabsContent value="list" className="mt-4">
                   <div className="space-y-3">
                     {sortedDayAppointments.map((apt: any) => (
-                      <Card key={apt.id} className="rounded-lg p-4 shadow-sm transition-colors hover:bg-muted/40">
+                      <Card key={apt.id} className={`rounded-lg p-4 shadow-sm transition-colors hover:bg-muted/40 ${isReleasedAppointment(apt.status) ? "border-dashed opacity-60" : ""}`}>
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="flex min-w-0 gap-4">
                             <div className="flex h-14 w-16 shrink-0 flex-col items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -909,8 +912,8 @@ export default function SalonDashboardPage() {
                             </div>
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-semibold">
-                                  {apt.client?.first_name || "Client"} {apt.client?.last_name || ""}
+                                <p className={`font-semibold ${isReleasedAppointment(apt.status) ? "line-through" : ""}`}>
+                                  {apt.status === "blocked" ? "Créneau bloqué" : `${apt.client?.first_name || "Client"} ${apt.client?.last_name || ""}`}
                                 </p>
                                 <Badge className={`border ${getAppointmentColor(apt)}`}>
                                   {getDashboardStatusLabel(apt.status)}
@@ -918,7 +921,7 @@ export default function SalonDashboardPage() {
                                 <AppointmentPaymentBadge appointment={apt} />
                               </div>
                               <p className="mt-1 truncate text-sm text-muted-foreground">
-                                {apt.service?.name || "Service"}
+                                {apt.status === "blocked" ? apt.client_notes || "Indisponible" : apt.service?.name || "Service"}
                               </p>
                               <p className="mt-1 truncate text-xs text-muted-foreground">
                                 {getAppointmentStaffLabel(apt)}
@@ -933,11 +936,9 @@ export default function SalonDashboardPage() {
                                 Présent / payer
                               </Button>
                             )}
-                            {apt.status !== "blocked" && (
-                              <Button size="sm" variant="outline" onClick={() => { setSelectedSlot(apt); setIsDetailsOpen(true) }} className="cursor-pointer">
-                                Détails
-                              </Button>
-                            )}
+                            <Button size="sm" variant="outline" onClick={() => handleValidate(apt)} className="cursor-pointer">
+                              {apt.status === "blocked" ? "Modifier" : "Détails"}
+                            </Button>
                           </div>
                         </div>
                       </Card>
@@ -982,6 +983,9 @@ export default function SalonDashboardPage() {
               <p className="text-muted-foreground">{formatInTimeZone(selectedSlot.start_time, "Europe/Paris", "dd/MM/yyyy · HH:mm")} – {formatInTimeZone(selectedSlot.end_time, "Europe/Paris", "HH:mm")}</p>
               <p className="break-words text-muted-foreground">{getAppointmentStaffLabel(selectedSlot)}</p>
               <p className="font-semibold">Montant du rendez-vous : {((selectedSlot.service?.price_cents || 0) / 100).toFixed(2)} €</p>
+              {alreadyPaidCents(selectedSlot) > 0 && <p className="font-semibold text-amber-800">
+                Déjà réglé {(alreadyPaidCents(selectedSlot) / 100).toFixed(2)} € · supplément à encaisser : {amountDue(selectedSlot).toFixed(2)} €
+              </p>}
             </section>}
 
             <div className="min-w-0 space-y-4 py-2">
@@ -1027,8 +1031,8 @@ export default function SalonDashboardPage() {
 
               <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t">
                 <span className="font-semibold">Total payé:</span>
-                <span className={paymentLines.reduce((sum, l) => sum + l.amount, 0) === (selectedSlot?.service?.price_cents / 100) ? "text-green-600 font-bold" : "text-red-500 font-bold"}>
-                  {paymentLines.reduce((sum, l) => sum + l.amount, 0).toFixed(2)}€ / {(selectedSlot?.service?.price_cents / 100)?.toFixed(2)}€
+                <span className={paymentLines.reduce((sum, l) => sum + l.amount, 0) === amountDue(selectedSlot) ? "text-green-600 font-bold" : "text-red-500 font-bold"}>
+                  {paymentLines.reduce((sum, l) => sum + l.amount, 0).toFixed(2)}€ / {amountDue(selectedSlot).toFixed(2)}€
                 </span>
               </div>
             </div>
@@ -1348,6 +1352,8 @@ export default function SalonDashboardPage() {
 
         <AppointmentMoveDialog move={pendingMove} staff={dashboardStaff} saving={isMovingAppointment}
           error={moveError} onCancel={cancelMove} onConfirm={() => void confirmMove()} />
+        <BlockedSlotDialog slot={blockedSlot} open={Boolean(blockedSlot)}
+          onOpenChange={open => { if (!open) setBlockedSlot(null) }} onChanged={() => refetchAppointments()} />
         </div>
 
       {/* Drag Overlay for visual feedback */}

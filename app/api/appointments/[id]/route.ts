@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin"
-import { validateAppointmentScheduling } from "@/lib/appointments/create"
+import { assertStaffAvailable, validateAppointmentScheduling } from "@/lib/appointments/create"
+import { SchedulingError } from "@/lib/appointments/rules"
+import { planServiceChangePayment, type ServiceChangePayment } from "@/lib/appointments/service-change"
 import { blocksAppointmentSchedule, canRescheduleAppointmentStatus } from "@/lib/appointments/status"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
@@ -28,8 +30,11 @@ const UpdateAppointmentSchema = z.object({
   service_id: z.string().uuid().optional(),
   salon_id: z.string().uuid().optional(),
   start_time: z.string().optional(), // ISO string
+  end_time: z.string().optional(), // ISO string, only honoured for blocked slots
   staff_ids: z.array(z.string().uuid()).min(1).optional(),
   staff_id: z.string().uuid().optional(), // Legacy support
+  // Runs every check and returns the outcome (times, team, payment) without saving.
+  dry_run: z.boolean().optional(),
 })
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
@@ -43,7 +48,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = await request.json()
     // Cancellation/absence is a status change, not a reschedule. Ignore stale edit-form
     // fields before validation (a removed service may leave an empty UUID).
-    const { expected_updated_at, ...updates } = UpdateAppointmentSchema.parse(["cancelled", "no_show"].includes(body?.status) ? {
+    const { expected_updated_at, dry_run, ...updates } = UpdateAppointmentSchema.parse(["cancelled", "no_show"].includes(body?.status) ? {
       status: body.status,
       client_notes: body.client_notes,
       internal_notes: body.internal_notes,
@@ -116,32 +121,59 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
     if (updates.start_time) updateData.start_time = updates.start_time
 
+    // A blocked slot that stays blocked can be moved, resized or given to other
+    // masseuses; it has no service, so it is checked on its own below.
+    const editingBlockedSlot = existing.status === "blocked" && (!updates.status || updates.status === "blocked")
+
     const schedulingChanged = Boolean(
       (updates.salon_id && updates.salon_id !== existing.salon_id) ||
       (updates.service_id && updates.service_id !== existing.service_id) ||
       (updates.start_time && Date.parse(updates.start_time) !== Date.parse(existing.start_time)) ||
+      (editingBlockedSlot && updates.end_time && Date.parse(updates.end_time) !== Date.parse(existing.end_time)) ||
       (staffIdsToUpdate && [...new Set(targetStaffIds)].sort().join() !== [...new Set(existingStaffIds)].sort().join())
     )
 
     const reactivating = !blocksAppointmentSchedule(existing.status) &&
       blocksAppointmentSchedule(updates.status || existing.status)
 
-    if (schedulingChanged && !reactivating && !canRescheduleAppointmentStatus(existing.status)) {
-      return NextResponse.json({ error: "Un soin commencé, terminé, annulé ou bloqué ne peut pas être déplacé. Corrigez son statut dans sa fiche si nécessaire." }, { status: 400 })
+    if (schedulingChanged && !reactivating && !editingBlockedSlot && !canRescheduleAppointmentStatus(existing.status)) {
+      return NextResponse.json({ error: "Un soin commencé, terminé ou annulé ne peut pas être déplacé. Corrigez son statut dans sa fiche si nécessaire." }, { status: 400 })
     }
 
-    if ((schedulingChanged || reactivating) && (!targetSalonId || !targetServiceId || targetStaffIds.length === 0)) {
+    if (!editingBlockedSlot && (schedulingChanged || reactivating) && (!targetSalonId || !targetServiceId || targetStaffIds.length === 0)) {
       return NextResponse.json({ error: "Impossible de planifier ce rendez-vous sans salon, prestation et praticien" }, { status: 400 })
     }
 
-    if ((schedulingChanged || reactivating) && targetSalonId && targetServiceId && targetStaffIds.length > 0) {
+    let servicePayment: ServiceChangePayment | null = null
+
+    if (editingBlockedSlot && schedulingChanged) {
+      // A plain move keeps the block's length; its end is only changed on purpose.
+      const originalDuration = Date.parse(existing.end_time) - Date.parse(existing.start_time)
+      const blockEnd = updates.end_time ||
+        (updates.start_time ? new Date(Date.parse(updates.start_time) + originalDuration).toISOString() : existing.end_time)
+      if (!(Date.parse(blockEnd) > Date.parse(targetStartTime))) {
+        return NextResponse.json({ error: "L'heure de fin doit être après l'heure de début" }, { status: 400 })
+      }
+      if (targetStaffIds.length === 0) {
+        return NextResponse.json({ error: "Choisissez au moins une masseuse" }, { status: 400 })
+      }
+      try {
+        await assertStaffAvailable(supabase, targetStaffIds, targetStartTime, blockEnd, id)
+      } catch (error) {
+        if (error instanceof SchedulingError) {
+          return NextResponse.json({ error: "Une masseuse a déjà un rendez-vous ou un autre blocage sur ce créneau" }, { status: 409 })
+        }
+        throw error
+      }
+      updateData.end_time = blockEnd
+    } else if ((schedulingChanged || reactivating) && targetSalonId && targetServiceId && targetStaffIds.length > 0) {
       // Preserve the booked duration unless the service itself is changed.
       // A service's catalogue duration may have changed since this booking.
       const originalDuration = new Date(existing.end_time).getTime() - new Date(existing.start_time).getTime()
       const preservedEndTime = targetServiceId === existing.service_id && originalDuration > 0
         ? new Date(new Date(targetStartTime).getTime() + originalDuration).toISOString()
         : undefined
-      const { endTime } = await validateAppointmentScheduling(
+      const { endTime, service } = await validateAppointmentScheduling(
         supabase,
         {
           salon_id: targetSalonId,
@@ -159,6 +191,29 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       )
 
       updateData.end_time = endTime
+
+      if (updates.service_id && updates.service_id !== existing.service_id) {
+        servicePayment = planServiceChangePayment({
+          appointment: existing,
+          previousPriceCents: await bookedPriceCents(supabase, existing),
+          priceCents: service.price_cents,
+          serviceId: updates.service_id,
+          packAllowedServiceIds: existing.payment_method === "pack" && existing.client_pack_id
+            ? await packAllowedServiceIds(supabase, existing.client_pack_id)
+            : null,
+        })
+        Object.assign(updateData, servicePayment.updates)
+      }
+    }
+
+    if (dry_run) {
+      return NextResponse.json({
+        dry_run: true,
+        start_time: updateData.start_time || existing.start_time,
+        end_time: updateData.end_time || existing.end_time,
+        staff_ids: targetStaffIds,
+        payment: servicePayment,
+      })
     }
 
     const existingAssignments: { staff_id: string }[] = existing.assignments || []
@@ -185,7 +240,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           ["42883", "PGRST202"].includes(error.code || "") ? 503 : 400
         return NextResponse.json({ error: status === 503 ? "La mise à jour du planning doit être installée avant de déplacer un rendez-vous. Aucun déplacement n’a été effectué." : error.message || "Déplacement impossible" }, { status })
       }
-      return NextResponse.json(presentAppointmentServices(data))
+      return NextResponse.json({ ...presentAppointmentServices(data), ...(servicePayment ? { service_change_payment: servicePayment } : {}) })
     }
 
     let assignmentsWereUpdated = false
@@ -299,9 +354,26 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 }
 
+type SupabaseAdmin = Awaited<ReturnType<typeof createAdminClient>>
+
+/** What the booking costs as it stands: its own prestation list when it has one, else its service. */
+async function bookedPriceCents(supabase: SupabaseAdmin, appointment: { service_id?: string | null; service_items?: { price_cents?: number }[] | null }) {
+  if (appointment.service_items?.length) return appointment.service_items.reduce((sum, item) => sum + (item.price_cents || 0), 0)
+  if (!appointment.service_id) return 0
+  const { data } = await supabase.from("services").select("price_cents").eq("id", appointment.service_id).maybeSingle()
+  return data?.price_cents || 0
+}
+
+async function packAllowedServiceIds(supabase: SupabaseAdmin, clientPackId: string) {
+  const { data, error } = await supabase.from("client_packs").select("pack:packs(allowed_services)").eq("id", clientPackId).maybeSingle()
+  if (error) throw new Error(error.message)
+  const pack = Array.isArray(data?.pack) ? data?.pack[0] : data?.pack
+  return (pack?.allowed_services || []) as string[]
+}
+
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    const auth = requireStaffAuth(request, ["admin", "manager", "receptionist"])
+    const auth = requireStaffAuth(request, ["admin", "manager", "receptionist", "assistant", "therapist"])
     if ("response" in auth) {
       return auth.response
     }
@@ -309,9 +381,14 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const { id } = await context.params
     const supabase = await createAdminClient()
 
-    const { data: existing } = await supabase.from("appointments").select("id").eq("id", id).single()
+    const { data: existing } = await supabase.from("appointments").select("id, status").eq("id", id).single()
     if (!existing) {
       return NextResponse.json({ error: "Appointment not found" }, { status: 404 })
+    }
+    // Every staff member can lift a blocked slot, like they can set one; a
+    // booking is only deleted by the front desk (cancelling keeps a trace).
+    if (existing.status !== "blocked" && !["admin", "manager", "receptionist"].includes(auth.payload.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const { error } = await supabase.from("appointments").delete().eq("id", id)

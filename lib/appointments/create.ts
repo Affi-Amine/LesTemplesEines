@@ -178,17 +178,30 @@ export async function validateAppointmentScheduling(
 
   for (const id of serviceItems?.map(item => item.id) || [input.service_id]) await assertStaffCanProvideService(supabase, allStaffIds, id)
 
-  for (const staffId of allStaffIds) {
+  await assertStaffAvailable(supabase, allStaffIds, input.start_time, endTime, options?.ignoreAppointmentId)
+
+  return { endTime, service, serviceItems, allStaffIds }
+}
+
+/** Throws a 409 when any of the staff has a live booking or a blocked slot in [startTime, endTime). */
+export async function assertStaffAvailable(
+  supabase: SupabaseClient,
+  staffIds: string[],
+  startTime: string,
+  endTime: string,
+  ignoreAppointmentId?: string
+) {
+  for (const staffId of staffIds) {
     let conflictQuery = supabase
       .from("appointments")
       .select("id")
       .eq("staff_id", staffId)
       .in("status", BLOCKING_APPOINTMENT_STATUSES)
       .lt("start_time", endTime)
-      .gt("end_time", input.start_time)
+      .gt("end_time", startTime)
 
-    if (options?.ignoreAppointmentId) {
-      conflictQuery = conflictQuery.neq("id", options.ignoreAppointmentId)
+    if (ignoreAppointmentId) {
+      conflictQuery = conflictQuery.neq("id", ignoreAppointmentId)
     }
 
     const { data: conflicts, error: conflictError } = await conflictQuery
@@ -207,10 +220,10 @@ export async function validateAppointmentScheduling(
       .eq("staff_id", staffId)
       .filter("appointment.status", "in", `(${BLOCKING_APPOINTMENT_STATUSES.map((status) => `"${status}"`).join(",")})`)
       .filter("appointment.start_time", "lt", endTime)
-      .filter("appointment.end_time", "gt", input.start_time)
+      .filter("appointment.end_time", "gt", startTime)
 
-    if (options?.ignoreAppointmentId) {
-      assignmentConflictQuery = assignmentConflictQuery.neq("appointment_id", options.ignoreAppointmentId)
+    if (ignoreAppointmentId) {
+      assignmentConflictQuery = assignmentConflictQuery.neq("appointment_id", ignoreAppointmentId)
     }
 
     const { data: deepConflicts, error: deepConflictError } = await assignmentConflictQuery
@@ -223,8 +236,6 @@ export async function validateAppointmentScheduling(
       throw new SchedulingError("Un ou plusieurs créneaux ne sont plus disponibles", 409)
     }
   }
-
-  return { endTime, service, serviceItems, allStaffIds }
 }
 
 export async function assertStaffCanProvideService(

@@ -30,7 +30,7 @@ export interface AppointmentMove {
   destination: MoveDestination
 }
 export function canMoveAppointment(appointment: Pick<CalendarAppointmentLike, "status">) {
-  return canRescheduleAppointmentStatus(appointment.status)
+  return canRescheduleAppointmentStatus(appointment.status) || appointment.status === "blocked"
 }
 export function appointmentMoveVersion(appointment: MovableAppointment) {
   return JSON.stringify([appointment.updated_at, appointment.start_time, appointment.end_time, appointment.status,
@@ -45,8 +45,8 @@ export function planAppointmentMove({ appointment, destination, appointments, st
   openingHours?: SalonOpeningHours | null
   now?: number
 }): AppointmentMove | null {
-  if (!canMoveAppointment(appointment)) throw new Error("Seuls les rendez-vous à venir ou en attente peuvent être déplacés. Un soin commencé, effectué, annulé ou bloqué reste à sa place.")
-  if (!appointment.salon_id || !(appointment.service_id || appointment.service?.id)) throw new Error("Ouvrez la fiche pour renseigner le salon et la prestation avant de déplacer ce rendez-vous.")
+  if (!canMoveAppointment(appointment)) throw new Error("Seuls les rendez-vous à venir ou en attente et les créneaux bloqués peuvent être déplacés. Un soin commencé, effectué ou annulé reste à sa place.")
+  if (!appointment.salon_id || !(appointment.status === "blocked" || appointment.service_id || appointment.service?.id)) throw new Error("Ouvrez la fiche pour renseigner le salon et la prestation avant de déplacer ce rendez-vous.")
   const minute = destination.minute ?? 0
   if (!Number.isFinite(destination.date.getTime()) || !Number.isInteger(destination.hour) || destination.hour < 0 || destination.hour > 23 || ![0, 15, 30, 45].includes(minute)) {
     throw new Error("Choisissez un créneau valide, par quart d’heure.")

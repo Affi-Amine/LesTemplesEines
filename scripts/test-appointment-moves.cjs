@@ -51,9 +51,16 @@ assert.throws(()=>move({now:Date.parse('2100-01-01')}),/passé/)
 assert.throws(()=>move({destination:{date:date(),hour:14,minute:7}}),/quart/)
 assert.throws(()=>move({appointment:{...booking,end_time:booking.start_time}}),/durée/)
 console.log('PASS: full-duration opening boundaries, closed days, past and malformed moves are rejected')
-for(const status of ['completed','cancelled','no_show','blocked','in_progress']){
+for(const status of ['completed','cancelled','no_show','in_progress']){
  assert.equal(canMoveAppointment({status}),false);assert.throws(()=>move({appointment:{...booking,status}}),/déplacés/)
 }
+// A blocked slot moves like a booking (same column rules, same length) though it has no prestation.
+const block={id:'block',salon_id:'salon',status:'blocked',staff_id:'b',start_time:'2099-11-02T10:00:00Z',end_time:'2099-11-02T10:45:00Z'}
+assert.equal(canMoveAppointment(block),true)
+result=move({appointment:block,appointments:[booking,block],destination:{date:date(),hour:15,minute:0,staffId:'c'}})
+assert.equal(result.start.toISOString(),'2099-11-02T14:00:00.000Z');assert.equal(result.end.toISOString(),'2099-11-02T14:45:00.000Z');assert.deepEqual(Array.from(result.staffIds),['c'])
+assert.throws(()=>move({appointment:block,appointments:[booking,block],destination:{date:date(),hour:11,minute:0,staffId:'a'}}),/chevauche/)
+console.log('PASS: blocked slots move with their length kept and never onto a booking')
 for(const member of [{...staff[0],salon_id:'elsewhere'},{...staff[0],is_active:false},{...staff[0],role:'receptionist'},{...staff[0],allowed_service_ids:['another']}])assert.throws(()=>move({staff:[member]}))
 assert.throws(()=>move({appointment:{...booking,service_items:[{id:'massage'},{id:'extra'}]},staff:[{...staff[0],allowed_service_ids:['massage']}]}),/toutes les prestations/)
 assert.notEqual(appointmentMoveVersion(booking),appointmentMoveVersion({...booking,status:'cancelled'}))

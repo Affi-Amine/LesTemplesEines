@@ -8,13 +8,16 @@
     "start": "next start",
     "lint": "eslint .",
     "import:clients": "node scripts/import-clients-csv.mjs",
+    "sync:platforms": "node scripts/platform-sync.mjs",
+    "sync:login": "node scripts/platform-login.mjs",
     "test:backend": "ts-node scripts/test-backend.ts",
     "test:stripe-packs": "node scripts/test-stripe-pack-billing.cjs && node scripts/test-stripe-pack-routes.cjs",
     "test:booking": "node scripts/test-appointment-cancellation.cjs && node scripts/test-cancellation-rebooking.cjs",
     "test:calendar": "node scripts/test-appointment-moves.cjs && node scripts/test-admin-reschedule-api.cjs && node scripts/test-admin-reschedule-sql.cjs",
     "test:ui": "node scripts/test-slot-selection.cjs && node scripts/test-payment-presentation.cjs",
     "test:clients": "node scripts/test-client-profile.cjs",
-    "test:management": "node scripts/test-booking-management-api.cjs && node scripts/test-booking-management-sql.cjs && node scripts/test-booking-management-notifications.cjs"
+    "test:management": "node scripts/test-booking-management-api.cjs && node scripts/test-booking-management-sql.cjs && node scripts/test-booking-management-notifications.cjs",
+    "test:sync": "node scripts/test-platform-sync.cjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -89,6 +92,7 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^9.38.0",
+    "playwright": "^1.49.1",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",

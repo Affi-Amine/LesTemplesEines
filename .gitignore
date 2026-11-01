@@ -19,6 +19,9 @@ yarn.lock
 /output/playwright/
 /supabase/.temp/
 
+# Platform sync: Treatwell browser profile and captured agenda traffic (client data).
+/.sync/
+
 # Local production audit extracts; regenerate with the read-only audit script.
 /docs/audits/salon-relations-data.json
 /docs/audits/2026-10-24-salons-plannings.md

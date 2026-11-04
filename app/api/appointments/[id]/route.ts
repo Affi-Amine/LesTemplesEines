@@ -4,6 +4,7 @@ import { SchedulingError } from "@/lib/appointments/rules"
 import { planServiceChangePayment, type ServiceChangePayment } from "@/lib/appointments/service-change"
 import { blocksAppointmentSchedule, canRescheduleAppointmentStatus } from "@/lib/appointments/status"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
+import { cancelRemoteCopiesAfterDelete, loadRemoteCopies, syncAfterBookingChange } from "@/lib/sync/trigger"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -240,6 +241,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           ["42883", "PGRST202"].includes(error.code || "") ? 503 : 400
         return NextResponse.json({ error: status === 503 ? "La mise à jour du planning doit être installée avant de déplacer un rendez-vous. Aucun déplacement n’a été effectué." : error.message || "Déplacement impossible" }, { status })
       }
+      syncAfterBookingChange("admin-reschedule", existing.start_time, data?.start_time || updateData.start_time)
       return NextResponse.json({ ...presentAppointmentServices(data), ...(servicePayment ? { service_change_payment: servicePayment } : {}) })
     }
 
@@ -345,6 +347,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
     }
 
+    syncAfterBookingChange("admin-update", existing.start_time, data?.start_time)
     return NextResponse.json(presentAppointmentServices(data))
   } catch (error: any) {
     if (error instanceof z.ZodError) {
@@ -391,8 +394,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
+    // Read the platform copies first: the delete cascades the links away.
+    const copies = existing.status === "blocked" ? [] : await loadRemoteCopies(supabase, id)
     const { error } = await supabase.from("appointments").delete().eq("id", id)
     if (error) throw error
+    cancelRemoteCopiesAfterDelete(supabase, id, copies)
 
     return NextResponse.json({ message: "Appointment deleted" })
   } catch (error) {

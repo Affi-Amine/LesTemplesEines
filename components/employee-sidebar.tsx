@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Calendar, User, Clock, LogOut, Menu, X, Home } from "lucide-react"
@@ -81,9 +82,7 @@ export function EmployeeSidebar() {
           {/* Header */}
           <div className="p-6 border-b border-primary/10">
             <Link href="/" className="flex items-center gap-2 group">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/60 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">✦</span>
-              </div>
+              <Image src="/logo-les-temples.png" alt="Les Temples Thaïlande" width={36} height={60} className="h-10 w-auto" />
               <span className="font-semibold text-foreground">Les Temples</span>
             </Link>
             {userInfo && (

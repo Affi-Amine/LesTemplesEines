@@ -27,6 +27,11 @@ function extractAuthPayload(request: NextRequest): JWTPayload | null {
   return null
 }
 
+/** Returns the staff JWT payload when the request carries a valid session, null otherwise. */
+export function getStaffAuth(request: NextRequest): JWTPayload | null {
+  return extractAuthPayload(request)
+}
+
 export function requireStaffAuth(
   request: NextRequest,
   allowedRoles?: JWTPayload["role"][]

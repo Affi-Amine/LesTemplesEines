@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
+import Image from "next/image"
 import { Eye, EyeOff, Lock, Mail } from "lucide-react"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { LanguageSwitcher } from "@/components/language-switcher"
@@ -86,9 +87,7 @@ export default function AdminLogin() {
         {/* Header */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 group mb-6">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/60 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">✦</span>
-            </div>
+            <Image src="/logo-les-temples.png" alt="Les Temples Thaïlande" width={54} height={90} className="h-14 w-auto" priority />
             <span className="text-xl font-semibold text-foreground">Les Temples</span>
           </Link>
           <h1 className="text-3xl font-serif font-bold text-foreground mb-2">{t("admin.login")}</h1>

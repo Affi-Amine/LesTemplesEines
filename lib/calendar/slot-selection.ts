@@ -19,12 +19,14 @@ export interface ScheduleContext {
   date: string
   requiredStaff: number
   durationMinutes: number
+  /** Admin agendas: keep today's already-passed slots selectable (walk-ins recorded late). */
+  includePast?: boolean
 }
 
 export const EMPTY_SLOT_SELECTION: SlotSelection = { context: "", start: "", staffIds: [] }
 const parisDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" })
 export function scheduleContextKey(context: ScheduleContext) {
-  return JSON.stringify([context.salonId, context.serviceId, context.date, context.requiredStaff, context.durationMinutes, context.serviceIds || []])
+  return JSON.stringify([context.salonId, context.serviceId, context.date, context.requiredStaff, context.durationMinutes, context.serviceIds || [], context.includePast || false])
 }
 
 export function getSelectableSlots(context: ScheduleContext, slots: AvailabilitySlot[], staff: ScheduleStaff[], now = Date.now()) {
@@ -34,7 +36,7 @@ export function getSelectableSlots(context: ScheduleContext, slots: Availability
   return slots.flatMap(slot => {
     const start = Date.parse(slot.start), end = Date.parse(slot.end)
     const available_staff = Array.from(new Set(slot.available_staff || [])).filter(id => eligible.has(id))
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start < now ||
+    if (!Number.isFinite(start) || !Number.isFinite(end) || (!context.includePast && start < now) ||
         end - start !== context.durationMinutes * 60_000 || available_staff.length < context.requiredStaff) return []
     // Check the Paris calendar date rather than the UTC date of the instant.
     const parts = parisDate.formatToParts(start)

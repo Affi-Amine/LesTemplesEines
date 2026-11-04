@@ -1,9 +1,10 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Calendar, Users, BarChart3, Settings, LogOut, Menu, X, Building2, Scissors, TrendingUp, CalendarDays, UserCheck, Gift, Package, Wallet, RefreshCw } from "lucide-react"
+import { Calendar, Users, BarChart3, Settings, LogOut, Menu, X, Building2, Scissors, TrendingUp, CalendarDays, UserCheck, Gift, Package, Wallet, RefreshCw, Receipt } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -57,6 +58,7 @@ export function AdminSidebar() {
     ...(canSellCounterProducts ? [{ href: "/admin/gift-cards", label: "Cartes cadeaux", icon: Gift }] : []),
     ...(canViewServices ? [{ href: "/admin/packs", label: "Packs", icon: Package }] : []),
     ...(canSellCounterProducts ? [{ href: "/admin/client-packs", label: "Packs clients", icon: Wallet }] : []),
+    ...(isAdmin || isManager ? [{ href: "/admin/caisse", label: "Feuille de caisse", icon: Receipt }] : []),
     ...(isAdmin ? [{ href: "/admin/synchronisation", label: "Synchronisation", icon: RefreshCw }] : []),
     ...(canViewSettings ? [{ href: "/admin/settings", label: mounted ? t("admin.settings") : "Settings", icon: Settings }] : []),
   ]
@@ -84,9 +86,12 @@ export function AdminSidebar() {
 
   const navigation = (
     <div className="flex min-h-full flex-col">
-      <div className="border-b p-5">
-        <p className="text-xl font-bold text-primary">Les Temples</p>
-        <p className="mt-1 text-xs text-muted-foreground">Espace de gestion</p>
+      <div className="flex items-center gap-3 border-b p-5">
+        <Image src="/logo-les-temples.png" alt="Les Temples Thaïlande" width={40} height={67} className="h-11 w-auto" />
+        <div>
+          <p className="text-xl font-bold text-primary">Les Temples</p>
+          <p className="mt-1 text-xs text-muted-foreground">Espace de gestion</p>
+        </div>
       </div>
       <nav aria-label="Navigation administration" className="flex-1 space-y-1 p-3">
         {navItems.map(item => {

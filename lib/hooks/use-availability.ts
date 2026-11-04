@@ -32,12 +32,12 @@ function normalizeStaffKey(staffId?: string | string[]) {
   return Array.isArray(staffId) ? [...staffId].sort().join(",") : staffId
 }
 
-export function useAvailability(staffId?: string | string[], date?: Date | string, serviceId?: string, salonId?: string, options?: { enabled?: boolean; version?: string; serviceIds?: string[] }) {
+export function useAvailability(staffId?: string | string[], date?: Date | string, serviceId?: string, salonId?: string, options?: { enabled?: boolean; version?: string; serviceIds?: string[]; includePast?: boolean }) {
   const formattedDate = formatAvailabilityDate(date)
   const staffKey = normalizeStaffKey(staffId)
 
   return useQuery({
-    queryKey: ["availability", staffKey, formattedDate, serviceId, salonId, options?.version, options?.serviceIds],
+    queryKey: ["availability", staffKey, formattedDate, serviceId, salonId, options?.version, options?.serviceIds, options?.includePast || false],
     queryFn: ({ signal }) => {
       if (!formattedDate) {
         throw new Error("Date is required")
@@ -51,6 +51,7 @@ export function useAvailability(staffId?: string | string[], date?: Date | strin
         })
 
         params.append("salon_id", salonId)
+        if (options?.includePast) params.append("include_past", "1")
         if (options?.serviceIds && options.serviceIds.length > 1) params.append("service_ids", options.serviceIds.join(","))
         if (Array.isArray(staffId) && staffId.length > 0) {
           params.append("staff_ids", staffId.join(","))

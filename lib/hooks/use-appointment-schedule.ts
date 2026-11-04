@@ -6,12 +6,12 @@ import { useStaff } from "@/lib/hooks/use-staff"
 import { chooseScheduleSlot, EMPTY_SLOT_SELECTION, getSelectableSlots, reconcileSlotSelection, scheduleContextKey, type ScheduleContext, type SlotSelection } from "@/lib/calendar/slot-selection"
 
 export function useAppointmentSchedule(context: ScheduleContext, enabled = true, preferredStaffId?: string) {
-  const { salonId, serviceId, date, requiredStaff, durationMinutes } = context
+  const { salonId, serviceId, date, requiredStaff, durationMinutes, includePast } = context
   const serviceIdsKey = JSON.stringify(context.serviceIds || [])
   const key = scheduleContextKey(context)
-  const stableContext = useMemo(() => ({ salonId, serviceId, date, requiredStaff, durationMinutes, serviceIds: JSON.parse(serviceIdsKey) as string[] }), [salonId, serviceId, date, requiredStaff, durationMinutes, serviceIdsKey])
+  const stableContext = useMemo(() => ({ salonId, serviceId, date, requiredStaff, durationMinutes, serviceIds: JSON.parse(serviceIdsKey) as string[], includePast: includePast || false }), [salonId, serviceId, date, requiredStaff, durationMinutes, serviceIdsKey, includePast])
   const staffQuery = useStaff(salonId)
-  const query = useAvailability(undefined, date, serviceId, salonId, { enabled, version: `${requiredStaff}:${durationMinutes}`, serviceIds: stableContext.serviceIds })
+  const query = useAvailability(undefined, date, serviceId, salonId, { enabled, version: `${requiredStaff}:${durationMinutes}`, serviceIds: stableContext.serviceIds, includePast: stableContext.includePast })
   const [selection, setSelection] = useState<SlotSelection>(EMPTY_SLOT_SELECTION)
   const [notice, setNotice] = useState("")
   const staff = staffQuery.data || []

@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { fetchAPI } from "@/lib/api/client"
+import { formatClientPackCode } from "@/lib/packs"
 import { getPaymentMethodLabel } from "@/lib/payments"
 import type { ClientPack, Pack } from "@/lib/types/database"
 import { Plus } from "lucide-react"
@@ -225,6 +226,9 @@ export default function AdminClientPacksPage() {
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-semibold">{clientPack.pack?.name || "Pack"}</h2>
+                    <p className="mt-1 inline-flex items-center rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-sm font-semibold text-primary">
+                      {formatClientPackCode(clientPack.id)}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       {clientPack.client?.first_name} {clientPack.client?.last_name} • {clientPack.client?.email || "Sans email"}
                     </p>

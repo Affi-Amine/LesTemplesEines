@@ -219,7 +219,8 @@ export function createPlanityAdapter(supabase: ReturnType<typeof createAdminClie
       serviceNames: serviceIds.length
         ? serviceIds.map((id) => services.find(([sid]) => sid === id)?.[1].name || entries.find((e) => e.vevent.se === id)?.vevent.t || "Prestation")
         : counted.map((e) => e.vevent.t).filter((title): title is string => Boolean(title)),
-      priceCents: counted.reduce((sum, e) => sum + (e.vevent.p || 0), 0),
+      // An event without its own price falls back to the service's catalogue price.
+      priceCents: counted.reduce((sum, e) => sum + (e.vevent.p ?? services.find(([sid]) => sid === e.vevent.se)?.[1].prices?.default ?? 0), 0),
       customer: customer ? { name: customer.name!, phone: customer.phone || null, email: customer.email || null } : null,
       isOurs: entries.some((e) => e.vevent.cby === PLANITY_AUTHOR),
       updatedAt: Math.max(...entries.map((e) => e.vevent.uat || e.vevent.cat || 0)),

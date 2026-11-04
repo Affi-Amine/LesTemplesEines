@@ -119,11 +119,12 @@ export async function resolveAppointmentTiming(
 export async function validateBookableAppointment(
   supabase: SupabaseClient,
   input: BookableAppointmentInput,
-  quote?: SelectedService[]
+  quote?: SelectedService[],
+  options?: { allowPastStart?: boolean }
 ) {
   // New bookings always reserve the full service duration. The rescheduling
   // validator below still accepts the original duration of an existing booking.
-  const { endTime, service, serviceItems } = await validateAppointmentScheduling(supabase, { ...input, end_time: undefined }, { quote })
+  const { endTime, service, serviceItems } = await validateAppointmentScheduling(supabase, { ...input, end_time: undefined }, { quote, allowPastStart: options?.allowPastStart })
   if (input.end_time && Date.parse(input.end_time) !== Date.parse(endTime)) throw new Error("La durée doit couvrir toutes les prestations.")
   if (input.expected_price_cents !== undefined && input.expected_price_cents !== service.price_cents) throw new Error("Le tarif a changé. Actualisez votre sélection avant de confirmer.")
   if (serviceItems && (input.client_pack_id || input.payment_method === "pack" || input.payment_method === "gift_card")) throw new Error("Les réservations avec plusieurs prestations se règlent en ligne ou sur place.")
@@ -139,9 +140,11 @@ export async function validateAppointmentScheduling(
   options?: {
     ignoreAppointmentId?: string
     quote?: SelectedService[]
+    /** Staff may record an appointment whose slot has already passed (walk-ins logged after the fact). */
+    allowPastStart?: boolean
   }
 ) {
-  assertAppointmentStartIsNotInPast(input.start_time)
+  if (!options?.allowPastStart) assertAppointmentStartIsNotInPast(input.start_time)
   const { endTime, service, serviceItems } = await resolveAppointmentTiming(supabase, input, options?.quote)
   const salonGroup = await resolveSalonGroup(supabase, input.salon_id)
   const salonIds = salonGroup?.salonIds || [input.salon_id]
@@ -420,6 +423,7 @@ export async function createBookableAppointment(
   options?: {
     requestId?: string
     quote?: SelectedService[]
+    allowPastStart?: boolean
     paymentRecord?: {
       method: string
       amount_cents: number
@@ -431,7 +435,7 @@ export async function createBookableAppointment(
   const requestId = options?.requestId
   const totalStartedAt = Date.now()
   const validateStartedAt = Date.now()
-  const { endTime, allStaffIds, service, serviceItems } = await validateBookableAppointment(supabase, input, options?.quote)
+  const { endTime, allStaffIds, service, serviceItems } = await validateBookableAppointment(supabase, input, options?.quote, { allowPastStart: options?.allowPastStart })
   logAppointmentTiming(requestId, "validateBookableAppointment", validateStartedAt, {
     serviceId: input.service_id,
     staffCount: allStaffIds.length,

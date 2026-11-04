@@ -523,14 +523,14 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
                 <span className="mt-1 text-xs text-muted-foreground">{index + 1}.</span>
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-sm font-medium">{service.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{service.duration_minutes} min · {(service.price_cents / 100).toFixed(2)} €</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{service.duration_minutes} min · {((service.price_cents || 0) / 100).toFixed(2)} €</p>
                 </div>
                 <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label={`Retirer ${service.name}`} onClick={() => handleServiceChange(service.id)}><X className="h-4 w-4" /></Button>
               </li>)}
             </ol>
             <div role="status" aria-live="polite" className="border-t border-primary/20 pt-3">
               <p className="text-sm text-muted-foreground">Durée et prix total</p>
-              <p className="mt-1 font-semibold text-primary">{currentService.duration_minutes} min · {(currentService.price_cents / 100).toFixed(2)} €</p>
+              <p className="mt-1 font-semibold text-primary">{currentService.duration_minutes} min · {((currentService.price_cents || 0) / 100).toFixed(2)} €</p>
             </div>
             <p className="text-xs leading-5 text-muted-foreground">Les soins se suivent, avec la même équipe. Les créneaux proposés couvrent toute la durée du rendez-vous.{data.serviceIds.length > 1 ? " Règlement en ligne ou sur place." : ""}</p>
             {!isAddingService && additionalServices.length > 0 && <Button type="button" variant="outline" className="h-auto min-h-11 w-full whitespace-normal" aria-expanded={false} aria-controls="additional-service-catalog" onClick={() => setIsAddingService(true)} disabled={servicesLoading}>
@@ -815,7 +815,7 @@ export function BookingFlow({ initialSalon, locale = "fr" }: BookingFlowProps) {
             {/* Price */}
             <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-sm font-semibold sm:text-lg">{t(locale, "booking.price")}</span>
-              <span className="text-xl font-bold text-primary sm:text-2xl">{currentService ? (currentService.price_cents / 100).toFixed(2) : '0.00'}€</span>
+              <span className="text-xl font-bold text-primary sm:text-2xl">{currentService ? ((currentService.price_cents || 0) / 100).toFixed(2) : '0.00'}€</span>
             </div>
           </div>
 

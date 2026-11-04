@@ -1092,12 +1092,12 @@ export default function SalonDashboardPage() {
                       Service
                     </h4>
                     <div className="text-sm space-y-1">
-                      <p className="font-medium">{selectedSlot.service?.name}</p>
+                      <p className="font-medium">{selectedSlot.service?.name || "Prestation"}</p>
                       <p className="text-muted-foreground">
-                        ⏱️ {selectedSlot.service?.duration_minutes} minutes
+                        ⏱️ {selectedSlot.service?.duration_minutes ?? Math.round((new Date(selectedSlot.end_time).getTime() - new Date(selectedSlot.start_time).getTime()) / 60000)} minutes
                       </p>
                       <p className="text-muted-foreground">
-                        💶 {(selectedSlot.service?.price_cents / 100)?.toFixed(2)}€
+                        💶 {typeof selectedSlot.service?.price_cents === "number" ? `${(selectedSlot.service.price_cents / 100).toFixed(2)}€` : "Prix non renseigné"}
                       </p>
                     </div>
                   </div>

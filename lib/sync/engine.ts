@@ -496,6 +496,19 @@ async function reconcile(
       const clientId = booking.customer ? await findOrCreateClient(booking.customer) : null
       const serviceId = booking.serviceIds.map((id) => mapping.externalToService.get(id)).find(Boolean) || null
       const customerNote = booking.customer && !clientId ? ` — client : ${booking.customer.name}` : ""
+      // No mapped local service: keep the platform's own prestation and price visible
+      // in the agenda through a display snapshot (its id is the external one, so the
+      // booking stays non-reschedulable until a real prestation is set on its card).
+      const durationMinutes = Math.round((Date.parse(booking.end) - Date.parse(booking.start)) / 60_000)
+      const serviceItems = !serviceId && booking.priceCents > 0 && durationMinutes > 0
+        ? [{
+            id: booking.serviceIds[0] || booking.externalId,
+            name: booking.serviceNames.join(" + ") || "Prestation",
+            duration_minutes: durationMinutes,
+            price_cents: Math.round(booking.priceCents),
+            required_staff_count: staffIds.length || 1,
+          }]
+        : null
       const { data: appointment, error } = await supabase
         .from("appointments")
         .insert({
@@ -503,13 +516,14 @@ async function reconcile(
           client_id: clientId,
           staff_id: staffIds[0],
           service_id: serviceId,
+          ...(serviceItems ? { service_items: serviceItems } : {}),
           start_time: booking.start,
           end_time: booking.end,
           status: "confirmed",
           payment_status: "unpaid",
           payment_method: platform === "treatwell" ? "treatwell" : "on_site",
           amount_paid_cents: 0,
-          internal_notes: `Réservé sur ${label} : ${booking.serviceNames.join(" + ")} (${(booking.priceCents / 100).toFixed(2)} €)${customerNote}`,
+          internal_notes: `Réservé sur ${label} : ${booking.serviceNames.join(" + ")} (${booking.priceCents > 0 ? `${(booking.priceCents / 100).toFixed(2)} €` : "prix non communiqué"})${customerNote}`,
           source: platform,
         })
         .select("id")
@@ -533,6 +547,7 @@ async function reconcile(
 
   // One line per masseuse rather than per booking: it is a mapping to fix once.
   const withoutColumn = new Map<string, number>()
+  const withoutVenue = new Map<string, number>()
   for (const local of unlinkedLocals()) {
     if (local.source === platform || local.status === "cancelled" || local.status === "no_show" || Date.parse(local.end_time) < now) continue
     const venue = mapping.venueBySalon.get(local.salon_id)
@@ -583,7 +598,10 @@ async function reconcile(
           serviceId: mappedService,
           // A booking pulled from the other platform may have neither a site service nor a client
           // card; its import note ("Réservé sur Treatwell : <prestation> (<prix>) — client : <nom>") says it all.
-          title: !local.service_items?.length && !local.service && local.internal_notes ? local.internal_notes.slice(0, 160) : localServiceName(local),
+          // With both an imported prestation snapshot and a client card, the clean prestation name is enough.
+          title: !local.service && local.internal_notes && (!local.client_id || !local.service_items?.length)
+            ? local.internal_notes.slice(0, 160)
+            : localServiceName(local),
           priceCents,
           customer: local.client
             ? { firstName: local.client.first_name || "", lastName: local.client.last_name || "", phone: local.client.phone, email: local.client.email }
@@ -597,6 +615,25 @@ async function reconcile(
     })
   }
 
+  // Salons with no platform venue are outside `locals`; count what they would have sent so the gap is visible.
+  const unmappedSalonIds = [...mapping.names.salons.keys()].filter((id) => !mapping.venueBySalon.has(id))
+  if (unmappedSalonIds.length) {
+    const { data: pending } = await supabase
+      .from("appointments")
+      .select("salon_id")
+      .in("salon_id", unmappedSalonIds)
+      .gte("start_time", new Date(now).toISOString())
+      .lte("start_time", windowEnd)
+      .in("status", ACTIVE_LOCAL)
+      .neq("source", platform)
+    for (const row of (pending || []) as { salon_id: string }[]) {
+      const key = mapping.names.salons.get(row.salon_id) || row.salon_id
+      withoutVenue.set(key, (withoutVenue.get(key) || 0) + 1)
+    }
+  }
+  for (const [salon, count] of withoutVenue) {
+    report.warnings.push(`${salon} — ${count} rendez-vous non envoyé${count > 1 ? "s" : ""} : aucun établissement ${label} associé à ce salon (même nom dans ${label}, ou ligne salon dans platform_mappings)`)
+  }
   for (const [who, count] of withoutColumn) {
     report.warnings.push(`${who} — ${count} rendez-vous non envoyé${count > 1 ? "s" : ""} : aucune colonne ${label} associée (même prénom dans ${label}, ou ligne dans platform_mappings)`)
   }

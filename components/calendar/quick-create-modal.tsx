@@ -16,7 +16,7 @@ import { useStaff } from "@/lib/hooks/use-staff"
 import { useCreateAppointment } from "@/lib/hooks/use-create-appointment"
 import { useClientSearch } from "@/lib/hooks/use-client-search"
 import { APIError, fetchAPI } from "@/lib/api/client"
-import { canUseClientPackStatus } from "@/lib/packs"
+import { canUseClientPackStatus, formatClientPackCode } from "@/lib/packs"
 import {
   findOverlappingAppointment,
   canStaffTakeBookings,
@@ -156,6 +156,7 @@ function QuickCreateSession({
   const schedule = useAppointmentSchedule({
     salonId, serviceId: form.service_id, date: format(selectedDate, "yyyy-MM-dd"),
     requiredStaff: selectedServiceRequiredStaffCount, durationMinutes: selectedService?.duration_minutes || 0,
+    includePast: true,
   }, mode === "appointment" && isOpen, prefillData?.staffId)
 
   const selectedStart = useMemo(() => {
@@ -324,14 +325,7 @@ function QuickCreateSession({
       toast.error(conflict ? "Ce blocage chevauche un rendez-vous existant." : "Complétez le soin, le créneau, l’équipe et les informations client.")
       return
     }
-    if (selectedStart.getTime() < Date.now()) {
-      toast.error("Choisissez un créneau à venir.")
-      if (mode === "appointment") {
-        schedule.clear("Ce créneau est passé. Choisissez un nouvel horaire.")
-        void schedule.refresh()
-      }
-      return
-    }
+    // Staff may record an appointment on a slot that already passed (walk-in logged late).
     submitting.current = true
     setIsSaving(true)
     try {
@@ -435,7 +429,7 @@ function QuickCreateSession({
                 onValueChange={value => setForm(current => ({ ...current, service_id: value, client_pack_id: "" }))}>
                 <SelectTrigger id="quick-service"><SelectValue placeholder={servicesLoading ? "Chargement des soins…" : "Choisir un soin"} /></SelectTrigger>
                 <SelectContent>{services?.map(service => <SelectItem key={service.id} value={service.id}>
-                  {service.name} · {service.duration_minutes} min · {service.price_cents / 100} €
+                  {service.name} · {service.duration_minutes} min · {typeof service.price_cents === "number" ? `${(service.price_cents / 100).toFixed(2)} €` : "Prix non renseigné"}
                 </SelectItem>)}</SelectContent>
               </Select>
               {selectedService && <p className="text-xs text-muted-foreground">{selectedServiceRequiredStaffCount === 1 ? "Une masseuse" : `${selectedServiceRequiredStaffCount} masseuses`} pendant {selectedService.duration_minutes} minutes. Les créneaux tiennent compte de toute la durée.</p>}
@@ -568,7 +562,7 @@ function QuickCreateSession({
                       <SelectContent>
                         {eligibleClientPacks.map((clientPack) => (
                           <SelectItem key={clientPack.id} value={clientPack.id}>
-                            {clientPack.pack?.name || "Forfait"} - {clientPack.remaining_sessions}/{clientPack.total_sessions} séance(s)
+                            {formatClientPackCode(clientPack.id)} · {clientPack.pack?.name || "Forfait"} - {clientPack.remaining_sessions}/{clientPack.total_sessions} séance(s)
                           </SelectItem>
                         ))}
                       </SelectContent>

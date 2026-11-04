@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   eslint: { ignoreDuringBuilds: true },
+  // pdfmake reads its font bytes at runtime; bundling it breaks that.
+  serverExternalPackages: ["pdfmake"],
   images: {
     remotePatterns: [
       {

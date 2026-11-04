@@ -12,7 +12,7 @@ import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
 import { ensureClientAuthUser } from "@/lib/client-auth"
 import { sendPackReadyEmail } from "@/lib/email/packs"
 import { sendPackPaymentFailedAdminEmail } from "@/lib/email/pack-alerts"
-import { getPackPaymentStatus } from "@/lib/packs"
+import { formatClientPackCode, getPackPaymentStatus } from "@/lib/packs"
 import { getInvoiceSubscriptionId, getPaidPackInvoices, protectPackSubscription, reconcilePackBilling } from "@/lib/stripe-pack-billing"
 
 const GiftCardPayloadSchema = z.object({
@@ -302,6 +302,7 @@ async function handlePackCheckout(
     await sendPackReadyEmail({
       to: payload.customer_email,
       packName: pack.name,
+      packCode: formatClientPackCode(clientPack.id),
       totalSessions: pack.number_of_sessions,
       purchaseDate: clientPack.purchase_date,
       price: Number(pack.price),

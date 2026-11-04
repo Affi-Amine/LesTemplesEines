@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
 import { useTranslations } from "@/lib/i18n/use-translations"
@@ -16,9 +17,7 @@ export function Navbar() {
     <nav className="fixed top-0 w-full z-50 bg-background/72 backdrop-blur-xl border-b border-primary/15 shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
       <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
         <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-9 h-9 bg-gradient-to-br from-primary via-primary to-primary/70 rounded-lg flex items-center justify-center shadow-[0_0_24px_rgba(214,171,89,0.22)]">
-            <span className="text-primary-foreground font-bold text-lg">✦</span>
-          </div>
+          <Image src="/logo-les-temples.png" alt="Les Temples Thaïlande" width={44} height={74} className="h-12 w-auto" priority />
           <div className="flex flex-col">
             <span className="text-lg font-semibold text-foreground tracking-tight group-hover:text-primary">Les Temples</span>
             <span className="text-xs text-primary/80">Bien-être thaïlandais</span>

@@ -3,7 +3,7 @@ import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { ensureClientAuthUser, findClientByEmail, findClientByPhone } from "@/lib/client-auth"
 import { sendPackReadyEmail } from "@/lib/email/packs"
 import { sendCounterSaleAdminEmail } from "@/lib/email/sale-notifications"
-import { getPackPaymentStatus } from "@/lib/packs"
+import { formatClientPackCode, getPackPaymentStatus } from "@/lib/packs"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -294,6 +294,7 @@ export async function POST(request: NextRequest) {
         await sendPackReadyEmail({
           to: normalizedEmail,
           packName: pack.name,
+          packCode: formatClientPackCode(clientPack.id),
           totalSessions: pack.number_of_sessions,
           purchaseDate: clientPack.purchase_date,
           price: Number(pack.price),

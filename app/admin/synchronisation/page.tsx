@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, CheckCircle2, Clock3, KeyRound, LogOut, Play, RefreshCw, Trash2, Upload, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Clock3, ExternalLink, KeyRound, LogOut, Play, RefreshCw, Trash2, Upload, XCircle } from "lucide-react"
 import { toast } from "sonner"
 
 import { AdminHeader } from "@/components/admin-header"
@@ -135,6 +135,8 @@ function PlatformCard({ platform, status, disabled }: { platform: Platform; stat
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [sessionInput, setSessionInput] = useState("")
+  const [connectOpen, setConnectOpen] = useState(false)
+  const [connectInput, setConnectInput] = useState("")
   const [test, setTest] = useState<ConnectionTest | null>(null)
   const refresh = () => queryClient.invalidateQueries({ queryKey: STATUS_QUERY })
 
@@ -165,11 +167,17 @@ function PlatformCard({ platform, status, disabled }: { platform: Platform; stat
     await fetchAPI("/admin/platform-sync/session", { method: "POST", body: JSON.stringify({ platform }) })
     toast.success(`Nouvelle session ${LABELS[platform]} enregistrée`)
   })
-  const importSession = () => act("import", async () => {
-    const result = await fetchAPI<{ venues: string[] }>("/admin/platform-sync/session", { method: "POST", body: JSON.stringify({ platform, input: sessionInput }) })
+  const importSession = (input: string, onSuccess?: () => void) => act("import", async () => {
+    const result = await fetchAPI<{ venues: string[] }>("/admin/platform-sync/session", { method: "POST", body: JSON.stringify({ platform, input }) })
     setSessionInput("")
+    setConnectInput("")
+    onSuccess?.()
     toast.success(`Session Treatwell enregistrée · ${result.venues.join(", ") || "aucun établissement"}`)
   })
+  const openConnectWizard = () => {
+    window.open("https://connect.treatwell.fr/login", "_blank", "noopener")
+    setConnectOpen(true)
+  }
   const forgetSession = () => act("forget-session", async () => {
     if (!window.confirm(`Oublier la session ${LABELS[platform]} ? La prochaine exécution devra se reconnecter${platform === "treatwell" ? " : une nouvelle session devra être importée" : ""}.`)) return
     await fetchAPI("/admin/platform-sync/session", { method: "DELETE", body: JSON.stringify({ platform }) })
@@ -247,25 +255,68 @@ function PlatformCard({ platform, status, disabled }: { platform: Platform; stat
       )}
 
       {platform === "treatwell" && (
-        <form className="mt-4 space-y-3 rounded-lg border p-3" onSubmit={(event) => { event.preventDefault(); importSession() }}>
-          <div>
-            <Label htmlFor="treatwell-session">Session Treatwell</Label>
+        <div className="mt-4 space-y-3 rounded-lg border p-3">
+          <Button type="button" disabled={disabled || busy !== null} onClick={openConnectWizard}>
+            <ExternalLink className="mr-2 h-4 w-4" />Connecter Treatwell
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Treatwell Connect impose une vérification humaine à la connexion (et un navigateur ne peut pas lire les cookies d'un autre site) : la session se récupère donc depuis votre propre navigateur, en trois étapes guidées. Elle est vérifiée avant d'être conservée et dure environ trois mois avec « Rester connecté ».
+          </p>
+          <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); importSession(sessionInput) }}>
+            <Label htmlFor="treatwell-session">Ou collez directement la session</Label>
             <Textarea
               id="treatwell-session"
               value={sessionInput}
               onChange={(e) => setSessionInput(e.target.value)}
               rows={3}
               className="mt-1 font-mono text-xs"
-              placeholder="Collez le contenu de .sync/treatwell-session.enc, ou l'en-tête Cookie d'une requête vers connect.treatwell.fr (ATKT=… ; ITKT=… ; extranet.currentVenueId=…)"
+              placeholder="Commande « Copier en tant que cURL », en-tête Cookie (ATKT=… ; ITKT=…), export HAR, ou contenu de .sync/treatwell-session.enc"
             />
-          </div>
-          <Button type="submit" disabled={disabled || !sessionInput.trim() || busy !== null}>
-            <Upload className="mr-2 h-4 w-4" />{busy === "import" ? "Vérification…" : "Importer la session"}
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            Treatwell Connect impose une vérification humaine à la connexion : la session vient toujours d'un navigateur. Connectez-vous avec « Rester connecté » (session d'environ trois mois), puis collez ici la session produite par <code>npm run sync:login -- treatwell</code> ou l'en-tête Cookie copié depuis les outils de développement. Elle est vérifiée avant d'être conservée.
-          </p>
-        </form>
+            <Button type="submit" variant="outline" disabled={disabled || !sessionInput.trim() || busy !== null}>
+              <Upload className="mr-2 h-4 w-4" />{busy === "import" ? "Vérification…" : "Importer la session"}
+            </Button>
+          </form>
+        </div>
+      )}
+
+      {platform === "treatwell" && (
+        <Dialog open={connectOpen} onOpenChange={setConnectOpen}>
+          <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Connecter Treatwell</DialogTitle>
+              <DialogDescription>
+                Treatwell vérifie qu'un humain se connecte : connectez-vous dans l'onglet qui vient de s'ouvrir, puis rapportez la session ici.
+              </DialogDescription>
+            </DialogHeader>
+            <ol className="list-decimal space-y-3 pl-5 text-sm">
+              <li>
+                Dans l'onglet Treatwell qui vient de s'ouvrir, connectez-vous en cochant <strong>« Rester connecté »</strong> (validez la vérification Cloudflare si elle apparaît).
+                {" "}
+                <button type="button" className="text-primary underline" onClick={() => window.open("https://connect.treatwell.fr/login", "_blank", "noopener")}>Rouvrir l'onglet</button>
+              </li>
+              <li>
+                Une fois l'agenda affiché : ouvrez les outils de développement (<strong>F12</strong>), onglet <strong>Réseau</strong> (Network), rechargez la page (<strong>F5</strong>), puis clic droit sur la première ligne « connect.treatwell.fr » → <strong>Copier</strong> → <strong>Copier en tant que cURL</strong>.
+              </li>
+              <li>Collez ci-dessous : la session est vérifiée immédiatement auprès de Treatwell avant d'être conservée (chiffrée).</li>
+            </ol>
+            <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); importSession(connectInput, () => setConnectOpen(false)) }}>
+              <Textarea
+                value={connectInput}
+                onChange={(e) => setConnectInput(e.target.value)}
+                rows={5}
+                className="font-mono text-xs"
+                placeholder={`curl 'https://connect.treatwell.fr/…' -H 'cookie: ATKT=…; ITKT=…' …`}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setConnectOpen(false)}>Annuler</Button>
+                <Button type="submit" disabled={!connectInput.trim() || busy !== null}>
+                  {busy === "import" ? "Vérification…" : "Vérifier et connecter"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">

@@ -8,7 +8,9 @@ import type { TreatwellSession } from "@/lib/sync/treatwell"
 //     (.sync/treatwell-session.enc, "v1:…");
 //   - the session JSON itself ({ cookies: [...] });
 //   - the `Cookie:` request header copied from the browser's network panel
-//     ("ATKT=…; ITKT=…; extranet.currentVenueId=…").
+//     ("ATKT=…; ITKT=…; extranet.currentVenueId=…");
+//   - a request copied as cURL from the network panel (bash or cmd variant);
+//   - a HAR export of the network panel (JSON with log.entries).
 
 const AUTH_COOKIES = /(ATKT|ITKT)$/
 /** "Rester connecté" cookies last about three months; a header copy carries no expiry, so assume that. */
@@ -16,16 +18,30 @@ const HEADER_COOKIE_DAYS = 90
 
 export function parseTreatwellSessionInput(raw: string, userAgent?: string): TreatwellSession {
   const text = raw.trim()
-  if (!text) throw new Error("Collez la session Treatwell (fichier .enc, JSON ou en-tête Cookie)")
+  if (!text) throw new Error("Collez la session Treatwell (commande cURL, en-tête Cookie, fichier .enc, HAR ou JSON)")
 
   if (text.startsWith("v1:")) return normalise(open<TreatwellSession>(text))
 
+  if (/^curl[\s(^"']/i.test(text)) {
+    const curl = fromCurl(text)
+    if (!curl) throw new Error("La commande cURL collée ne contient pas d'en-tête Cookie : copiez une requête faite après la connexion (clic droit → Copier → Copier en tant que cURL)")
+    return fromCookieHeader(curl.cookieHeader, curl.userAgent || userAgent)
+  }
+
   if (text.startsWith("{")) {
-    const parsed = JSON.parse(text) as Partial<TreatwellSession>
+    const parsed = JSON.parse(text) as { log?: { entries?: unknown[] } } & Partial<TreatwellSession>
+    if (Array.isArray(parsed.log?.entries)) {
+      const har = fromHar(parsed.log.entries)
+      if (!har) throw new Error("Aucune requête vers connect.treatwell.fr avec des cookies de connexion dans ce fichier HAR : exportez-le depuis l'onglet Réseau après la connexion")
+      return fromCookieHeader(har.cookieHeader, har.userAgent || userAgent)
+    }
     return normalise(parsed as TreatwellSession)
   }
 
-  const header = text.replace(/^cookie:\s*/i, "")
+  return fromCookieHeader(text.replace(/^cookie:\s*/i, ""), userAgent)
+}
+
+function fromCookieHeader(header: string, userAgent?: string): TreatwellSession {
   const expires = Date.now() / 1000 + HEADER_COOKIE_DAYS * 86_400
   const cookies = header
     .split(";")
@@ -37,6 +53,31 @@ export function parseTreatwellSessionInput(raw: string, userAgent?: string): Tre
       return { name: pair.slice(0, index).trim(), value: pair.slice(index + 1).trim(), domain: ".treatwell.fr", path: "/", expires }
     })
   return normalise({ cookies, userAgent, savedAt: new Date().toISOString() })
+}
+
+/** Cookie and User-Agent headers of a request copied as cURL (bash, cmd or PowerShell copy). */
+function fromCurl(text: string): { cookieHeader: string; userAgent?: string } | null {
+  const flat = text
+    .replace(/\^\r?\n/g, " ") // cmd line continuations
+    .replace(/\\\r?\n/g, " ") // bash line continuations
+    .replace(/\^(["<>|&%^])/g, "$1") // cmd caret escapes
+    .replace(/\\(["'])/g, "$1") // quoted quotes inside $'…' strings
+  const header = (name: string) => new RegExp(`["'\`]${name}:\\s*([^"'\`]+)["'\`]`, "i").exec(flat)?.[1]?.trim()
+  const cookieHeader = header("cookie") || /(?:^|\s)(?:-b|--cookie)\s+["']([^"']+)["']/.exec(flat)?.[1]?.trim()
+  if (!cookieHeader) return null
+  return { cookieHeader, userAgent: header("user-agent") }
+}
+
+/** The best Cookie header among a HAR's requests to Treatwell: one carrying the login cookies. */
+function fromHar(entries: unknown[]): { cookieHeader: string; userAgent?: string } | null {
+  for (const entry of entries as { request?: { url?: string; headers?: { name: string; value: string }[] } }[]) {
+    const request = entry?.request
+    if (!request?.url || !/treatwell/i.test(request.url) || !Array.isArray(request.headers)) continue
+    const header = (name: string) => request.headers!.find((h) => h?.name?.toLowerCase() === name)?.value
+    const cookieHeader = header("cookie")
+    if (cookieHeader && /(ATKT|ITKT)=/.test(cookieHeader)) return { cookieHeader, userAgent: header("user-agent") }
+  }
+  return null
 }
 
 function normalise(session: TreatwellSession): TreatwellSession {

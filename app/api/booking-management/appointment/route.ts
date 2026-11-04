@@ -3,6 +3,7 @@ import { z } from "zod"
 import { loadManagedAppointment, managedAppointmentView, managedSlots, ManagementError, MANAGEMENT_COOKIE } from "@/lib/appointments/management"
 import { limitManagementRequests, managementBody, managementFailure, managementJSON } from "@/lib/appointments/management-http"
 import { sendAppointmentClientChangedNotifications } from "@/lib/email/appointment-management"
+import { syncAfterBookingChange } from "@/lib/sync/trigger"
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,6 +38,7 @@ export async function PATCH(request: NextRequest) {
       throw new ManagementError(status === 503 ? "La gestion du rendez-vous est momentanément indisponible. Contactez le salon." : result.error.code === "40P01" ? "Le planning est en cours de mise à jour. Réessayez ; votre rendez-vous est conservé." : result.error.message, status)
     }
     const updated = await loadManagedAppointment(token, payload.appointment_id)
+    if (!result.data?.replayed) syncAfterBookingChange(`client-${payload.action}`, session.appointment.start_time, updated.appointment.start_time)
     if (!result.data?.replayed) after(async () => {
       let notificationStatus = "sent"
       try { await sendAppointmentClientChangedNotifications(updated.appointment, payload.action, session.appointment.start_time) }

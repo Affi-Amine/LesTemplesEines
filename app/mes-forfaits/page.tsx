@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { fetchAPI } from "@/lib/api/client"
 import { createClient } from "@/lib/supabase/client"
 import type { ClientPack } from "@/lib/types/database"
-import { canUseClientPackStatus } from "@/lib/packs"
+import { canUseClientPackStatus, formatClientPackCode } from "@/lib/packs"
 
 function getClientPackPaymentStatusLabel(status: ClientPack["payment_status"]) {
   switch (status) {
@@ -78,8 +78,14 @@ export default function MesForfaitsPage() {
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="min-w-0">
                       <h2 className="text-xl font-semibold break-words">{clientPack.pack?.name || "Forfait"}</h2>
+                      <p className="mt-1 inline-flex items-center rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-sm font-semibold text-primary">
+                        {formatClientPackCode(clientPack.id)}
+                      </p>
                       <p className="text-sm text-muted-foreground mt-1">
                         Acheté le {new Date(clientPack.purchase_date).toLocaleDateString("fr-FR")}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Présentez ce code en salon pour utiliser votre forfait.
                       </p>
                       <p className="text-lg font-semibold mt-3">
                         Restant : {clientPack.remaining_sessions} / {clientPack.total_sessions}

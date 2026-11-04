@@ -8,8 +8,9 @@ import {
 } from "@/lib/appointments/create"
 import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { findClientByPhone } from "@/lib/client-auth"
-import { requireStaffAuth } from "@/lib/auth/api-auth"
+import { getStaffAuth, requireStaffAuth } from "@/lib/auth/api-auth"
 import { isUUID, resolveSalonGroup } from "@/lib/salons/resolve"
+import { syncAfterBookingChange } from "@/lib/sync/trigger"
 import { after, type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { fromZonedTime } from "date-fns-tz"
@@ -155,6 +156,9 @@ export async function POST(request: NextRequest) {
     })
 
     const supabase = await createAdminClient()
+    // A logged-in staff member may record an appointment whose time already passed
+    // (walk-in logged after the fact); public bookings stay future-only.
+    const isStaffRequest = Boolean(getStaffAuth(request))
 
     if (appointmentData.status !== "blocked") {
       const createStartedAt = Date.now()
@@ -179,6 +183,7 @@ export async function POST(request: NextRequest) {
         client_pack_id: appointmentData.client_pack_id,
       }, {
         requestId,
+        allowPastStart: isStaffRequest,
       })
       console.log("[appointments] createBookableAppointment completed", {
         requestId,
@@ -189,6 +194,7 @@ export async function POST(request: NextRequest) {
       scheduleAppointmentNotifications(appointment, "bookable", {
         bookingSource: appointmentData.booking_source || "client",
       })
+      syncAfterBookingChange(`${appointmentData.booking_source || "client"}-create`, appointment.start_time)
       console.log("[appointments] POST success", {
         requestId,
         appointmentId: appointment.id,
@@ -247,7 +253,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Client ID is required" }, { status: 400 })
     }
 
-    assertAppointmentStartIsNotInPast(appointmentData.start_time)
+    if (!isStaffRequest) assertAppointmentStartIsNotInPast(appointmentData.start_time)
 
     // Calculate end_time if not provided
     let endTime = appointmentData.end_time
@@ -419,6 +425,7 @@ export async function POST(request: NextRequest) {
       scheduleAppointmentNotifications(appointment, "legacy", {
         bookingSource: appointmentData.booking_source || "client",
       })
+      syncAfterBookingChange(`${appointmentData.booking_source || "client"}-create`, appointment.start_time)
     }
     console.log("[appointments] POST success", {
       requestId,

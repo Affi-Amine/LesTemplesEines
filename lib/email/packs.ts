@@ -6,6 +6,7 @@ import { formatEuroAmount } from "@/lib/packs"
 export async function sendPackReadyEmail(params: {
   to: string
   packName: string
+  packCode?: string
   totalSessions: number
   purchaseDate: string
   appOrigin?: string
@@ -23,6 +24,7 @@ export async function sendPackReadyEmail(params: {
         <p>Votre achat a bien été confirmé.</p>
         <div style="background: #f8f5ee; padding: 16px; border-radius: 10px; margin: 20px 0;">
           <p style="margin: 0 0 8px 0;"><strong>${params.packName}</strong></p>
+          ${params.packCode ? `<p style="margin: 0 0 8px 0;">Code du forfait : <strong style="font-family: monospace; letter-spacing: 1px;">${params.packCode}</strong></p>` : ""}
           <p style="margin: 0;">${params.totalSessions} séance(s)</p>
           <p style="margin: 6px 0 0 0;">Montant: ${formatEuroAmount(params.price)}</p>
           ${params.paymentMethod ? `<p style="margin: 6px 0 0 0;">Paiement: ${getPaymentMethodLabel(params.paymentMethod)}</p>` : ""}

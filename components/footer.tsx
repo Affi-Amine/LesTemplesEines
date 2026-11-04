@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { Facebook, Instagram, Twitter, Mail, Phone } from "lucide-react"
 import { useSalons } from "@/lib/hooks/use-salons"
 
@@ -15,6 +16,7 @@ export function Footer() {
         <div className="grid md:grid-cols-4 gap-8 mb-8">
           {/* Brand */}
           <div>
+            <Image src="/logo-les-temples.png" alt="Les Temples Thaïlande" width={72} height={120} className="mb-4 h-24 w-auto" />
             <h3 className="text-lg font-bold text-primary mb-4">Les Temples</h3>
             <p className="text-sm text-muted-foreground">Maisons de massage inspirées de la Thaïlande, au style sobre et raffiné.</p>
             <div className="flex gap-4 mt-4">

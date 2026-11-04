@@ -107,6 +107,7 @@ export default function AppointmentsPage() {
   const schedule = useAppointmentSchedule({
     salonId: form.salon_id, serviceId: form.service_id, date: form.date,
     requiredStaff: selectedServiceRequiredStaffCount, durationMinutes: selectedService?.duration_minutes || 0,
+    includePast: true,
   }, isDialogOpen)
   const editSelectedService = editServices?.find((service) => service.id === editForm.service_id)
   const editSelectedServiceRequiredStaffCount = editSelectedService?.required_staff_count || Math.max(editForm.staff_ids.length, 1)

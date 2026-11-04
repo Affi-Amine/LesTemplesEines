@@ -60,3 +60,12 @@ export function getPackPaymentStatus(installmentCount: number, paidInstallments:
 export function canUseClientPackStatus(status: string) {
   return status === "active" || status === "paid" || status === "partially_paid"
 }
+
+/**
+ * Short, human-readable reference for a sold pack (e.g. "FORF-6A8B12FE"),
+ * derived from the client pack id so it is stable and needs no migration.
+ * The client gives this code at the desk; staff match it on the pack card.
+ */
+export function formatClientPackCode(clientPackId: string) {
+  return `FORF-${clientPackId.replace(/-/g, "").slice(0, 8).toUpperCase()}`
+}

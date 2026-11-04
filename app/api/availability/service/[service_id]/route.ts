@@ -5,6 +5,7 @@ import {
   resolveStaffIdsThatCanProvideService,
 } from "@/lib/appointments/create"
 import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
+import { getStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes, format, areIntervalsOverlapping } from "date-fns"
 import { fromZonedTime } from "date-fns-tz"
@@ -39,6 +40,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const dateParam = request.nextUrl.searchParams.get("date") // YYYY-MM-DD
     const salonId = request.nextUrl.searchParams.get("salon_id")
     const staffIdsParam = request.nextUrl.searchParams.get("staff_ids") // Comma separated IDs
+    // Staff may list today's already-passed slots (to record walk-ins after the fact).
+    const includePast = request.nextUrl.searchParams.get("include_past") === "1" && Boolean(getStaffAuth(request))
 
     if (!dateParam) {
       return NextResponse.json({ error: "Date parameter is required" }, { status: 400 })
@@ -262,7 +265,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const now = new Date()
 
     let currentTime = dayStart
-    if (isTodayInParis && currentTime < now) {
+    if (!includePast && isTodayInParis && currentTime < now) {
       currentTime = ceilToNextQuarter(now)
     }
     // Step by 15 minutes (or 30?)

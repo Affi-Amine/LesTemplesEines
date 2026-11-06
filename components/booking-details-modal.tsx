@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { AppointmentPaymentBadge } from "@/components/appointment-payment-badge"
 import { AppointmentProgressActions } from "@/components/appointment-progress-actions"
+import { ClientDetailsModal } from "@/components/client-details-modal"
 import { getAppointmentColor, getStatusLabel } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -43,6 +44,7 @@ interface BookingDetailsModalProps {
     staff_id?: string
     assignments?: any[]
     client?: {
+      id?: string
       first_name: string
       last_name: string
       phone?: string
@@ -77,6 +79,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
   const [liveStatus, setLiveStatus] = useState<string | null>(null)
   useEffect(() => { setLiveStatus(null) }, [appointment?.id, appointment?.status])
   const [isEditMode, setIsEditMode] = useState(false)
+  const [clientFileOpen, setClientFileOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [editError, setEditError] = useState("")
   const saving = useRef(false)
@@ -468,6 +471,16 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
                       <span className="min-w-0 break-all">{appointment.client.email}</span>
                     </div>
                   )}
+                  {appointment.client.phone && (
+                    <a href={`tel:${appointment.client.phone}`} className="inline-flex h-10 items-center gap-2 text-sm font-medium text-primary hover:underline">
+                      <Phone className="h-4 w-4" />Appeler
+                    </a>
+                  )}
+                  {appointment.client.id && (
+                    <Button type="button" variant="outline" className="w-full" onClick={() => setClientFileOpen(true)}>
+                      <User className="mr-2 h-4 w-4" />Fiche client et historique
+                    </Button>
+                  )}
                 </div>
               </div>
             </>
@@ -574,6 +587,14 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
         </div>
         )}
       </DialogContent>
+      {appointment.client?.id && (
+        <ClientDetailsModal
+          open={clientFileOpen}
+          onOpenChange={setClientFileOpen}
+          client={appointment.client}
+          showHistory
+        />
+      )}
     </Dialog>
   )
 }

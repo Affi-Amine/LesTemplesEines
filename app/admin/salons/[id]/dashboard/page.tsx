@@ -41,6 +41,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { DndContext, MouseSensor, TouchSensor, useSensors, useSensor, DragOverlay } from "@dnd-kit/core"
 import { BlockedSlotDialog, DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
+import { ClientDetailsModal } from "@/components/client-details-modal"
 import {
   findOverlappingAppointment,
   canStaffTakeBookings,
@@ -97,6 +98,7 @@ export default function SalonDashboardPage() {
     )
   }
   const [selectedSlot, setSelectedSlot] = useState<any>(null)
+  const [clientFileOpen, setClientFileOpen] = useState(false)
   const [isValidationOpen, setIsValidationOpen] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isEditingAppointment, setIsEditingAppointment] = useState(false)
@@ -1082,6 +1084,11 @@ export default function SalonDashboardPage() {
                     {selectedSlot.client?.phone && <p className="text-muted-foreground">📞 {selectedSlot.client.phone}</p>}
                     {selectedSlot.client?.email && <p className="break-all text-muted-foreground">✉️ {selectedSlot.client.email}</p>}
                   </div>
+                  {selectedSlot.client?.id && (
+                    <Button type="button" variant="outline" className="w-full" onClick={() => setClientFileOpen(true)}>
+                      <User className="mr-2 h-4 w-4" />Fiche client et historique
+                    </Button>
+                  )}
                 </div>
 
                 {/* Service & Timing */}
@@ -1374,6 +1381,15 @@ export default function SalonDashboardPage() {
           </div>
         ) : null}
       </DragOverlay>
+
+      {selectedSlot?.client?.id && (
+        <ClientDetailsModal
+          open={clientFileOpen}
+          onOpenChange={setClientFileOpen}
+          client={selectedSlot.client}
+          showHistory
+        />
+      )}
     </DndContext>
   )
 }

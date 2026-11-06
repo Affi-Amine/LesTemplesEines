@@ -4,10 +4,14 @@ import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 import { ClientProfileUpdateSchema, clientPhoneVariants } from "@/lib/clients/profile"
+import { presentAppointmentServices } from "@/lib/appointments/service-selection"
 
 interface RouteContext {
   params: Promise<{ id: string }>
 }
+
+/** Bookings shown on the client file, most recent first. */
+const HISTORY_LIMIT = 30
 
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
@@ -25,6 +29,24 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     if (!client) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 })
+    }
+
+    // The agenda opens the client file with its booking history; the clients list does not need it.
+    if (request.nextUrl.searchParams.get("history") === "1") {
+      const { data: appointments, error: historyError } = await supabase
+        .from("appointments")
+        .select(`id, start_time, end_time, status, payment_status, payment_method, amount_paid_cents, service_items,
+          service:services(id, name, duration_minutes, price_cents),
+          salon:salons(id, name),
+          staff:staff(id, first_name, last_name)`)
+        .eq("client_id", id)
+        .order("start_time", { ascending: false })
+        .limit(HISTORY_LIMIT)
+      if (historyError) throw historyError
+      return NextResponse.json(
+        { ...client, appointments: (appointments || []).map(presentAppointmentServices) },
+        { headers: { "Cache-Control": "private, no-store" } }
+      )
     }
 
     return NextResponse.json(client, { headers: { "Cache-Control": "private, no-store" } })

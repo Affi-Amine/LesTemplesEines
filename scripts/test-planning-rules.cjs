@@ -167,6 +167,28 @@ const block = { id: id(9), status: "blocked", salon_id: id(2), service_id: null,
   assert.equal(response.status, 404)
   console.log("PASS: the client of a booking can be corrected, except when a pack paid for it or the fiche is gone")
 
+  // Stretching a booking on the planning: the requested end wins over the catalogue duration.
+  ;({ response, calls } = await routeScenario({ existing: booking, body: { end_time: "2099-11-02T14:45:00.000Z" } }))
+  assert.equal(response.status, 200)
+  assert.equal(calls.validation.end_time, "2099-11-02T14:45:00.000Z")
+  assert.equal(calls.validation.start_time, booking.start_time, "stretching keeps the start where it is")
+  // Shortening is allowed too, down to a quarter of an hour.
+  ;({ response, calls } = await routeScenario({ existing: booking, body: { end_time: "2099-11-02T13:15:00.000Z" } }))
+  assert.equal(response.status, 200)
+  assert.equal(calls.validation.end_time, "2099-11-02T13:15:00.000Z")
+  // Below a quarter, or ending before it starts, is refused without touching anything.
+  for (const end of ["2099-11-02T13:10:00.000Z", "2099-11-02T12:00:00.000Z"]) {
+    ;({ response, calls } = await routeScenario({ existing: booking, body: { end_time: end } }))
+    assert.equal(response.status, 400)
+    assert.match(response.data.error, /15 minutes/)
+    assert.deepEqual([calls.rpc.length, calls.writes], [0, 0])
+  }
+  // An unchanged end is not a resize and must not re-run the slot checks.
+  ;({ response, calls } = await routeScenario({ existing: booking, body: { end_time: booking.end_time, client_notes: "RAS" } }))
+  assert.equal(response.status, 200)
+  assert.equal(calls.validation, null)
+  console.log("PASS: a booking can be stretched or shortened on the planning, never under a quarter of an hour")
+
   ;({ response, calls } = await routeScenario({ existing: block, body: { start_time: "2099-11-02T15:00:00.000Z", end_time: "2099-11-02T16:30:00.000Z", staff_ids: [id(6)], client_notes: "Formation" } }))
   assert.equal(response.status, 200)
   assert.equal(calls.validation, null)

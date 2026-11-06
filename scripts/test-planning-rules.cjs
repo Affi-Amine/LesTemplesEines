@@ -23,6 +23,8 @@ function load(file, stubs = {}, cache = new Map()) {
     exports: mod.exports, console, Date, Intl, URL,
     require(name) {
       if (stubs[name]) return stubs[name]
+      // The platform-sync side effects are fired through after(); they are not part of the planning rules.
+      if (name === "@/lib/sync/trigger") return { syncAfterBookingChange: () => {}, loadRemoteCopies: async () => [], cancelRemoteCopiesAfterDelete: () => {} }
       if (name.startsWith("@/")) return load(`${name.slice(2)}.ts`, stubs, cache)
       return require(name)
     },

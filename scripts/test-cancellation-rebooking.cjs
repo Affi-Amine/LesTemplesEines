@@ -100,6 +100,7 @@ function load(relative) {
       if (name === '@/lib/gift-cards') return { getBaseUrl: () => 'https://example.test' }
       if (name === '@/lib/auth/api-auth') return { requireStaffAuth: () => authDenied ? { response: { status: 401 } } : { payload: { role: 'admin' } } }
       if (name === '@/lib/client-auth') return { findClientByEmail() { throw new Error('Unexpected client lookup') }, findClientByPhone() { throw new Error('Unexpected client lookup') } }
+      if (name === '@/lib/sync/trigger') return { syncAfterBookingChange: () => {}, loadRemoteCopies: async () => [], cancelRemoteCopiesAfterDelete: () => {} }
       if (name === 'next/server') return { NextResponse: { json: (data, init) => ({ data, status: init?.status || 200 }) } }
       return name.startsWith('@/') ? load(name.slice(2) + '.ts') : require(name)
     },

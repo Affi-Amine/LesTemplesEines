@@ -37,6 +37,7 @@ async function scenario(status, body, conflict) {
       if (name === '@/lib/appointments/create') return { validateAppointmentScheduling: async () => { validations++; if (conflict) throw new Error('conflict'); return { endTime: '2026-11-02T11:00:00Z' } } };
       if (name === '@/lib/auth/api-auth') return { requireStaffAuth: () => ({ payload: { role: 'admin' } }) };
       if (name === 'next/server') return { NextResponse: { json: (data, init) => ({ data, status: init?.status || 200 }) } };
+      if (name === '@/lib/sync/trigger') return { syncAfterBookingChange: () => {}, loadRemoteCopies: async () => [], cancelRemoteCopiesAfterDelete: () => {} };
       return require(name);
     }
   });

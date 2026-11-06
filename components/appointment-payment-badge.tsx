@@ -22,10 +22,15 @@ export function AppointmentPaymentLegend() {
   return <div aria-label="Repères de paiement" className="space-y-2 text-xs">
     <div className="flex flex-wrap items-center gap-1.5">
     <span className="font-medium text-muted-foreground">Planning :</span>
-    <span className="appointment-tone appointment-tone-red rounded border px-2 py-1">À payer</span>
-    <span className="appointment-tone appointment-tone-green rounded border px-2 py-1">Payé</span>
+    <span className="appointment-tone appointment-tone-teal rounded border px-2 py-1">Couleur = prestation</span>
     <span className="appointment-tone appointment-tone-blue rounded border px-2 py-1">Effectué</span>
     <span className="appointment-tone appointment-tone-blocked rounded border px-2 py-1">Bloqué</span>
+    </div>
+    <div className="flex flex-wrap items-center gap-1.5">
+    <span className="font-medium text-muted-foreground">Bord gauche :</span>
+    <span className="appointment-tone appointment-tone-teal appointment-pay-unpaid rounded border border-l-[3px] px-2 py-1">À encaisser</span>
+    <span className="appointment-tone appointment-tone-teal appointment-pay-partial rounded border border-l-[3px] px-2 py-1">Supplément dû</span>
+    <span className="appointment-tone appointment-tone-teal appointment-pay-paid rounded border border-l-[3px] px-2 py-1">Réglé</span>
     </div>
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
       <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#8a5b12] bg-[#e7bc65] text-[9px] font-black text-[#382304]">L</span>Payé en ligne</span>

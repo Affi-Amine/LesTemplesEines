@@ -31,23 +31,38 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/utils.ts','utf8'), {
   compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020},
 }).outputText,{exports:utils,require})
 const colour = utils.getAppointmentColor
-assert.match(colour({status:'confirmed',payment_status:'paid'}), /bg-emerald-100/)
-for (const status of ['unpaid','pending','failed','partial',undefined]) {
-  assert.match(colour({status:'confirmed',payment_status:status}), /bg-rose-100/)
+// A booked card is coloured by its prestation; the payment moved to its left edge.
+const thai = { status: 'confirmed', service_id: 'thai-60' }
+const tone = value => value.match(/appointment-tone-(\w+)/)[1]
+assert.match(colour({ ...thai, payment_status: 'paid' }), /appointment-pay-paid/)
+assert.match(colour({ ...thai, payment_status: 'partial' }), /appointment-pay-partial/)
+for (const status of ['unpaid', 'pending', 'failed', undefined]) {
+  assert.match(colour({ ...thai, payment_status: status }), /appointment-pay-unpaid/)
 }
+// Same prestation, same tone whatever the payment or where its id sits.
+assert.equal(tone(colour({ ...thai, payment_status: 'paid' })), tone(colour({ ...thai, payment_status: 'unpaid' })))
+assert.equal(tone(colour({ status: 'confirmed', service: { id: 'thai-60' } })), tone(colour(thai)))
+assert.equal(tone(colour({ status: 'confirmed', service: { name: 'Massage' } })), utils.getServiceTone('Massage'))
+assert.ok(utils.SERVICE_TONES.includes(tone(colour(thai))))
+assert.notEqual(tone(colour(thai)), tone(colour({ status: 'confirmed', service_id: 'thai-90' })), 'two prestations are told apart')
+// A booking with no prestation at all must still render a known tone.
+assert.ok(utils.SERVICE_TONES.includes(tone(colour({ status: 'confirmed' }))))
+const spread = new Set(['thai-60', 'thai-90', 'gommage', 'reflexo', 'duo', 'sauna', 'hammam', 'dos']
+  .map(id => tone(colour({ status: 'confirmed', service_id: id }))))
+assert.ok(spread.size >= 4, `the palette spreads prestations across colours, got ${spread.size}`)
 for (const status of ['in_progress','completed','cancelled','no_show','blocked']) {
   assert.equal(colour({status,payment_status:'paid'}), utils.getStatusColor(status))
   assert.equal(colour({status,payment_status:'unpaid'}), utils.getStatusColor(status))
 }
 assert.equal(colour({status:'in_progress',payment_status:'paid'}), colour({status:'completed',payment_status:'paid'}))
 assert.match(colour({status:'completed',payment_status:'paid'}), /bg-blue-100/)
-console.log('PASS: paid / unpaid cards differ; care progress overrides payment colour without changing its state')
+console.log('PASS: the card colour follows the prestation, the payment its left edge, and care progress still overrides both')
 
 const paletteCSS = fs.readFileSync('app/appointment-colors.css', 'utf8')
 const luminance = hex => hex.match(/\w\w/g).map(pair => parseInt(pair, 16) / 255)
   .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
   .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0)
-for (const tone of ['blue', 'green', 'red', 'blocked']) {
+for (const tone of ['blue', 'green', 'red', 'blocked', 'amber', 'violet', 'teal', 'sky', 'rose', 'lime']) {
   const block = paletteCSS.match(new RegExp(`\\.appointment-tone-${tone} \\{([^}]+)\\}`))[1]
   const background = block.match(/--appointment-bg: #([\da-f]{6})/)[1]
   const text = block.match(/--appointment-ink: #([\da-f]{6})/)[1]

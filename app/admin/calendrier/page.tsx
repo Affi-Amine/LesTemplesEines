@@ -491,7 +491,7 @@ export default function CalendrierPage() {
     useSensor(MouseSensor, {
       activationConstraint: { distance: 8 },
     }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
   )
 
   // Fetch salons

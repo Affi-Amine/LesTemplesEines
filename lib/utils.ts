@@ -28,12 +28,34 @@ export function getStatusColor(status: string): string {
   }
 }
 
-// Care progress takes precedence; payment only colours appointments awaiting care.
-export function getAppointmentColor(appointment: { status: string; payment_status?: string | null }): string {
+/** Prestation tones, in the order they are handed out to services. */
+export const SERVICE_TONES = ["sky", "green", "amber", "violet", "teal", "rose", "lime", "blue"] as const
+
+/** Same prestation, same colour, every day and on every screen: no state, no palette to maintain. */
+export function getServiceTone(key: string): (typeof SERVICE_TONES)[number] {
+  let hash = 0
+  for (let index = 0; index < key.length; index += 1) hash = (hash * 31 + key.charCodeAt(index)) >>> 0
+  return SERVICE_TONES[hash % SERVICE_TONES.length]
+}
+
+export function getPaymentEdge(paymentStatus?: string | null) {
+  return paymentStatus === "paid" ? "paid" : paymentStatus === "partial" ? "partial" : "unpaid"
+}
+
+// Care progress takes precedence. On a booking still awaiting care the card is
+// coloured by its prestation, and the payment shows on the card's left edge.
+export function getAppointmentColor(appointment: {
+  status: string
+  payment_status?: string | null
+  service_id?: string | null
+  // Lists carry only the prestation's name; the agenda carries the whole row.
+  service?: { id?: string | null; name?: string | null } | string | null
+}): string {
   if (!["confirmed", "pending"].includes(appointment.status)) return getStatusColor(appointment.status)
-  return appointment.payment_status === "paid"
-    ? "appointment-tone appointment-tone-green bg-emerald-100 text-emerald-950 border-emerald-200"
-    : "appointment-tone appointment-tone-red bg-rose-100 text-rose-950 border-rose-200"
+  const service = appointment.service
+  const key = appointment.service_id || (typeof service === "string" ? service : service?.id || service?.name) || ""
+  const tone = key ? getServiceTone(key) : "blue"
+  return `appointment-tone appointment-tone-${tone} appointment-pay-${getPaymentEdge(appointment.payment_status)}`
 }
 
 export function getStatusLabel(status: string): string {

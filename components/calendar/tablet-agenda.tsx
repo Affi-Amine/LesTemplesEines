@@ -1,11 +1,11 @@
 "use client"
 
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { memo, useMemo, useRef, useState, type ReactNode } from "react"
 import { addDays, format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { formatInTimeZone } from "date-fns-tz"
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, List, LayoutGrid, SlidersHorizontal, Ban, Move } from "lucide-react"
-import { useDndMonitor, useDroppable } from "@dnd-kit/core"
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, List, LayoutGrid, SlidersHorizontal, Ban } from "lucide-react"
+import { useDroppable } from "@dnd-kit/core"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -40,16 +40,23 @@ interface TabletAgendaProps {
   isInvalidDestination?: (destination: MoveDestination) => boolean
 }
 
-function MoveTarget({ id, destination, invalid, closed, height }: {
+/** An empty quarter: tap it to book, or drop a booking on it to move it there. */
+function AgendaSlot({ id, destination, invalid, closed, height, disabled, label, onCreate, dragging }: {
   id: string; destination: MoveDestination; invalid: boolean; closed: boolean; height: number
+  disabled: boolean; label: string; onCreate: () => void; dragging: boolean
 }) {
   const { setNodeRef, isOver } = useDroppable({ id, data: destination })
-  return <div ref={setNodeRef} data-calendar-slot={id} data-drop-over={isOver} data-drop-invalid={invalid || closed}
-    className={`w-full border-b border-dashed border-border/60 last:border-b-0 ${isOver ? invalid || closed ? "bg-destructive/20 ring-2 ring-inset ring-destructive" : "bg-primary/20 ring-2 ring-inset ring-primary" : invalid || closed ? "bg-destructive/5" : ""}`}
+  const refused = invalid || closed
+  return <button ref={setNodeRef} type="button" data-calendar-slot={id} data-drop-over={isOver} data-drop-invalid={refused}
+    disabled={closed || disabled} aria-label={label} onClick={onCreate}
+    className={`min-h-0 w-full border-b border-dashed border-border/60 bg-transparent text-left last:border-b-0 focus-visible:z-20 focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default enabled:active:bg-primary/10 ${
+      isOver ? refused ? "bg-destructive/20 ring-2 ring-inset ring-destructive" : "bg-primary/20 ring-2 ring-inset ring-primary"
+        : dragging && refused ? "bg-destructive/5" : ""}`}
     style={{ height }} />
 }
 
-// In normal use all cells are native buttons. Drag registrations exist only in move mode.
+// Every cell is a native button and also a drop target: tap to book, hold and
+// drag a booking to move it. The sensors' hold delay keeps the page scrollable.
 export const TabletAgenda = memo(function TabletAgenda({
   salonName, date, onDateChange, staff, appointments, hours, openingHours, loading,
   onAppointmentClick, onEmptySlotClick, onCreate, onBlock, summary, salonControl, salonTitleControl, movingAppointment, isInvalidDestination,
@@ -60,11 +67,8 @@ export const TabletAgenda = memo(function TabletAgenda({
   const [view, setView] = useState<"grid" | "list">("grid")
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
-  const [moveMode, setMoveMode] = useState(false)
   const dayKey = formatInTimeZone(date, "Europe/Paris", "yyyy-MM-dd")
   const hourHeight = interval === 30 ? 96 : 180
-  useEffect(() => { setMoveMode(false) }, [dayKey, salonName, view])
-  useDndMonitor({ onDragEnd: () => setMoveMode(false), onDragCancel: () => setMoveMode(false) })
 
   const activeMember = staff.find(member => member.id === memberId)
   const visibleStaff = activeMember ? [activeMember] : staff
@@ -89,7 +93,7 @@ export const TabletAgenda = memo(function TabletAgenda({
   const changeDate = (next: Date) => onDateChange(next)
   const selectClass = "h-11 min-w-0 rounded-lg border bg-card px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
-  return <section ref={root} data-tablet-agenda data-move-mode={moveMode} onKeyDown={event => { if (event.key === "Escape") setMoveMode(false) }} aria-label={`Agenda de ${salonName}`} className="min-w-0 bg-background">
+  return <section ref={root} data-tablet-agenda aria-label={`Agenda de ${salonName}`} className="min-w-0 bg-background">
     <div data-agenda-toolbar className="sticky top-16 z-30 border-b bg-card">
       <div className="flex min-h-14 items-center justify-between gap-3 px-3 py-2 sm:px-5">
         <div className="min-w-0 flex-1">
@@ -111,14 +115,12 @@ export const TabletAgenda = memo(function TabletAgenda({
           <Button variant="ghost" onClick={() => changeDate(new Date())} className="hidden h-11 px-3 sm:inline-flex">Aujourd’hui</Button>
         </div>
         <div className="flex gap-2">
-          {view === "grid" && <Button variant={moveMode ? "secondary" : "outline"} aria-label="Mode déplacement" aria-pressed={moveMode} onClick={() => setMoveMode(value => !value)} className="h-11 gap-2 px-3"><Move className="h-4 w-4" /><span className="hidden min-[600px]:inline">Déplacer</span></Button>}
-          <Button onClick={onCreate} disabled={moveMode} className="h-11 gap-2 rounded-lg px-3 sm:px-4"><Plus className="h-5 w-5" /><span className="hidden min-[420px]:inline">Rendez-vous</span><span className="min-[420px]:hidden">RDV</span></Button>
+          <Button onClick={onCreate} className="h-11 gap-2 rounded-lg px-3 sm:px-4"><Plus className="h-5 w-5" /><span className="hidden min-[420px]:inline">Rendez-vous</span><span className="min-[420px]:hidden">RDV</span></Button>
         </div>
       </div>
 
-      {moveMode && <div role="status" className="flex items-center justify-between gap-3 border-t bg-primary/5 px-3 py-1 text-xs sm:px-5">
-        <p>{movingAppointment ? "Déposez le rendez-vous sur le nouvel horaire. Les zones rouges sont indisponibles." : "Maintenez un rendez-vous, puis glissez-le sur le nouvel horaire. Vous confirmerez ensuite."}</p>
-        <Button variant="ghost" onClick={() => setMoveMode(false)} className="h-11 shrink-0">Annuler</Button>
+      {movingAppointment && <div role="status" className="border-t bg-primary/5 px-3 py-1 text-xs sm:px-5">
+        Déposez le rendez-vous sur le nouvel horaire. Les zones rouges sont indisponibles.
       </div>}
 
       <div className="flex flex-wrap items-center gap-2 border-t bg-muted/30 px-3 py-2 sm:px-5">
@@ -159,12 +161,13 @@ export const TabletAgenda = memo(function TabletAgenda({
               {Array.from({ length: 60 / interval }, (_, index) => {
                 const minute = index * interval
                 const open = isCalendarQuarterOpen(hour, minute, date, openingHours) && (interval === 15 || isCalendarQuarterOpen(hour, minute + 15, date, openingHours))
-                if (moveMode) return <MoveTarget key={minute} id={`tablet-${member.id}-${hour}-${minute}`} destination={{ date, hour, minute, staffId: member.id }}
-                  closed={!open} invalid={Boolean(isInvalidDestination?.({ date, hour, minute, staffId: member.id }))} height={hourHeight / (60 / interval)} />
-                return <button key={minute} type="button" data-calendar-slot={`${member.id}-${hour}-${minute}`} disabled={!open || loading}
-                  aria-label={`Nouveau rendez-vous à ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} avec ${getStaffDisplayName(member)}`}
-                  onClick={() => onEmptySlotClick({ date, hour, minute, staffId: member.id })}
-                  className="min-h-0 w-full border-b border-dashed border-border/60 bg-transparent text-left last:border-b-0 focus-visible:z-20 focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default enabled:active:bg-primary/10" />
+                const destination = { date, hour, minute, staffId: member.id }
+                return <AgendaSlot key={minute} id={`tablet-${member.id}-${hour}-${minute}`} destination={destination}
+                  closed={!open} invalid={Boolean(movingAppointment && isInvalidDestination?.(destination))}
+                  dragging={Boolean(movingAppointment)} disabled={Boolean(loading)}
+                  height={hourHeight / (60 / interval)}
+                  label={`Nouveau rendez-vous à ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} avec ${getStaffDisplayName(member)}`}
+                  onCreate={() => onEmptySlotClick(destination)} />
               })}
             </div>
           </div>)}
@@ -174,13 +177,15 @@ export const TabletAgenda = memo(function TabletAgenda({
             const height = Math.max(22, getAppointmentDurationMinutes(appointment) / 60 * hourHeight - 2)
             const released = isReleasedAppointment(appointment.status)
             const box = getLaneBox(lanesByStaff.get(member.id)?.get(appointment.id), 4)
-            if (moveMode && canMoveAppointment(appointment)) return <DraggableAppointment key={appointment.id} id={appointment.id} appointment={appointment}
+            // Held down then dragged, a booking moves; a plain tap still opens it.
+            if (canMoveAppointment(appointment)) return <DraggableAppointment key={appointment.id} id={appointment.id} appointment={appointment}
+              onClick={() => onAppointmentClick(appointment)}
               className={`absolute z-10 select-none overflow-hidden rounded-lg border border-l-[3px] p-0.5 text-left sm:p-2 ring-1 ring-primary/50 ${getAppointmentColor(appointment)}`}
               style={{ top: (startHour - hours[0] + minute / 60) * hourHeight + 1, height, ...box, touchAction: "none", WebkitTouchCallout: "none" }}>
               <div className="pointer-events-none"><AppointmentCardContent appointment={appointment} height={height} /></div>
             </DraggableAppointment>
             return <button key={appointment.id} type="button" data-appointment-id={appointment.id}
-              disabled={moveMode} onClick={() => onAppointmentClick(appointment)}
+              onClick={() => onAppointmentClick(appointment)}
               className={`absolute overflow-hidden rounded-lg border border-l-[3px] p-0.5 text-left sm:p-2 focus-visible:outline-2 focus-visible:outline-ring ${released ? `z-[5] ${RELEASED_CARD_CLASS}` : "z-10"} ${getAppointmentColor(appointment)}`}
               style={{ top: (startHour - hours[0] + minute / 60) * hourHeight + 1, height, ...box }}>
               <AppointmentCardContent appointment={appointment} height={height} />

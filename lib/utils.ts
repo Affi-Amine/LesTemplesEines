@@ -30,9 +30,25 @@ export function getStatusColor(status: string): string {
 
 /** Prestation tones, in the order they are handed out to services. */
 export const SERVICE_TONES = ["sky", "green", "amber", "violet", "teal", "rose", "lime", "blue"] as const
+export type ServiceTone = (typeof SERVICE_TONES)[number]
 
-/** Same prestation, same colour, every day and on every screen: no state, no palette to maintain. */
-export function getServiceTone(key: string): (typeof SERVICE_TONES)[number] {
+export const SERVICE_TONE_LABELS: Record<ServiceTone, string> = {
+  sky: "Bleu ciel",
+  green: "Vert",
+  amber: "Ambre",
+  violet: "Violet",
+  teal: "Turquoise",
+  rose: "Rose",
+  lime: "Vert anis",
+  blue: "Bleu",
+}
+
+export function isServiceTone(value: unknown): value is ServiceTone {
+  return typeof value === "string" && (SERVICE_TONES as readonly string[]).includes(value)
+}
+
+/** Fallback for a prestation with no colour set: same key, same colour, every day. */
+export function getServiceTone(key: string): ServiceTone {
   let hash = 0
   for (let index = 0; index < key.length; index += 1) hash = (hash * 31 + key.charCodeAt(index)) >>> 0
   return SERVICE_TONES[hash % SERVICE_TONES.length]
@@ -49,12 +65,14 @@ export function getAppointmentColor(appointment: {
   payment_status?: string | null
   service_id?: string | null
   // Lists carry only the prestation's name; the agenda carries the whole row.
-  service?: { id?: string | null; name?: string | null } | string | null
+  service?: { id?: string | null; name?: string | null; color?: string | null } | string | null
 }): string {
   if (!["confirmed", "pending"].includes(appointment.status)) return getStatusColor(appointment.status)
   const service = appointment.service
+  const chosen = typeof service === "string" ? null : service?.color
   const key = appointment.service_id || (typeof service === "string" ? service : service?.id || service?.name) || ""
-  const tone = key ? getServiceTone(key) : "blue"
+  // The colour set on the prestation wins; otherwise one is derived from its id.
+  const tone = isServiceTone(chosen) ? chosen : key ? getServiceTone(key) : "blue"
   return `appointment-tone appointment-tone-${tone} appointment-pay-${getPaymentEdge(appointment.payment_status)}`
 }
 

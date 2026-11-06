@@ -32,6 +32,7 @@ import type { Service } from "@/lib/types/database"
 
 import { SalonFilter } from "@/components/salon-filter"
 import { useRoleProtection } from "@/lib/hooks/use-role-protection"
+import { isServiceTone, SERVICE_TONE_LABELS, SERVICE_TONES, type ServiceTone } from "@/lib/utils"
 
 export default function ServicesPage() {
   const isAuthorized = useRoleProtection(["admin", "manager"])
@@ -142,6 +143,7 @@ export default function ServicesPage() {
     category: "",
     image_url: "",
     is_active: true,
+    color: "" as "" | ServiceTone,
     required_staff_count: "1",
   })
 
@@ -158,6 +160,7 @@ export default function ServicesPage() {
       category: service.category || "",
       image_url: service.image_url || "",
       is_active: service.is_active,
+      color: isServiceTone(service.color) ? service.color : "",
       required_staff_count: (service.required_staff_count || 1).toString(),
     })
     setIsDialogOpen(true)
@@ -174,6 +177,7 @@ export default function ServicesPage() {
       category: "",
       image_url: "",
       is_active: true,
+      color: "",
       required_staff_count: "1",
     })
     setIsDialogOpen(true)
@@ -203,6 +207,7 @@ export default function ServicesPage() {
         category: formData.category.trim() || null,
         image_url: formData.image_url || undefined,
         is_active: formData.is_active,
+        color: formData.color || null,
         required_staff_count: parseInt(formData.required_staff_count) || 1,
       }
 
@@ -876,6 +881,38 @@ export default function ServicesPage() {
                     Prix: {(parseInt(formData.price_cents) / 100).toFixed(2)} €
                   </p>
                 )}
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Couleur sur le planning</Label>
+                <div role="radiogroup" aria-label="Couleur de la prestation" className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={formData.color === ""}
+                    onClick={() => setFormData({ ...formData, color: "" })}
+                    className={`h-10 rounded-lg border px-3 text-xs font-medium ${formData.color === "" ? "ring-2 ring-primary ring-offset-1" : ""}`}
+                  >
+                    Automatique
+                  </button>
+                  {SERVICE_TONES.map((tone) => (
+                    <button
+                      key={tone}
+                      type="button"
+                      role="radio"
+                      aria-checked={formData.color === tone}
+                      aria-label={SERVICE_TONE_LABELS[tone]}
+                      title={SERVICE_TONE_LABELS[tone]}
+                      onClick={() => setFormData({ ...formData, color: tone })}
+                      className={`appointment-tone appointment-tone-${tone} h-10 w-10 rounded-lg border text-xs font-bold ${formData.color === tone ? "ring-2 ring-primary ring-offset-1" : ""}`}
+                    >
+                      {formData.color === tone ? "✓" : ""}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Couleur des cartes de cette prestation dans l’agenda, et filtre du planning. « Automatique » garde une couleur stable déduite de la prestation.
+                </p>
               </div>
 
               <div className="space-y-2">

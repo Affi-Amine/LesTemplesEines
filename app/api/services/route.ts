@@ -3,6 +3,7 @@ import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { isUUID, resolveSalonGroup } from "@/lib/salons/resolve"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { SERVICE_TONES } from "@/lib/utils"
 
 const ServiceSchema = z.object({
   salon_id: z.string().uuid().optional(),
@@ -15,6 +16,8 @@ const ServiceSchema = z.object({
   category_order: z.number().min(0).optional(),
   image_url: z.string().optional(),
   is_active: z.boolean().optional(),
+  // Agenda colour for this prestation; absent means it keeps the one derived from its id.
+  color: z.enum(SERVICE_TONES).nullable().optional(),
   required_staff_count: z.number().min(1).default(1),
 }).refine((data) => Boolean(data.salon_id || (data.salon_ids && data.salon_ids.length > 0)), {
   message: "At least one salon must be selected",
@@ -123,6 +126,7 @@ export async function POST(request: NextRequest) {
       category_order: serviceData.category_order ?? 0,
       image_url: serviceData.image_url,
       is_active: serviceData.is_active ?? true,
+      color: serviceData.color ?? null,
       required_staff_count: serviceData.required_staff_count,
       salon_id: salonIds[0] ?? null,
     }

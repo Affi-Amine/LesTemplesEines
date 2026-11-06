@@ -47,6 +47,22 @@ assert.ok(utils.SERVICE_TONES.includes(tone(colour(thai))))
 assert.notEqual(tone(colour(thai)), tone(colour({ status: 'confirmed', service_id: 'thai-90' })), 'two prestations are told apart')
 // A booking with no prestation at all must still render a known tone.
 assert.ok(utils.SERVICE_TONES.includes(tone(colour({ status: 'confirmed' }))))
+// A colour chosen on the prestation wins over the one derived from its id.
+assert.equal(tone(colour({ status: 'confirmed', service_id: 'thai-60', service: { id: 'thai-60', color: 'rose' } })), 'rose')
+assert.equal(tone(colour({ status: 'confirmed', service: { name: 'Massage', color: 'lime' } })), 'lime')
+// A colour that is not in the palette is ignored rather than rendered as a broken class.
+for (const bogus of ['#ff0000', 'fuchsia', '', null, 42]) {
+  const value = tone(colour({ status: 'confirmed', service_id: 'thai-60', service: { id: 'thai-60', color: bogus } }))
+  assert.equal(value, tone(colour({ status: 'confirmed', service_id: 'thai-60' })), `bogus colour ${bogus} must fall back`)
+}
+// Every tone offered to the salon exists in the palette and in the database constraint.
+const migration = fs.readFileSync('database/migrations/2026-11-06_service_color.sql', 'utf8')
+const palette = fs.readFileSync('app/appointment-colors.css', 'utf8')
+for (const serviceTone of utils.SERVICE_TONES) {
+  assert.match(palette, new RegExp(`\\.appointment-tone-${serviceTone} \\{`), `${serviceTone} missing from the palette`)
+  assert.ok(migration.includes(`'${serviceTone}'`), `${serviceTone} missing from the colour constraint`)
+  assert.ok(utils.SERVICE_TONE_LABELS[serviceTone], `${serviceTone} has no label`)
+}
 const spread = new Set(['thai-60', 'thai-90', 'gommage', 'reflexo', 'duo', 'sauna', 'hammam', 'dos']
   .map(id => tone(colour({ status: 'confirmed', service_id: id }))))
 assert.ok(spread.size >= 4, `the palette spreads prestations across colours, got ${spread.size}`)

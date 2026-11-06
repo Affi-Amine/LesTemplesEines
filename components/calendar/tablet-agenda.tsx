@@ -109,15 +109,34 @@ export const TabletAgenda = memo(function TabletAgenda({
   const [view, setView] = useState<"grid" | "list">("grid")
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
+  const [serviceId, setServiceId] = useState("all")
   const dayKey = formatInTimeZone(date, "Europe/Paris", "yyyy-MM-dd")
   const hourHeight = interval === 30 ? 96 : 180
 
   const activeMember = staff.find(member => member.id === memberId)
   const visibleStaff = activeMember ? [activeMember] : staff
   // Cancelled and absent bookings stay on the planning as a trace; they never block a slot.
-  const dayAppointments = useMemo(() => appointments.filter(appointment =>
+  const allDayAppointments = useMemo(() => appointments.filter(appointment =>
     formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === dayKey
   ).sort((a, b) => a.start_time.localeCompare(b.start_time)), [appointments, dayKey])
+
+  // Prestations actually booked that day, so the filter never offers an empty choice.
+  const dayServices = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const appointment of allDayAppointments) {
+      const id = appointment.service_id || appointment.service?.id
+      if (id) map.set(id, appointment.service?.name || "Prestation")
+    }
+    return [...map].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "fr"))
+  }, [allDayAppointments])
+
+  // Changing day may leave the chosen prestation unbooked: fall back to showing everything
+  // rather than an empty planning the staff cannot explain.
+  const activeServiceId = dayServices.some(service => service.id === serviceId) ? serviceId : "all"
+  const activeService = dayServices.find(service => service.id === activeServiceId)
+  const dayAppointments = useMemo(() => activeServiceId === "all" ? allDayAppointments
+    : allDayAppointments.filter(appointment => (appointment.service_id || appointment.service?.id) === activeServiceId),
+    [allDayAppointments, activeServiceId])
   const bookedCount = dayAppointments.filter(appointment => isBookedAppointment(appointment.status)).length
   const byStaff = useMemo(() => {
     const map = new Map<string, Booking[]>()
@@ -165,11 +184,20 @@ export const TabletAgenda = memo(function TabletAgenda({
         Déposez le rendez-vous sur le nouvel horaire. Les zones rouges sont indisponibles.
       </div>}
 
+      {activeService && <div role="status" className="flex items-center justify-between gap-3 border-t bg-amber-50 px-3 py-1 text-xs text-amber-900 sm:px-5">
+        <span>Planning filtré sur « {activeService.name} » : les autres rendez-vous sont masqués.</span>
+        <Button variant="ghost" onClick={() => setServiceId("all")} className="h-9 shrink-0 text-amber-900">Tout afficher</Button>
+      </div>}
+
       <div className="flex flex-wrap items-center gap-2 border-t bg-muted/30 px-3 py-2 sm:px-5">
         {salonControl}
         <select aria-label="Afficher une masseuse" value={activeMember ? memberId : "all"} onChange={event => setMemberId(event.target.value)} className={`${selectClass} max-w-[170px] flex-1`}>
           <option value="all">Toute l’équipe</option>
           {staff.map(member => <option key={member.id} value={member.id}>{getStaffDisplayName(member)}</option>)}
+        </select>
+        <select aria-label="Filtrer par prestation" value={activeServiceId} onChange={event => setServiceId(event.target.value)} className={`${selectClass} max-w-[190px] flex-1`}>
+          <option value="all">Toutes les prestations</option>
+          {dayServices.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}
         </select>
         <select aria-label="Précision du planning" value={interval} onChange={event => setInterval(Number(event.target.value) as 15 | 30)} className={selectClass}>
           <option value={30}>30 min</option><option value={15}>15 min</option>

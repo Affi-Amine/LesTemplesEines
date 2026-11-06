@@ -30,6 +30,7 @@ const UpdateAppointmentSchema = z.object({
   // New fields for modification
   service_id: z.string().uuid().optional(),
   salon_id: z.string().uuid().optional(),
+  client_id: z.string().uuid().optional(),
   start_time: z.string().optional(), // ISO string
   end_time: z.string().optional(), // ISO string, only honoured for blocked slots
   staff_ids: z.array(z.string().uuid()).min(1).optional(),
@@ -96,6 +97,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (updates.amount_paid_cents !== undefined) updateData.amount_paid_cents = updates.amount_paid_cents
     if (updates.paid_at !== undefined) updateData.paid_at = updates.paid_at
     if (updates.salon_id) updateData.salon_id = updates.salon_id
+
+    // Booking taken under the wrong name, or a regular who booked for someone else.
+    if (updates.client_id && updates.client_id !== existing.client_id) {
+      if (existing.payment_method === "pack" || existing.client_pack_id) {
+        return NextResponse.json({ error: "Ce rendez-vous consomme le forfait du client actuel. Annulez-le puis recréez-le au nom du bon client." }, { status: 400 })
+      }
+      const { data: nextClient, error: clientError } = await supabase
+        .from("clients").select("id").eq("id", updates.client_id).maybeSingle()
+      if (clientError) throw clientError
+      if (!nextClient) return NextResponse.json({ error: "Cette fiche client n’existe plus." }, { status: 404 })
+      updateData.client_id = updates.client_id
+    }
 
     if (updates.payment_status === "paid" && updates.paid_at === undefined) {
       updateData.paid_at = new Date().toISOString()

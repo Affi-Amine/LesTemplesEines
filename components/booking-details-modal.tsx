@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AppointmentPaymentBadge } from "@/components/appointment-payment-badge"
 import { AppointmentProgressActions } from "@/components/appointment-progress-actions"
 import { ClientDetailsModal } from "@/components/client-details-modal"
+import { ClientSuggestionList } from "@/components/client-suggestion-list"
+import { useClientSearch } from "@/lib/hooks/use-client-search"
 import { getAppointmentColor, getStatusLabel } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -94,7 +96,16 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
     time: "",
     status: "",
     notes: "",
+    client_id: "",
+    client_label: "",
   })
+  const [clientQuery, setClientQuery] = useState("")
+  const [debouncedClientQuery, setDebouncedClientQuery] = useState("")
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedClientQuery(clientQuery.trim()), 250)
+    return () => clearTimeout(timer)
+  }, [clientQuery])
+  const { data: clientMatches, isFetching: isSearchingClients } = useClientSearch(debouncedClientQuery, 6)
 
   // Fetch salons
   const { data: salons } = useQuery({
@@ -128,7 +139,10 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
         time: formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm"),
         status: appointment.status,
         notes: appointment.client_notes || "",
+        client_id: appointment.client?.id || "",
+        client_label: `${appointment.client?.first_name || ""} ${appointment.client?.last_name || ""}`.trim(),
       })
+      setClientQuery("")
     }
   }, [appointment, isEditMode])
 
@@ -306,6 +320,32 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-client">Client</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">{editForm.client_label || "Sans client"}</Badge>
+              </div>
+              <Input
+                id="edit-client"
+                value={clientQuery}
+                onChange={(event) => setClientQuery(event.target.value)}
+                placeholder="Changer de client : nom, téléphone ou email"
+              />
+              <ClientSuggestionList
+                visible={clientQuery.trim().length >= 2}
+                clients={clientMatches}
+                isLoading={isSearchingClients}
+                onSelect={(client) => {
+                  setEditForm(current => ({
+                    ...current,
+                    client_id: client.id,
+                    client_label: `${client.first_name || ""} ${client.last_name || ""}`.trim(),
+                  }))
+                  setClientQuery("")
+                }}
+              />
             </div>
 
             <div className="space-y-2">
@@ -600,7 +640,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
 }
 
 type EditableAppointment = NonNullable<BookingDetailsModalProps["appointment"]>
-type EditForm = { salon_id: string; service_id: string; staff_ids: string[]; date: string; time: string; status: string; notes: string }
+type EditForm = { salon_id: string; service_id: string; staff_ids: string[]; date: string; time: string; status: string; notes: string; client_id: string; client_label: string }
 
 interface ServicePaymentPreview {
   previous_price_cents: number
@@ -625,6 +665,7 @@ function buildEditPayload(appointment: EditableAppointment, form: EditForm) {
   if (form.status !== appointment.status) payload.status = form.status
   if (form.notes !== (appointment.client_notes || "")) payload.client_notes = form.notes
   if (!releasing) {
+    if (form.client_id && form.client_id !== (appointment.client?.id || "")) payload.client_id = form.client_id
     if (form.salon_id !== (appointment.salon_id || appointment.salon?.id || "")) payload.salon_id = form.salon_id
     if (form.service_id !== (appointment.service_id || appointment.service?.id || "")) payload.service_id = form.service_id
     if ([...form.staff_ids].sort().join() !== getAppointmentStaffIds(appointment).sort().join()) payload.staff_ids = form.staff_ids

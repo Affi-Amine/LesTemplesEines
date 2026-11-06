@@ -8,6 +8,7 @@ import { AppointmentPaymentBadge } from "@/components/appointment-payment-badge"
 import { AppointmentProgressActions } from "@/components/appointment-progress-actions"
 import { ClientDetailsModal } from "@/components/client-details-modal"
 import { ClientSuggestionList } from "@/components/client-suggestion-list"
+import { AppointmentCheckoutDialog, amountDueCents } from "@/components/calendar/appointment-checkout-dialog"
 import { useClientSearch } from "@/lib/hooks/use-client-search"
 import { getAppointmentColor, getStatusLabel } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -16,7 +17,7 @@ import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Clock, User, MapPin, Scissors, Phone, Mail, FileText, Edit, X } from "lucide-react"
+import { Calendar, Clock, User, MapPin, Scissors, Phone, Mail, FileText, Edit, Wallet, X } from "lucide-react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { formatInTimeZone } from "date-fns-tz"
@@ -82,6 +83,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
   useEffect(() => { setLiveStatus(null) }, [appointment?.id, appointment?.status])
   const [isEditMode, setIsEditMode] = useState(false)
   const [clientFileOpen, setClientFileOpen] = useState(false)
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [editError, setEditError] = useState("")
   const saving = useRef(false)
@@ -183,6 +185,11 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
   }, [appointment?.id, appointment?.updated_at, isEditMode, editKey])
 
   if (!appointment) return null
+
+  // Nothing to cash in for a blocked slot, a released booking, or one already settled.
+  const currentStatus = liveStatus || appointment.status
+  const canCheckout = !["blocked", "cancelled", "no_show"].includes(currentStatus) &&
+    appointment.payment_status !== "paid" && amountDueCents(appointment as never) > 0
 
   const handleEdit = () => {
     setIsEditMode(true)
@@ -462,6 +469,12 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
         <div className="space-y-6">
           <AppointmentProgressActions appointment={{ ...appointment, status: liveStatus || appointment.status }}
             onUpdated={status => { setLiveStatus(status); onRefetch?.() }} />
+          {canCheckout && (
+            <Button type="button" className="w-full" onClick={() => setCheckoutOpen(true)}>
+              <Wallet className="mr-2 h-4 w-4" />
+              Encaisser {amountDueCents(appointment as never) > 0 ? `${(amountDueCents(appointment as never) / 100).toFixed(2)} €` : ""}
+            </Button>
+          )}
           <AppointmentManagementLinkButton appointment={appointment} />
           {/* Date and Time */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -635,6 +648,12 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
           showHistory
         />
       )}
+      <AppointmentCheckoutDialog
+        appointment={appointment as never}
+        open={checkoutOpen}
+        onOpenChange={setCheckoutOpen}
+        onPaid={() => onRefetch?.()}
+      />
     </Dialog>
   )
 }

@@ -56,3 +56,30 @@ for (const tone of ['blue', 'green', 'red', 'blocked']) {
 }
 assert.match(paletteCSS, /color-scheme:\s*only light/)
 console.log('PASS: every pastel surface has readable text contrast and opts out of automatic darkening')
+
+// ---- what the till asks for -------------------------------------------------
+// The checkout dialog is the single money path of the agenda; its arithmetic
+// decides what the front desk is told to collect.
+const checkoutSource = fs.readFileSync('components/calendar/appointment-checkout-dialog.tsx', 'utf8')
+  // Keep only the two exported helpers: the rest is React and not needed here.
+  .split('export function AppointmentCheckoutDialog')[0]
+  .replace(/^import[\s\S]*?$/gm, '')
+const checkout = {}
+vm.runInNewContext(ts.transpileModule(checkoutSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.None },
+}).outputText, { exports: checkout })
+const { alreadyPaidCents, amountDueCents } = checkout
+
+const booking = (overrides) => ({ service: { price_cents: 6500 }, ...overrides })
+assert.equal(amountDueCents(booking({ payment_status: 'unpaid' })), 6500)
+assert.equal(alreadyPaidCents(booking({ payment_status: 'unpaid', amount_paid_cents: 1000 })), 0,
+  'only a partly paid booking carries a credit; a stale amount on an unpaid one is ignored')
+// Prestation swapped for a dearer one: only the supplement is owed.
+assert.equal(amountDueCents(booking({ payment_status: 'partial', amount_paid_cents: 3500 })), 3000)
+assert.equal(alreadyPaidCents(booking({ payment_status: 'partial', amount_paid_cents: 3500 })), 3500)
+// Swapped for a cheaper one: never ask for a negative amount.
+assert.equal(amountDueCents(booking({ payment_status: 'partial', amount_paid_cents: 9000 })), 0)
+// A booking imported without a price owes nothing rather than NaN.
+assert.equal(amountDueCents({ payment_status: 'unpaid', service: null }), 0)
+assert.equal(amountDueCents(null), 0)
+console.log('PASS: the till asks for the full price, only the supplement when partly paid, and never a negative or NaN amount')

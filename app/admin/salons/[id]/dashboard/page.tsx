@@ -42,6 +42,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { DndContext, MouseSensor, TouchSensor, useSensors, useSensor, DragOverlay } from "@dnd-kit/core"
 import { BlockedSlotDialog, DraggableAppointment, DroppableSlot, QuickCreateModal } from "@/components/calendar"
 import { ClientDetailsModal } from "@/components/client-details-modal"
+import { AppointmentCheckoutDialog } from "@/components/calendar/appointment-checkout-dialog"
 import {
   findOverlappingAppointment,
   canStaffTakeBookings,
@@ -167,7 +168,6 @@ export default function SalonDashboardPage() {
     .filter((apt: any) => new Date(apt.end_time).getTime() >= Date.now())
     .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0]
 
-  const [paymentLines, setPaymentLines] = useState<{method: string, amount: number}[]>([{ method: "card", amount: 0 }])
 
   const getDashboardStatusLabel = getStatusLabel
 
@@ -202,7 +202,6 @@ export default function SalonDashboardPage() {
   const handleOpenPayment = (appointment = selectedSlot) => {
     if (!appointment) return
     setSelectedSlot(appointment)
-    setPaymentLines([{ method: "card", amount: amountDue(appointment) }])
     setIsDetailsOpen(false)
     setIsValidationOpen(true)
   }
@@ -264,70 +263,6 @@ export default function SalonDashboardPage() {
     } finally {
       setReplacingStaffId(null)
     }
-  }
-
-  const handleConfirmValidation = async () => {
-    if (!selectedSlot) return
-
-    const totalPaid = paymentLines.reduce((sum, line) => sum + line.amount, 0)
-    const price = amountDue(selectedSlot)
-
-    if (totalPaid !== price) {
-      toast.error(alreadyPaidCents(selectedSlot) ? "Le montant encaissé doit correspondre au supplément restant" : "Le montant total payé doit correspondre au prix du service")
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/appointments/${selectedSlot.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          payment_status: "paid",
-          payment_method: paymentLines.length > 1 ? "mixed" : paymentLines[0].method,
-          amount_paid_cents: Math.round(totalPaid * 100) + alreadyPaidCents(selectedSlot),
-          payments: paymentLines.map(line => ({
-            method: line.method,
-            amount_cents: line.amount * 100
-          }))
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || "Erreur lors de la validation")
-      }
-
-      const paidAppointment = await response.json()
-      toast.success("Paiement validé", {
-        description: "Vous pouvez maintenant démarrer le soin depuis ce rendez-vous.",
-      })
-      setIsValidationOpen(false)
-      setSelectedSlot({ ...selectedSlot, ...paidAppointment })
-      setIsDetailsOpen(true)
-      refetchAppointments()
-    } catch (error) {
-      console.error("Validation error:", error)
-      toast.error("Erreur lors de la validation")
-    }
-  }
-
-  const addPaymentLine = () => {
-    const currentTotal = paymentLines.reduce((sum, line) => sum + line.amount, 0)
-    const remaining = Math.max(0, amountDue(selectedSlot) - currentTotal)
-    setPaymentLines([...paymentLines, { method: "cash", amount: remaining }])
-  }
-
-  const removePaymentLine = (index: number) => {
-    if (paymentLines.length <= 1) return
-    setPaymentLines(paymentLines.filter((_, i) => i !== index))
-  }
-
-  const updatePaymentLine = (index: number, field: 'method' | 'amount', value: any) => {
-    const newLines = [...paymentLines]
-    newLines[index] = { ...newLines[index], [field]: value }
-    setPaymentLines(newLines)
   }
 
   const handleConfirmBlocking = async () => {
@@ -968,83 +903,17 @@ export default function SalonDashboardPage() {
 
         </>}
 
-        {/* Validation Dialog */}
-        <Dialog open={isValidationOpen} onOpenChange={setIsValidationOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Valider la venue du client</DialogTitle>
-              <DialogDescription>
-                Confirmer la présence et procéder au paiement
-              </DialogDescription>
-            </DialogHeader>
-
-            {selectedSlot && <section aria-label="Rendez-vous à encaisser" className="min-w-0 space-y-2 rounded-xl border bg-muted/30 p-4 text-sm">
-              <p className="text-lg font-semibold break-words">{[selectedSlot.client?.first_name, selectedSlot.client?.last_name].filter(Boolean).join(" ") || "Client"}</p>
-              {selectedSlot.client?.phone && <a className="block w-fit underline underline-offset-4" href={`tel:${selectedSlot.client.phone}`}>{selectedSlot.client.phone}</a>}
-              <p className="break-words">{selectedSlot.service?.name || "Massage"}</p>
-              <p className="text-muted-foreground">{formatInTimeZone(selectedSlot.start_time, "Europe/Paris", "dd/MM/yyyy · HH:mm")} – {formatInTimeZone(selectedSlot.end_time, "Europe/Paris", "HH:mm")}</p>
-              <p className="break-words text-muted-foreground">{getAppointmentStaffLabel(selectedSlot)}</p>
-              <p className="font-semibold">Montant du rendez-vous : {((selectedSlot.service?.price_cents || 0) / 100).toFixed(2)} €</p>
-              {alreadyPaidCents(selectedSlot) > 0 && <p className="font-semibold text-amber-800">
-                Déjà réglé {(alreadyPaidCents(selectedSlot) / 100).toFixed(2)} € · supplément à encaisser : {amountDue(selectedSlot).toFixed(2)} €
-              </p>}
-            </section>}
-
-            <div className="min-w-0 space-y-4 py-2">
-              {paymentLines.map((line, index) => (
-                <div key={index} className="grid grid-cols-[minmax(0,1fr)_2.5rem] items-end gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_6rem_auto]">
-                  <div className="col-span-2 min-w-0 space-y-2 sm:col-span-1">
-                    <Label htmlFor={`payment-method-${index}`}>Mode de paiement {paymentLines.length > 1 ? index + 1 : ''}</Label>
-                    <Select value={line.method} onValueChange={(val) => updatePaymentLine(index, 'method', val)}>
-                      <SelectTrigger id={`payment-method-${index}`} className="h-11 w-full min-w-0">
-                        <SelectValue placeholder="Choisir" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="card">Carte Bancaire</SelectItem>
-                        <SelectItem value="cash">Espèces</SelectItem>
-                        <SelectItem value="treatwell">Treatwell</SelectItem>
-                        <SelectItem value="gift_card">Carte Cadeau</SelectItem>
-                        <SelectItem value="loyalty">Points Fidélité</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="min-w-0 space-y-2">
-                    <Label htmlFor={`payment-amount-${index}`}>Montant (€)</Label>
-                    <Input
-                      id={`payment-amount-${index}`}
-                      type="number" min="0" step="0.01" inputMode="decimal" className="h-11 text-base sm:text-sm"
-                      value={line.amount}
-                      onChange={(e) => updatePaymentLine(index, 'amount', parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
-
-                  {paymentLines.length > 1 && (
-                    <Button aria-label={`Retirer le paiement ${index + 1}`} variant="ghost" size="icon" className="h-11 w-10 text-destructive cursor-pointer" onClick={() => removePaymentLine(index)}>
-                      <X className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-
-              <Button variant="outline" size="sm" onClick={addPaymentLine} className="h-auto min-h-11 w-full whitespace-normal cursor-pointer">
-                <Plus className="w-4 h-4 mr-2" /> Ajouter un autre moyen de paiement
-              </Button>
-
-              <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t">
-                <span className="font-semibold">Total payé:</span>
-                <span className={paymentLines.reduce((sum, l) => sum + l.amount, 0) === amountDue(selectedSlot) ? "text-green-600 font-bold" : "text-red-500 font-bold"}>
-                  {paymentLines.reduce((sum, l) => sum + l.amount, 0).toFixed(2)}€ / {amountDue(selectedSlot).toFixed(2)}€
-                </span>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsValidationOpen(false)} className="cursor-pointer">Annuler</Button>
-              <Button onClick={handleConfirmValidation} className="cursor-pointer">Confirmer et payer</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* Encaissement : même fenêtre que dans le calendrier */}
+        <AppointmentCheckoutDialog
+          appointment={selectedSlot}
+          open={isValidationOpen}
+          onOpenChange={setIsValidationOpen}
+          onPaid={(paid) => {
+            setSelectedSlot({ ...selectedSlot, ...paid })
+            setIsDetailsOpen(true)
+            refetchAppointments()
+          }}
+        />
 
         {/* Booking Details Dialog */}
         <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>

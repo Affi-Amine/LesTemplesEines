@@ -1,4 +1,6 @@
 export const runtime = "nodejs"
+// The confirmations are sent after the response; they share this budget with it.
+export const maxDuration = 60
 
 import { after, NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"

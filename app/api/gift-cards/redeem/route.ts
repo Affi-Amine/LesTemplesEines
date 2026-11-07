@@ -1,4 +1,6 @@
 export const runtime = "nodejs"
+// The confirmations are sent after the response; they share this budget with it.
+export const maxDuration = 60
 
 import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizeGiftCardCode } from "@/lib/gift-cards"

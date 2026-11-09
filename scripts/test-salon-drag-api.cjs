@@ -138,26 +138,30 @@ async function main() {
     for (const auth of [{ noCookie: true }, { token: 'invalid-session' }]) {
       seed(); assert.equal((await call(kind, { request: auth })).status, 401); noMutation(); assert.equal(state.clients, 0)
     }
-    for (const actor of [null, { id: actorId, salon_id: salonId, role: 'admin', is_active: false }]) {
-      seed({ actor })
-      assert.equal((await call(kind)).status, 403, kind + ' rechecks that the session still belongs to an active staff account')
-      noMutation()
-      assert.deepEqual(state.queries[0].filters, [['id', actorId]])
-    }
+    seed({ actor: null })
+    assert.equal((await call(kind)).status, 403, kind + ' rechecks that the authenticated staff account still exists')
+    noMutation()
+    assert.deepEqual(state.queries[0].filters, [['id', actorId]])
     for (const role of ['admin', 'manager', 'receptionist', 'assistant', 'therapist']) {
-      for (const actorSalon of [salonId,id(999)]) {
-        seed(); state.payload.role = role; state.actor.role = role; state.actor.salon_id = actorSalon
-        assert.equal((await call(kind)).status, 200, role + ' has the same access to every displayed salon planning')
+      for (const actorSalon of [salonId, id(999)]) {
+        for (const isActive of [true, false, null]) {
+          seed(); state.payload.role = role; state.actor.role = role; state.actor.salon_id = actorSalon; state.actor.is_active = isActive
+          assert.equal((await call(kind)).status, 200, role + ' has planning access regardless of whether the account is bookable or assigned to this salon')
+        }
       }
     }
     seed({payload:{clientId:id(999),role:'client'},actor:null})
     assert.equal((await call(kind)).status,403);noMutation()
+    seed({payload:{staffId:actorId,clientId:id(999),role:'client'}})
+    assert.equal((await call(kind)).status,403, 'A client session is not an operator session even if it carries a staff-shaped identifier');noMutation()
+    seed({actor:{id:actorId,salon_id:salonId,role:'client',is_active:true}})
+    assert.equal((await call(kind)).status,403, 'The database identity must still be a staff role');noMutation()
     seed({ staffError: { message: 'Database access failed' } })
     assert.equal((await call(kind)).status, 500); noMutation()
   }
   seed(); assert.equal(await helper.authorizeSalonMove(db, state.payload, salonId), true)
   state.actor.id = id(999); assert.equal(await helper.authorizeSalonMove(db, state.payload, salonId), false)
-  console.log('PASS: every active authenticated staff role has planning access; anonymous, client, missing and inactive staff accounts cannot move or read the journal')
+  console.log('PASS: every authenticated staff role can move and read the journal even when not bookable; anonymous, client and missing staff accounts remain refused')
 
   const forbidden = {
     service_id: id(40), status: 'cancelled', payment_status: 'paid', payment_method: 'cash', amount_paid_cents: 0,
@@ -196,13 +200,20 @@ async function main() {
   ]) {
     seed({ rpcData }); assert.equal((await call('POST')).status, 502); singleAtomicMutation(); assert.equal(state.syncCalls.length, 0)
   }
-  for (const [code, expected] of [['40001', 409], ['23505', 409], ['42883', 503], ['PGRST202', 503], ['42501', 403], ['P0002', 404], ['22023', 400]]) {
+  for (const [code, expected] of [['PT409', 409], ['40001', 409], ['23505', 409], ['42883', 503], ['PGRST202', 503], ['42501', 403], ['P0002', 404], ['22023', 400]]) {
     seed({ rpcError: { code, message: 'RPC refused the move' }, rpcData: null })
     response = await call('POST'); assert.equal(response.status, expected, code)
+    if (code === 'PT409' || code === '40001') assert.equal(response.data.error, 'RPC refused the move', 'Business and database conflicts keep their useful error message')
     singleAtomicMutation(); assert.equal(state.syncCalls.length, 0)
   }
+  seed({ actor: { id: actorId, role: 'receptionist', salon_id: id(999), is_active: false },
+    rpcError: { code: '22023', message: 'Choisissez des masseuses actives de ce salon.' }, rpcData: null })
+  response = await call('POST')
+  assert.equal(response.status, 400, 'A non-bookable operator is authorized, but an inactive destination remains refused by the atomic move')
+  assert.match(response.data.error, /masseuses actives/)
+  singleAtomicMutation(); assert.equal(state.syncCalls.length, 0)
   seed({ rpcThrows: true }); assert.equal((await call('POST')).status, 500); singleAtomicMutation(); assert.equal(state.syncCalls.length, 0)
-  console.log('PASS: one seven-argument actor-bound RPC is the only write path; complete appointment+journal confirmation is mandatory, replays skip sync, and failures never fall back')
+  console.log('PASS: one seven-argument actor-bound RPC is the only write path; PT409 and real serialization failures map to 409, replays skip sync, and failures never fall back')
 
   for (const options of [
     { params: { salonId: 'invalid' } }, { request: { query: '?limit=0' } }, { request: { query: '?limit=51' } },

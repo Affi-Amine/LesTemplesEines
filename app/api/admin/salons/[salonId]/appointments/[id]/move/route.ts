@@ -37,7 +37,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ sa
     })
     if (error) {
       const missing = ["42883", "PGRST202"].includes(error.code || "")
-      const status = missing ? 503 : error.code === "40001" || error.code === "23505" ? 409 : error.code === "42501" ? 403 : error.code === "P0002" ? 404 : 400
+      const status = missing ? 503 : ["PT409", "40001", "23505"].includes(error.code || "") ? 409 : error.code === "42501" ? 403 : error.code === "P0002" ? 404 : 400
       return NextResponse.json({ error: missing
         ? "La migration des déplacements libres et du journal doit être installée. Aucun rendez-vous n’a été déplacé."
         : error.message || "Le déplacement n’a pas été enregistré." }, { status })

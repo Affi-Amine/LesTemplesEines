@@ -113,7 +113,8 @@ BEGIN
   END IF;
   members := p_staff_ids;
   SELECT * INTO actor FROM public.staff WHERE id=p_actor_id;
-  IF NOT FOUND OR actor.is_active IS DISTINCT FROM true THEN
+  -- is_active controls whether this person is bookable, not their authenticated planning access.
+  IF NOT FOUND OR COALESCE(actor.role,'') NOT IN ('admin','manager','receptionist','assistant','therapist') THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='Ce compte ne peut pas déplacer les rendez-vous de ce salon.';
   END IF;
   PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('booking-calendar-write',0));
@@ -146,13 +147,13 @@ BEGIN
        previous_change.actor_id IS DISTINCT FROM p_actor_id OR
        (previous_change.changes->'after'->>'start_time')::timestamptz IS DISTINCT FROM p_start_time OR
        previous_change.changes->'after'->'staff_ids' IS DISTINCT FROM to_jsonb(members) THEN
-      RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Cette demande a déjà servi à un autre déplacement.';
+      RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Cette demande a déjà servi à un autre déplacement.';
     END IF;
     change_entry := previous_change;
     replayed := true;
   ELSE
     IF booking.updated_at IS DISTINCT FROM p_expected_updated_at THEN
-      RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant de réessayer.';
+      RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant de réessayer.';
     END IF;
     move_duration := booking.end_time-booking.start_time;
     IF move_duration<=interval '0 seconds' OR NOT pg_catalog.isfinite(booking.start_time) OR NOT pg_catalog.isfinite(booking.end_time) THEN

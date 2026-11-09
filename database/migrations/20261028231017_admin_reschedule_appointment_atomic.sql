@@ -32,7 +32,7 @@ BEGIN
   SELECT * INTO booking FROM public.appointments WHERE id=p_appointment_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='Rendez-vous introuvable.'; END IF;
   IF booking.updated_at IS DISTINCT FROM p_expected_updated_at THEN
-    RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant de réessayer.';
+    RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant de réessayer.';
   END IF;
   candidate := pg_catalog.jsonb_populate_record(booking,p_updates);
   IF candidate.end_time<=candidate.start_time THEN

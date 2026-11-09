@@ -43,7 +43,7 @@ async function main(){
  await seed();before=await snapshot();await assert.rejects(()=>move({team:[id(99)]}),e=>e.code==='23503');assert.deepEqual(await snapshot(),before)
  await assert.rejects(()=>move({updates:{start_time:'2099-11-02T13:00Z',end_time:'2099-11-02T14:30Z',amount_paid_cents:999},payments:[{amount_cents:0,method:'card'}]}),e=>e.code==='23514');assert.deepEqual(await snapshot(),before)
  console.log('PASS: assignment and payment failures cannot leave a partial write')
- await assert.rejects(()=>move({expected:'2026-02-01T00:00Z'}),e=>e.code==='40001');assert.deepEqual(await snapshot(),before)
+ await assert.rejects(()=>move({expected:'2026-02-01T00:00Z'}),e=>e.code==='PT409');assert.deepEqual(await snapshot(),before)
  await assert.rejects(()=>move({updates:{id:id(99)}}),e=>e.code==='22023');assert.deepEqual(await snapshot(),before)
  console.log('PASS: stale snapshots and protected-field injection rejected before any mutation')
  for(const role of ['anon','authenticated']){await db.exec('SET ROLE '+role);try{await assert.rejects(()=>move(),e=>e.code==='42501')}finally{await db.exec('RESET ROLE')}}

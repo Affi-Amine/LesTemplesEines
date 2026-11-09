@@ -27,10 +27,12 @@ export type SalonMoveLog = {
   }
 }
 
-/** Every active staff account can use the planning pages, regardless of role or home salon. */
+/** Planning access follows the signed-in staff account. is_active controls bookability, not login access. */
 export async function authorizeSalonMove(supabase: ReturnType<typeof createAdminClient>, payload: JWTPayload, _salonId: string) {
+  const staffRoles = ["admin", "manager", "receptionist", "assistant", "therapist"]
+  if (!payload.staffId || !staffRoles.includes(payload.role)) return false
   const { data: actor, error } = await supabase.from("staff")
-    .select("id, salon_id, role, is_active").eq("id", payload.staffId).maybeSingle()
+    .select("id, role").eq("id", payload.staffId).maybeSingle()
   if (error) throw new Error("Impossible de vérifier votre accès au planning.")
-  return Boolean(actor && actor.is_active === true)
+  return Boolean(actor && staffRoles.includes(actor.role))
 }

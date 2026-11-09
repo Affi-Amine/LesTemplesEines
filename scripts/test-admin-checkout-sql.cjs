@@ -61,11 +61,11 @@ async function main(){
  for(const items of [[],{},[{price_cents:'7000'}],[{price_cents:-1}],[{price_cents:1.5}],[{price_cents:2147483648}]]){await seed({items});await rejects({payments:[{amount_cents:7000,method:'card'}]})}
  await seed({paid:-1});await rejects({})
  console.log('PASS: malformed, fractional, negative, zero, oversized, injected or mismatched amounts fail before any parent or ledger write')
- for(const status of ['blocked','cancelled','no_show']){await seed({status});await rejects({},'40001')}
- await seed({paymentStatus:'paid',paid:7000});await rejects({},'40001')
- await seed({paid:7000,paymentStatus:'partial'});await rejects({},'40001')
- await seed({paymentStatus:'pending',method:'stripe'});await rejects({},'40001')
- await seed();await rejects({expected:'2026-02-01T00:00Z'},'40001');await rejects({expected:null});await rejects({appointmentId:id(999)},'P0002')
+ for(const status of ['blocked','cancelled','no_show']){await seed({status});await rejects({},'PT409')}
+ await seed({paymentStatus:'paid',paid:7000});await rejects({},'PT409')
+ await seed({paid:7000,paymentStatus:'partial'});await rejects({},'PT409')
+ await seed({paymentStatus:'pending',method:'stripe'});await rejects({},'PT409')
+ await seed();await rejects({expected:'2026-02-01T00:00Z'},'PT409');await rejects({expected:null});await rejects({appointmentId:id(999)},'P0002')
  console.log('PASS: stale/missing versions, already-paid or zero-balance bookings, closed attendance states and pending Stripe checkouts cannot be charged')
  await seed();const initial=await snapshot()
  await db.exec(`CREATE FUNCTION public.reject_checkout_ledger() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Fixture ledger failure'; END $$;
@@ -73,7 +73,7 @@ async function main(){
  await rejects({},'23514');assert.deepEqual(await snapshot(),initial)
  await db.exec('DROP TRIGGER reject_checkout_ledger ON public.payments; DROP FUNCTION public.reject_checkout_ledger()')
  console.log('PASS: ledger insertion failure rolls back the appointment payment state and preserves the complete team')
- await seed();await checkout();const once=await snapshot();await rejects({},'40001');assert.equal(once.ledger.length,1)
+ await seed();await checkout();const once=await snapshot();await rejects({},'PT409');assert.equal(once.ledger.length,1)
  const unchanged=await snapshot();await db.exec(sql);assert.deepEqual(await snapshot(),unchanged)
  for(const role of ['anon','authenticated']){await db.exec('SET ROLE '+role);try{await assert.rejects(()=>raw(),error=>error.code==='42501')}finally{await db.exec('RESET ROLE')}}
  await assert.rejects(()=>raw(),error=>error.code==='42501')

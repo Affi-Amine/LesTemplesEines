@@ -1,10 +1,12 @@
--- LES TEMPLES : actualisation incrémentale du planning et de l’encaissement.
+-- LES TEMPLES : droits des comptes connectés et conflits métier des RPC admin.
 -- À exécuter en entier dans le SQL Editor du projet existant.
--- Remplace uniquement deux fonctions serveur ; aucun rendez-vous ni règlement réel n’est créé ou modifié.
+-- Les comptes non réservables conservent leur accès ; les conflits répondent HTTP409 sans boucle.
+-- Remplace seulement trois fonctions serveur, sans changer de compte, RDV, règlement ou journal existant.
 
--- 1. 20261109030636_salon_planning_staff_access.sql
--- All active authenticated staff share the access already granted by the planning pages.
--- Appointment identity, displayed salon, complete team, duration, versions and journal stay protected.
+-- 20261109135523_admin_rpc_conflict_http_status.sql
+-- Business conflicts are HTTP409, not serialization failures.
+-- PostgREST14 retries custom40001 errors indefinitely; real serialization failures remain database-generated.
+-- Keep server-only execution, role authorization, versions, complete teams and atomic journals.
 BEGIN;
 
 CREATE OR REPLACE FUNCTION public.salon_drag_appointment_atomic(
@@ -42,7 +44,8 @@ BEGIN
   END IF;
   members := p_staff_ids;
   SELECT * INTO actor FROM public.staff WHERE id=p_actor_id;
-  IF NOT FOUND OR actor.is_active IS DISTINCT FROM true THEN
+  -- is_active controls whether this person is bookable, not their authenticated planning access.
+  IF NOT FOUND OR COALESCE(actor.role,'') NOT IN ('admin','manager','receptionist','assistant','therapist') THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='Ce compte ne peut pas déplacer les rendez-vous de ce salon.';
   END IF;
   PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('booking-calendar-write',0));
@@ -75,13 +78,13 @@ BEGIN
        previous_change.actor_id IS DISTINCT FROM p_actor_id OR
        (previous_change.changes->'after'->>'start_time')::timestamptz IS DISTINCT FROM p_start_time OR
        previous_change.changes->'after'->'staff_ids' IS DISTINCT FROM to_jsonb(members) THEN
-      RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Cette demande a déjà servi à un autre déplacement.';
+      RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Cette demande a déjà servi à un autre déplacement.';
     END IF;
     change_entry := previous_change;
     replayed := true;
   ELSE
     IF booking.updated_at IS DISTINCT FROM p_expected_updated_at THEN
-      RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant de réessayer.';
+      RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant de réessayer.';
     END IF;
     move_duration := booking.end_time-booking.start_time;
     IF move_duration<=interval '0 seconds' OR NOT pg_catalog.isfinite(booking.start_time) OR NOT pg_catalog.isfinite(booking.end_time) THEN
@@ -174,13 +177,64 @@ END $$;
 
 REVOKE ALL ON FUNCTION public.salon_drag_appointment_atomic(uuid,uuid,timestamptz,timestamptz,uuid[],uuid,uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.salon_drag_appointment_atomic(uuid,uuid,timestamptz,timestamptz,uuid[],uuid,uuid) TO service_role;
-NOTIFY pgrst, 'reload schema';
-COMMIT;
 
--- 2. 20261109031021_admin_checkout_appointment_atomic.sql
--- Server-only settlement. Amounts are calculated from the locked booking, never trusted from the browser.
--- The appointment's team and schedule are never rewritten, including manually overlapping bookings.
-BEGIN;
+CREATE OR REPLACE FUNCTION public.admin_reschedule_appointment_atomic(
+  p_appointment_id uuid,
+  p_expected_updated_at timestamptz,
+  p_updates jsonb,
+  p_staff_ids uuid[],
+  p_payments jsonb DEFAULT '[]'::jsonb
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $$
+DECLARE booking public.appointments%ROWTYPE; candidate public.appointments%ROWTYPE;
+  members uuid[]; result jsonb;
+BEGIN
+  IF p_updates IS NULL OR pg_catalog.jsonb_typeof(p_updates) <> 'object' OR
+    p_updates - ARRAY['updated_at','start_time','end_time','staff_id','salon_id','service_id','service_items','status','client_notes','internal_notes','payment_status','payment_method','amount_paid_cents','paid_at'] <> '{}'::jsonb THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Champs de modification invalides.';
+  END IF;
+  IF p_staff_ids IS NULL OR pg_catalog.cardinality(p_staff_ids)=0 OR array_position(p_staff_ids,NULL) IS NOT NULL THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Une équipe complète est obligatoire.';
+  END IF;
+  SELECT array_agg(member ORDER BY first_position) INTO members FROM (
+    SELECT member, min(position) AS first_position FROM unnest(p_staff_ids) WITH ORDINALITY AS team(member,position) GROUP BY member
+  ) normalized;
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('booking-calendar-write',0));
+  SELECT * INTO booking FROM public.appointments WHERE id=p_appointment_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='Rendez-vous introuvable.'; END IF;
+  IF booking.updated_at IS DISTINCT FROM p_expected_updated_at THEN
+    RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant de réessayer.';
+  END IF;
+  candidate := pg_catalog.jsonb_populate_record(booking,p_updates);
+  IF candidate.end_time<=candidate.start_time THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='La durée du rendez-vous est invalide.';
+  END IF;
+  -- Existing interval triggers see the final primary practitioner and final time.
+  -- Any failure below rolls back these deletes, the booking and all new assignments.
+  DELETE FROM public.appointment_assignments WHERE appointment_id=booking.id;
+  UPDATE public.appointments SET
+    start_time=candidate.start_time, end_time=candidate.end_time, staff_id=members[1],
+    salon_id=candidate.salon_id, service_id=candidate.service_id, service_items=candidate.service_items,
+    status=candidate.status, client_notes=candidate.client_notes, internal_notes=candidate.internal_notes,
+    payment_status=candidate.payment_status, payment_method=candidate.payment_method,
+    amount_paid_cents=candidate.amount_paid_cents, paid_at=candidate.paid_at, updated_at=clock_timestamp()
+  WHERE id=booking.id RETURNING * INTO booking;
+  INSERT INTO public.appointment_assignments(appointment_id,staff_id)
+    SELECT booking.id,member FROM unnest(members) AS member;
+  INSERT INTO public.payments(appointment_id,amount_cents,method)
+    SELECT booking.id,p.amount_cents,p.method FROM pg_catalog.jsonb_to_recordset(COALESCE(p_payments,'[]'::jsonb)) AS p(amount_cents integer,method text);
+  SELECT pg_catalog.to_jsonb(booking) || pg_catalog.jsonb_build_object(
+    'assignments',COALESCE((SELECT jsonb_agg(jsonb_build_object('staff_id',a.staff_id,'staff',jsonb_build_object('id',s.id,'first_name',s.first_name,'last_name',s.last_name))) FROM public.appointment_assignments a JOIN public.staff s ON s.id=a.staff_id WHERE a.appointment_id=booking.id),'[]'::jsonb),
+    'staff',(SELECT jsonb_build_object('id',s.id,'first_name',s.first_name,'last_name',s.last_name,'role',s.role,'phone',s.phone) FROM public.staff s WHERE s.id=booking.staff_id),
+    'client',(SELECT to_jsonb(c) FROM public.clients c WHERE c.id=booking.client_id),
+    'service',(SELECT to_jsonb(s) FROM public.services s WHERE s.id=booking.service_id),
+    'salon',(SELECT jsonb_build_object('id',s.id,'name',s.name,'city',s.city,'address',s.address) FROM public.salons s WHERE s.id=booking.salon_id)
+  ) INTO result;
+  RETURN result;
+END $$;
+REVOKE ALL ON FUNCTION public.admin_reschedule_appointment_atomic(uuid,timestamptz,jsonb,uuid[],jsonb) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_reschedule_appointment_atomic(uuid,timestamptz,jsonb,uuid[],jsonb) TO service_role;
+
 CREATE OR REPLACE FUNCTION public.admin_checkout_appointment_atomic(
   p_appointment_id uuid,
   p_expected_updated_at timestamptz,
@@ -208,13 +262,13 @@ BEGIN
   SELECT * INTO booking FROM public.appointments WHERE id=p_appointment_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='Rendez-vous introuvable.'; END IF;
   IF booking.updated_at IS DISTINCT FROM p_expected_updated_at THEN
-    RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant d’encaisser.';
+    RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant d’encaisser.';
   END IF;
   IF booking.status IN ('blocked','cancelled','no_show') OR booking.payment_status='paid' THEN
-    RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Ce rendez-vous ne peut pas être encaissé ou est déjà réglé.';
+    RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Ce rendez-vous ne peut pas être encaissé ou est déjà réglé.';
   END IF;
   IF booking.payment_status='pending' AND booking.payment_method='stripe' THEN
-    RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Un paiement en ligne est en cours. Attendez sa confirmation avant d’encaisser.';
+    RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Un paiement en ligne est en cours. Attendez sa confirmation avant d’encaisser.';
   END IF;
 
   IF booking.service_items IS NOT NULL AND booking.service_items <> 'null'::jsonb THEN
@@ -243,7 +297,7 @@ BEGIN
   END IF;
   due := price::bigint - already_paid;
   IF due <= 0 THEN
-    RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Aucun montant ne reste à encaisser sur ce rendez-vous.';
+    RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Aucun montant ne reste à encaisser sur ce rendez-vous.';
   END IF;
   IF p_payments IS NULL OR jsonb_typeof(p_payments) <> 'array' OR jsonb_array_length(p_payments) NOT BETWEEN 1 AND 20 THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Renseignez un à vingt règlements valides.';
@@ -286,6 +340,7 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.admin_checkout_appointment_atomic(uuid,timestamptz,jsonb) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_checkout_appointment_atomic(uuid,timestamptz,jsonb) TO service_role;
+
 NOTIFY pgrst, 'reload schema';
 COMMIT;
 
@@ -316,9 +371,9 @@ SELECT 'Encaissement : exécution réservée au serveur',
        AND COALESCE((SELECT NOT prosecdef FROM pg_catalog.pg_proc WHERE oid=checkout_oid), false)
 FROM definitions
 UNION ALL
-SELECT 'Déplacement : tous les comptes staff actifs, sans restriction de rôle ou affectation',
-       position('IF NOT FOUND OR actor.is_active IS DISTINCT FROM true THEN' IN move_definition)>0
-       AND position('actor.role NOT IN' IN move_definition)=0
+SELECT 'Déplacement : tous les comptes staff autorisés, même non réservables',
+       position($check$IF NOT FOUND OR COALESCE(actor.role,'') NOT IN ('admin','manager','receptionist','assistant','therapist') THEN$check$ IN move_definition)>0
+       AND position('actor.is_active' IN move_definition)=0
        AND position('actor.salon_id IS DISTINCT FROM p_salon_id' IN move_definition)=0
 FROM definitions
 UNION ALL
@@ -334,6 +389,8 @@ SELECT 'Protections anti-chevauchement toujours actives',
        AND EXISTS (SELECT 1 FROM pg_catalog.pg_trigger
          WHERE tgrelid=to_regclass('public.appointment_assignments') AND tgname='guard_appointment_assignment_interval'
            AND tgfoid=to_regprocedure('public.guard_appointment_assignment_interval()') AND tgenabled IN ('O','A'))
+       AND COALESCE(position('les_temples.salon_drag_appointment_id' IN pg_get_functiondef(to_regprocedure('public.guard_appointment_interval()')))>0,false)
+       AND COALESCE(position('les_temples.salon_drag_appointment_id' IN pg_get_functiondef(to_regprocedure('public.guard_appointment_assignment_interval()')))>0,false)
 UNION ALL
 SELECT 'Encaissement : verrou, version et registre des règlements, sans réécriture de l’équipe',
        position('FOR UPDATE' IN checkout_definition)>0
@@ -342,4 +399,12 @@ SELECT 'Encaissement : verrou, version et registre des règlements, sans réécr
        AND position('DELETE FROM public.appointment_assignments' IN checkout_definition)=0
        AND position('INSERT INTO public.appointment_assignments' IN checkout_definition)=0
        AND position('UPDATE public.appointment_assignments' IN checkout_definition)=0
-FROM definitions;
+FROM definitions
+UNION ALL
+SELECT 'Conflits métier : HTTP409 explicite, sans fausse erreur de sérialisation',
+       count(*)=3 AND bool_and(position($check$ERRCODE='PT409'$check$ IN pg_get_functiondef(oid))>0
+         AND position($check$ERRCODE='40001'$check$ IN pg_get_functiondef(oid))=0)
+FROM pg_catalog.pg_proc WHERE oid IN (
+  to_regprocedure('public.salon_drag_appointment_atomic(uuid,uuid,timestamptz,timestamptz,uuid[],uuid,uuid)'),
+  to_regprocedure('public.admin_reschedule_appointment_atomic(uuid,timestamptz,jsonb,uuid[],jsonb)'),
+  to_regprocedure('public.admin_checkout_appointment_atomic(uuid,timestamptz,jsonb)'));

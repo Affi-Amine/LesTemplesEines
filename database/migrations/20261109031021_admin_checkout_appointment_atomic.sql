@@ -28,13 +28,13 @@ BEGIN
   SELECT * INTO booking FROM public.appointments WHERE id=p_appointment_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='Rendez-vous introuvable.'; END IF;
   IF booking.updated_at IS DISTINCT FROM p_expected_updated_at THEN
-    RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant d’encaisser.';
+    RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant d’encaisser.';
   END IF;
   IF booking.status IN ('blocked','cancelled','no_show') OR booking.payment_status='paid' THEN
-    RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Ce rendez-vous ne peut pas être encaissé ou est déjà réglé.';
+    RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Ce rendez-vous ne peut pas être encaissé ou est déjà réglé.';
   END IF;
   IF booking.payment_status='pending' AND booking.payment_method='stripe' THEN
-    RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Un paiement en ligne est en cours. Attendez sa confirmation avant d’encaisser.';
+    RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Un paiement en ligne est en cours. Attendez sa confirmation avant d’encaisser.';
   END IF;
 
   IF booking.service_items IS NOT NULL AND booking.service_items <> 'null'::jsonb THEN
@@ -63,7 +63,7 @@ BEGIN
   END IF;
   due := price::bigint - already_paid;
   IF due <= 0 THEN
-    RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Aucun montant ne reste à encaisser sur ce rendez-vous.';
+    RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Aucun montant ne reste à encaisser sur ce rendez-vous.';
   END IF;
   IF p_payments IS NULL OR jsonb_typeof(p_payments) <> 'array' OR jsonb_array_length(p_payments) NOT BETWEEN 1 AND 20 THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Renseignez un à vingt règlements valides.';

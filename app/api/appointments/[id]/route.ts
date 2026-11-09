@@ -116,7 +116,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         p_payments: payments,
       })
       if (error) {
-        const status = ["40001", "23514", "23P01"].includes(error.code || "") ? 409
+        const status = ["PT409", "40001", "23514", "23P01"].includes(error.code || "") ? 409
           : ["42883", "PGRST202"].includes(error.code || "") ? 503
           : error.code === "P0002" ? 404 : error.code === "42501" ? 403 : 400
         return NextResponse.json({ error: status === 503
@@ -197,8 +197,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       if (!actorId) return NextResponse.json({ error: "Session équipe invalide. Reconnectez-vous." }, { status: 403 })
       const { data: members, error: teamError } = await supabase.from("staff").select("id, is_active").in("id", Array.from(new Set([actorId, ...team])))
       if (teamError) throw teamError
-      if (!members?.some((member: { id: string; is_active?: boolean }) => member.id === actorId && member.is_active === true)) {
-        return NextResponse.json({ error: "Ce compte équipe n’est plus actif. Reconnectez-vous." }, { status: 403 })
+      // A receptionist/admin can sign in without being bookable as a practitioner.
+      if (!members?.some((member: { id: string; is_active?: boolean }) => member.id === actorId)) {
+        return NextResponse.json({ error: "Ce compte équipe n’existe plus. Reconnectez-vous." }, { status: 403 })
       }
       if (!team.length || team.some(staffId => !members?.some((member: { id: string; is_active?: boolean }) => member.id === staffId && member.is_active === true))) {
         return NextResponse.json({ error: "Une masseuse choisie n’est plus active. Actualisez le planning." }, { status: 400 })
@@ -318,7 +319,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         p_payments: updates.payments || [],
       })
       if (error) {
-        const status = ["23P01", "40001"].includes(error.code || "") ? 409 :
+        const status = ["23P01", "PT409", "40001"].includes(error.code || "") ? 409 :
           ["42883", "PGRST202"].includes(error.code || "") ? 503 : 400
         return NextResponse.json({ error: status === 503 ? "La mise à jour du planning doit être installée avant de déplacer un rendez-vous. Aucun déplacement n’a été effectué." : error.message || "Déplacement impossible" }, { status })
       }

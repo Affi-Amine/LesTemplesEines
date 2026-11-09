@@ -3,8 +3,9 @@ const assert = require('node:assert/strict')
 const { PGlite } = require('@electric-sql/pglite')
 
 const migration = 'database/migrations/20261109003751_salon_drag_appointment_atomic.sql'
+const actorAccessMigration = 'database/migrations/20261109133855_salon_planning_actor_access.sql'
 const id = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
-const [salon, otherSalon, service, client, a, b, c, outsider, inactive, admin, manager, receptionist, therapist, inactiveAdmin, otherManager] = [1,2,3,4,10,11,12,13,14,20,21,22,23,24,25].map(id)
+const [salon, otherSalon, service, client, a, b, c, outsider, inactive, admin, manager, receptionist, therapist, inactiveAdmin, otherManager, nonStaffActor] = [1,2,3,4,10,11,12,13,14,20,21,22,23,24,25,26].map(id)
 const booking = id(100), request = id(500)
 const oldStart = '2099-11-02T10:00:00Z', oldEnd = '2099-11-02T11:30:00Z', version = '2026-01-01T00:00:00Z'
 const target = '2099-11-02T13:00:00Z', targetEnd = '2099-11-02T14:30:00Z'
@@ -80,6 +81,19 @@ async function bootstrap() {
   const accessMigration = fs.readFileSync('database/migrations/20261109030636_salon_planning_staff_access.sql','utf8')
   await db.exec(accessMigration)
   await db.exec(accessMigration)
+  const conflictSql = fs.readFileSync('database/migrations/20261109135523_admin_rpc_conflict_http_status.sql','utf8')
+  const actorAccessSql = fs.readFileSync(actorAccessMigration,'utf8')
+  await db.exec(actorAccessSql)
+  await db.exec(actorAccessSql)
+  for (const [file, count] of [['database/CORRIGER_ACCES_PLANNING.sql',7],['database/ACTUALISER_PLANNING_ENCAISSEMENT.sql',9],['database/CORRIGER_CONFLITS_ADMIN.sql',7]]) {
+    for (let replay=0;replay<2;replay++) {
+      const results = await db.exec(fs.readFileSync(file,'utf8'))
+      const checks = results.at(-1).rows
+      assert.equal(checks.length,count,file)
+      assert(checks.every(check=>check.ok===true),file+': '+JSON.stringify(checks))
+    }
+  }
+  console.log('PASS: incremental correction and complete update scripts replay safely with all actor, target-team, version, journal and live-guard metadata checks true')
   assert.equal((await db.query('SELECT count(*)::int AS count FROM public.activity_logs WHERE id=$1',[initialLog.id])).rows[0].count,1)
   const journalAccess = (await db.query(`SELECT relrowsecurity AS rls,
     has_table_privilege('service_role','public.activity_logs','SELECT') AS server_read,
@@ -98,6 +112,7 @@ async function bootstrap() {
     [admin,'Admin','admin',otherSalon,true], [manager,'Manager','manager',salon,true],
     [receptionist,'Réception','receptionist',salon,true], [therapist,'Thérapeute','therapist',salon,true],
     [inactiveAdmin,'Admin inactif','admin',salon,false], [otherManager,'Autre manager','manager',otherSalon,true],
+    [nonStaffActor,'Client injecté','client',salon,true],
   ]) await db.query(`INSERT INTO public.staff VALUES($1,$2,$3,'Test',$4,'0601020304','PRIVATE',$5)`,[key,salonId,name,staffRole,active])
 }
 
@@ -126,8 +141,8 @@ async function main() {
   assert.equal(replay.replayed,true)
   assert.equal(replay.change.id,first.change.id)
   assert.deepEqual(await snapshot(),after)
-  await rejectedWithoutMutation({ start:'2099-11-02T13:15:00Z' },'40001')
-  await rejectedWithoutMutation({ requestId:id(501) },'40001')
+  await rejectedWithoutMutation({ start:'2099-11-02T13:15:00Z' },'PT409')
+  await rejectedWithoutMutation({ requestId:id(501) },'PT409')
   console.log('PASS: retries are idempotent; reused request with different input and stale versions cannot write another change')
 
   await role('service_role',async () => {
@@ -196,7 +211,7 @@ async function main() {
   console.log('PASS: invoker RPC is service-role-only and a spoofed client GUC cannot bypass the definer guards')
 
   for (const options of [
-    { actor:inactiveAdmin }, { actor:id(999) },
+    { actor:nonStaffActor }, { actor:id(999) },
     { salonId:otherSalon },
   ]) await rejectedWithoutMutation(options,'42501')
   for (const options of [
@@ -205,7 +220,36 @@ async function main() {
   ]) await rejectedWithoutMutation(options,'22023')
   await rejectedWithoutMutation({ appointmentId:id(998) },'P0002')
   for (const actor of [admin,manager,receptionist,therapist,c,otherManager,outsider]) { await seed(); await move({ actor }); assert.equal((await snapshot()).logs,1) }
-  console.log('PASS: every active staff role can move in the displayed salon; inactive/missing actors, foreign booking/team, invalid times and versions stay protected')
+  for (const actor of [admin,manager,receptionist,therapist,c,inactiveAdmin]) {
+    await db.query('UPDATE public.staff SET is_active=false WHERE id=$1',[actor])
+    await seed()
+    const moved = await move({actor})
+    assert.equal(moved.change.actor_id,actor)
+    assert.equal((await snapshot()).logs,1)
+    if(actor!==inactiveAdmin) await db.query('UPDATE public.staff SET is_active=true WHERE id=$1',[actor])
+  }
+  await seed()
+  await rejectedWithoutMutation({actor:inactiveAdmin,expected:'1900-01-01T00:00:00Z'},'PT409')
+  await rejectedWithoutMutation({actor:inactiveAdmin,team:[inactiveAdmin]},'22023')
+  console.log('PASS: all five authenticated staff roles may move even when non-bookable; missing/client actors and inactive/foreign target practitioners remain protected, with stale versions rejected before any write')
+
+  await seed()
+  await db.query("UPDATE public.appointments SET start_time='2000-01-01T10:00:00Z',end_time='2000-01-01T11:30:00Z' WHERE id=$1",[booking])
+  const beforeDiagnostic = await snapshot()
+  const observableDiagnosticSql = fs.readFileSync('database/TESTER_DEPLACEMENT_ROLLBACK.sql','utf8')
+  const originalRole = (await db.query('SELECT current_user AS role')).rows[0].role
+  const originalOverride = await config()
+  assert(!/^\s*(?:COMMIT|START TRANSACTION|BEGIN\s*;)\b/im.test(observableDiagnosticSql),'Observable diagnostic must be one implicit DO transaction')
+  await assert.rejects(() => db.exec(observableDiagnosticSql),error=>{
+    assert.equal(error.code,'PZ001')
+    assert(error.message.startsWith('TEST_DEPLACEMENT_OK'))
+    assert(![booking,'Camille','0601020304'].some(value=>error.message.includes(value)))
+    return true
+  })
+  assert.deepEqual(await snapshot(),beforeDiagnostic,'Success exception must roll back the real move and journal automatically')
+  assert.equal((await db.query('SELECT current_user AS role')).rows[0].role,originalRole)
+  assert.equal(await config(),originalOverride)
+  console.log('PASS: observable diagnostic reports PZ001 success while the implicit transaction restores every booking, assignment, payment, journal row and role setting')
 
   await seed({team:[a,b]}); await extra(a); await extra(b)
   await rejectedWithoutMutation({team:[a]},'22023')

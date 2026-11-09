@@ -70,13 +70,13 @@ BEGIN
        previous_change.actor_id IS DISTINCT FROM p_actor_id OR
        (previous_change.changes->'after'->>'start_time')::timestamptz IS DISTINCT FROM p_start_time OR
        previous_change.changes->'after'->'staff_ids' IS DISTINCT FROM to_jsonb(members) THEN
-      RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Cette demande a déjà servi à un autre déplacement.';
+      RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Cette demande a déjà servi à un autre déplacement.';
     END IF;
     change_entry := previous_change;
     replayed := true;
   ELSE
     IF booking.updated_at IS DISTINCT FROM p_expected_updated_at THEN
-      RAISE EXCEPTION USING ERRCODE='40001', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant de réessayer.';
+      RAISE EXCEPTION USING ERRCODE='PT409', MESSAGE='Ce rendez-vous a été modifié. Actualisez le planning avant de réessayer.';
     END IF;
     move_duration := booking.end_time-booking.start_time;
     IF move_duration<=interval '0 seconds' OR NOT pg_catalog.isfinite(booking.start_time) OR NOT pg_catalog.isfinite(booking.end_time) THEN

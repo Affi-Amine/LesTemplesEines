@@ -14,7 +14,7 @@ const db={from(table){const query={select(){return query},eq(){return query},sin
     state.rpcCalls.push({name,payload});assert.equal(name,'admin_checkout_appointment_atomic')
     assert.deepEqual(Object.keys(payload).sort(),['p_appointment_id','p_expected_updated_at','p_payments'])
     if(state.rpcError)return {data:null,error:state.rpcError}
-    if(Date.parse(payload.p_expected_updated_at)!==Date.parse(state.booking.updated_at)||state.booking.payment_status==='paid')return {data:null,error:{code:'40001',message:'Déjà réglé ou version modifiée'}}
+    if(Date.parse(payload.p_expected_updated_at)!==Date.parse(state.booking.updated_at)||state.booking.payment_status==='paid')return {data:null,error:{code:'PT409',message:'Déjà réglé ou version modifiée'}}
     const total=payload.p_payments.reduce((sum,line)=>sum+line.amount_cents,0)
     assert.equal(total,1500)
     Object.assign(state.booking,{payment_status:'paid',payment_method:'mixed',amount_paid_cents:8000,updated_at:'2026-11-09T10:00:01Z'})
@@ -54,13 +54,14 @@ async function main() {
   seed();assert.equal((await patch(body({status:'in_progress'}))).status,400);assert.equal(state.rpcCalls.length,0)
   seed();assert.equal((await patch(body({payments:undefined,payment_method:'cash'}))).status,200)
   assert.equal(state.rpcCalls[0].payload.p_payments[0].amount_cents,1500,'Legacy cumulative amount becomes only the supplement')
-  for(const [code,status] of [['40001',409],['23514',409],['22023',400],['P0002',404],['42501',403],['PGRST202',503]]) {
-    seed({rpcError:{code,message:'Test rollback'}});assert.equal((await patch(body())).status,status);assert.equal(state.directWrites,0);assert.equal(state.ledger.length,0)
+  for(const [code,status] of [['PT409',409],['40001',409],['23514',409],['22023',400],['P0002',404],['42501',403],['PGRST202',503]]) {
+    seed({rpcError:{code,message:'Test rollback'}});const response=await patch(body());assert.equal(response.status,status);assert.equal(state.directWrites,0);assert.equal(state.ledger.length,0);assert.equal(state.rpcCalls.length,1)
+    if(code==='PT409'||code==='40001')assert.equal(response.data.error,'Test rollback','Business and real serialization conflicts preserve the server explanation')
   }
   seed();assert.equal((await patch(body())).status,200);assert.equal((await patch(body())).status,409);assert.equal(state.ledger.length,1)
   seed({ambiguous:true});assert.equal((await patch(body())).status,500);assert.equal((await patch(body())).status,409);assert.equal(state.ledger.length,1)
   seed();assert.equal((await patch(body({expected_updated_at:undefined}))).status,200)
   assert.equal((await patch(body({expected_updated_at:undefined}))).status,409);assert.equal(state.ledger.length,1)
-  console.log('PASS: real payment PATCH preserves five staff roles, uses only the atomic versioned RPC, preserves care/team, handles legacy payloads, and rejects stale/double/ambiguous retries without direct writes')
+  console.log('PASS: real payment PATCH preserves five staff roles, uses only the atomic versioned RPC, maps PT409 and genuine 40001 to 409, and rejects stale/double/ambiguous retries without direct writes')
 }
 main().catch(error=>{console.error(error);process.exitCode=1})

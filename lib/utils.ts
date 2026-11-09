@@ -27,6 +27,36 @@ export function getStatusColor(status: string): string {
   }
 }
 
+/** Prestation tones, in the order they are handed out to services. */
+export const SERVICE_TONES = ["sky", "green", "amber", "violet", "teal", "rose", "lime", "blue"] as const
+export type ServiceTone = (typeof SERVICE_TONES)[number]
+
+export const SERVICE_TONE_LABELS: Record<ServiceTone, string> = {
+  sky: "Bleu ciel",
+  green: "Vert",
+  amber: "Ambre",
+  violet: "Violet",
+  teal: "Turquoise",
+  rose: "Rose",
+  lime: "Vert anis",
+  blue: "Bleu",
+}
+
+export function isServiceTone(value: unknown): value is ServiceTone {
+  return typeof value === "string" && (SERVICE_TONES as readonly string[]).includes(value)
+}
+
+/** Fallback for a prestation with no colour set: same key, same colour, every day. */
+export function getServiceTone(key: string): ServiceTone {
+  let hash = 0
+  for (let index = 0; index < key.length; index += 1) hash = (hash * 31 + key.charCodeAt(index)) >>> 0
+  return SERVICE_TONES[hash % SERVICE_TONES.length]
+}
+
+export function getPaymentEdge(paymentStatus?: string | null) {
+  return paymentStatus === "paid" ? "paid" : paymentStatus === "partial" ? "partial" : "unpaid"
+}
+
 // Card colour describes attendance only. Payment is displayed by its own marker.
 export function getAppointmentColor(appointment: { status: string; payment_status?: string | null }): string {
   return getStatusColor(appointment.status)

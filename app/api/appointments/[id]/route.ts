@@ -14,6 +14,9 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
+/** The planning works in quarters; nothing shorter can be read on it. */
+const MIN_APPOINTMENT_MINUTES = 15
+
 const UpdateAppointmentSchema = z.object({
   expected_updated_at: z.string().refine(value => Number.isFinite(Date.parse(value)), "Version invalide").optional(),
   status: z.enum(["confirmed", "in_progress", "completed", "cancelled", "no_show", "blocked"]).optional(),
@@ -30,8 +33,9 @@ const UpdateAppointmentSchema = z.object({
   // New fields for modification
   service_id: z.string().uuid().optional(),
   salon_id: z.string().uuid().optional(),
+  client_id: z.string().uuid().optional(),
   start_time: z.string().optional(), // ISO string
-  end_time: z.string().optional(), // ISO string, only honoured for blocked slots
+  end_time: z.string().optional(), // ISO string; on a booking it resizes it
   staff_ids: z.array(z.string().uuid()).min(1).optional(),
   staff_id: z.string().uuid().optional(), // Legacy support
   // Runs every check and returns the outcome (times, team, payment) without saving.
@@ -97,6 +101,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (updates.paid_at !== undefined) updateData.paid_at = updates.paid_at
     if (updates.salon_id) updateData.salon_id = updates.salon_id
 
+    // Booking taken under the wrong name, or a regular who booked for someone else.
+    if (updates.client_id && updates.client_id !== existing.client_id) {
+      if (existing.payment_method === "pack" || existing.client_pack_id) {
+        return NextResponse.json({ error: "Ce rendez-vous consomme le forfait du client actuel. Annulez-le puis recréez-le au nom du bon client." }, { status: 400 })
+      }
+      const { data: nextClient, error: clientError } = await supabase
+        .from("clients").select("id").eq("id", updates.client_id).maybeSingle()
+      if (clientError) throw clientError
+      if (!nextClient) return NextResponse.json({ error: "Cette fiche client n’existe plus." }, { status: 404 })
+      updateData.client_id = updates.client_id
+    }
+
     if (updates.payment_status === "paid" && updates.paid_at === undefined) {
       updateData.paid_at = new Date().toISOString()
     }
@@ -130,7 +146,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       (updates.salon_id && updates.salon_id !== existing.salon_id) ||
       (updates.service_id && updates.service_id !== existing.service_id) ||
       (updates.start_time && Date.parse(updates.start_time) !== Date.parse(existing.start_time)) ||
-      (editingBlockedSlot && updates.end_time && Date.parse(updates.end_time) !== Date.parse(existing.end_time)) ||
+      (updates.end_time && Date.parse(updates.end_time) !== Date.parse(existing.end_time)) ||
       (staffIdsToUpdate && [...new Set(targetStaffIds)].sort().join() !== [...new Set(existingStaffIds)].sort().join())
     )
 
@@ -171,9 +187,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       // Preserve the booked duration unless the service itself is changed.
       // A service's catalogue duration may have changed since this booking.
       const originalDuration = new Date(existing.end_time).getTime() - new Date(existing.start_time).getTime()
-      const preservedEndTime = targetServiceId === existing.service_id && originalDuration > 0
-        ? new Date(new Date(targetStartTime).getTime() + originalDuration).toISOString()
-        : undefined
+      // Stretched or shortened on the planning: the requested end wins.
+      const resizing = Boolean(updates.end_time && Date.parse(updates.end_time) !== Date.parse(existing.end_time))
+      if (resizing) {
+        const length = Date.parse(updates.end_time!) - Date.parse(targetStartTime)
+        if (!Number.isFinite(length) || length < MIN_APPOINTMENT_MINUTES * 60_000) {
+          return NextResponse.json({ error: `Un rendez-vous dure au moins ${MIN_APPOINTMENT_MINUTES} minutes.` }, { status: 400 })
+        }
+      }
+      const preservedEndTime = resizing ? updates.end_time
+        : targetServiceId === existing.service_id && originalDuration > 0
+          ? new Date(new Date(targetStartTime).getTime() + originalDuration).toISOString()
+          : undefined
       const { endTime, service } = await validateAppointmentScheduling(
         supabase,
         {
@@ -188,6 +213,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         {
           ignoreAppointmentId: id,
           quote: targetServiceId === existing.service_id ? existing.service_items : undefined,
+          allowCustomDuration: resizing,
         }
       )
 

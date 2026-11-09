@@ -23,6 +23,8 @@ function load(file, stubs = {}, cache = new Map()) {
     exports: mod.exports, console, Date, Intl, URL,
     require(name) {
       if (stubs[name]) return stubs[name]
+      // The platform-sync side effects are fired through after(); they are not part of the planning rules.
+      if (name === "@/lib/sync/trigger") return { syncAfterBookingChange: () => {}, loadRemoteCopies: async () => [], cancelRemoteCopiesAfterDelete: () => {} }
       if (name.startsWith("@/")) return load(`${name.slice(2)}.ts`, stubs, cache)
       return require(name)
     },
@@ -75,16 +77,18 @@ console.log("PASS: a cancelled booking stays visible beside the one that rebooke
 
 // ---- PATCH / DELETE route ---------------------------------------------------
 
-function routeScenario({ existing, body, role = "admin", conflict = false, method = "PATCH", servicePriceCents = 6500, packServices = null }) {
-  const calls = { rpc: [], writes: 0, availability: null, validation: null, deleted: false }
+function routeScenario({ existing, body, role = "admin", conflict = false, method = "PATCH", servicePriceCents = 6500, packServices = null, clientExists = true }) {
+  const calls = { rpc: [], writes: 0, availability: null, validation: null, deleted: false, update: null }
   const db = {
     from(table) {
       const q = {
         select() { return q }, eq() { return q }, in() { return q }, neq() { return q },
         single: async () => ({ data: existing, error: null }),
         maybeSingle: async () => table === "services" ? { data: { price_cents: 3500 }, error: null }
-          : table === "client_packs" ? { data: { pack: { allowed_services: packServices } }, error: null } : { data: null, error: null },
-        insert() { calls.writes++; return q }, update() { calls.writes++; return q },
+          : table === "client_packs" ? { data: { pack: { allowed_services: packServices } }, error: null }
+          : table === "clients" ? { data: clientExists ? { id: "next-client" } : null, error: null } : { data: null, error: null },
+        insert() { calls.writes++; return q },
+        update(value) { calls.writes++; if (table === "appointments") calls.update = value; return q },
         delete() { if (table === "appointments") calls.deleted = true; else calls.writes++; return q },
         then(resolve) { return Promise.resolve({ data: [], error: null }).then(resolve) },
       }
@@ -143,6 +147,47 @@ const block = { id: id(9), status: "blocked", salon_id: id(2), service_id: null,
   assert.equal(response.status, 422)
   assert.match(response.data.error, /forfait/)
   console.log("PASS: a prestation outside the client's pack is refused")
+
+  // Booking taken under the wrong name: the client can be swapped, unless a pack paid for it.
+  ;({ response, calls } = await routeScenario({ existing: { ...booking, client_id: id(8) }, body: { client_id: id(11) } }))
+  assert.equal(response.status, 200)
+  assert.equal(calls.update.client_id, id(11))
+  assert.equal(calls.rpc.length, 0, "changing only the client is not a reschedule")
+  assert.equal(calls.validation, null, "changing only the client must not re-run the slot validation")
+
+  ;({ response, calls } = await routeScenario({ existing: { ...booking, client_id: id(8) }, body: { client_id: id(8) } }))
+  assert.equal(response.status, 200)
+  assert.equal(calls.update?.client_id, undefined, "the same client is not rewritten")
+
+  ;({ response }  = await routeScenario({ existing: { ...booking, client_id: id(8), payment_method: "pack", client_pack_id: id(7) }, body: { client_id: id(11) } }))
+  assert.equal(response.status, 400)
+  assert.match(response.data.error, /forfait/)
+
+  ;({ response } = await routeScenario({ existing: { ...booking, client_id: id(8) }, body: { client_id: id(11) }, clientExists: false }))
+  assert.equal(response.status, 404)
+  console.log("PASS: the client of a booking can be corrected, except when a pack paid for it or the fiche is gone")
+
+  // Stretching a booking on the planning: the requested end wins over the catalogue duration.
+  ;({ response, calls } = await routeScenario({ existing: booking, body: { end_time: "2099-11-02T14:45:00.000Z" } }))
+  assert.equal(response.status, 200)
+  assert.equal(calls.validation.end_time, "2099-11-02T14:45:00.000Z")
+  assert.equal(calls.validation.start_time, booking.start_time, "stretching keeps the start where it is")
+  // Shortening is allowed too, down to a quarter of an hour.
+  ;({ response, calls } = await routeScenario({ existing: booking, body: { end_time: "2099-11-02T13:15:00.000Z" } }))
+  assert.equal(response.status, 200)
+  assert.equal(calls.validation.end_time, "2099-11-02T13:15:00.000Z")
+  // Below a quarter, or ending before it starts, is refused without touching anything.
+  for (const end of ["2099-11-02T13:10:00.000Z", "2099-11-02T12:00:00.000Z"]) {
+    ;({ response, calls } = await routeScenario({ existing: booking, body: { end_time: end } }))
+    assert.equal(response.status, 400)
+    assert.match(response.data.error, /15 minutes/)
+    assert.deepEqual([calls.rpc.length, calls.writes], [0, 0])
+  }
+  // An unchanged end is not a resize and must not re-run the slot checks.
+  ;({ response, calls } = await routeScenario({ existing: booking, body: { end_time: booking.end_time, client_notes: "RAS" } }))
+  assert.equal(response.status, 200)
+  assert.equal(calls.validation, null)
+  console.log("PASS: a booking can be stretched or shortened on the planning, never under a quarter of an hour")
 
   ;({ response, calls } = await routeScenario({ existing: block, body: { start_time: "2099-11-02T15:00:00.000Z", end_time: "2099-11-02T16:30:00.000Z", staff_ids: [id(6)], client_notes: "Formation" } }))
   assert.equal(response.status, 200)

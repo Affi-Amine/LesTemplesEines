@@ -3,6 +3,7 @@ import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { assertServicePlanningColorStorage, ServicePlanningColorSchema } from "@/lib/services/planning-presentation"
+import { SERVICE_TONES } from "@/lib/utils"
 
 const UpdateServiceSchema = z.object({
   salon_id: z.string().uuid().optional(),
@@ -15,6 +16,7 @@ const UpdateServiceSchema = z.object({
   category_order: z.number().min(0).optional(),
   image_url: z.string().optional(),
   is_active: z.boolean().optional(),
+  color: z.enum(SERVICE_TONES).nullable().optional(),
   required_staff_count: z.number().min(1).optional(),
   planning_color: ServicePlanningColorSchema,
 })

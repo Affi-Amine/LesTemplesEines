@@ -39,6 +39,7 @@ async function scenario(status, body, conflict) {
       // Platform synchronization is an external post-response effect, outside these scheduling assertions.
       if (name === '@/lib/sync/trigger') return { syncAfterBookingChange() {}, loadRemoteCopies: async () => [], cancelRemoteCopiesAfterDelete() {} };
       if (name === 'next/server') return { NextResponse: { json: (data, init) => ({ data, status: init?.status || 200 }) } };
+      if (name === '@/lib/sync/trigger') return { syncAfterBookingChange: () => {}, loadRemoteCopies: async () => [], cancelRemoteCopiesAfterDelete: () => {} };
       return require(name);
     }
   });

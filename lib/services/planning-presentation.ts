@@ -1,6 +1,6 @@
 import { z } from "zod"
 import type { createAdminClient } from "@/lib/supabase/admin"
-import { SERVICE_PLANNING_COLORS, type ServicePlanningColor } from "@/lib/services/planning-colors"
+import { SERVICE_PLANNING_COLORS, getEffectiveServicePlanningColor, type ServicePlanningColor } from "@/lib/services/planning-colors"
 
 const colorIds = SERVICE_PLANNING_COLORS.map(color => color.id) as [ServicePlanningColor, ...ServicePlanningColor[]]
 const allowedColors = new Set<string>(colorIds)
@@ -51,6 +51,17 @@ export async function attachAppointmentPlanningServices<T extends PlanningAppoin
         typeof service.planning_color === "string" && allowedColors.has(service.planning_color) ? service.planning_color as ServicePlanningColor : null)
     } catch {
       // A missing optional column or temporary cosmetic lookup failure must not hide the planning.
+    }
+    // Read the legacy column only for unresolved stars. Separate reads ensure
+    // a missing legacy column cannot discard valid planning_color metadata.
+    const legacyIds = ids.filter(id => !colors.get(id))
+    if (legacyIds.length) {
+      try {
+        const { data, error } = await supabase.from("services").select("id, color").in("id", legacyIds)
+        if (!error) for (const service of data || []) colors.set(service.id, getEffectiveServicePlanningColor({ color: service.color })?.id || null)
+      } catch {
+        // Explicit legacy colours are optional presentation data as well.
+      }
     }
   }
   return appointments.map((appointment, index) => ({ ...appointment,

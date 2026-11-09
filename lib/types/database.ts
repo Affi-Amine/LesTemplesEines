@@ -32,6 +32,8 @@ export interface Service {
   image_url: string | null
   is_visible: boolean
   is_active: boolean
+  /** Agenda tone chosen for this prestation; null keeps the one derived from its id. */
+  color: string | null
   required_staff_count: number
   created_at: string
   updated_at: string

@@ -1,4 +1,8 @@
 export const runtime = "nodejs"
+// Confirmations and the platform sync both run after the response (`after`), and
+// they share this budget with the request. Left at the platform default the
+// function was killed mid-sync, taking any notification still in flight with it.
+export const maxDuration = 60
 import { createAdminClient } from "@/lib/supabase/admin"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
 import {

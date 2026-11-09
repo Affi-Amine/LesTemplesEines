@@ -34,7 +34,7 @@ import type { Service } from "@/lib/types/database"
 import { SalonFilter } from "@/components/salon-filter"
 import { useRoleProtection } from "@/lib/hooks/use-role-protection"
 import { ServicePlanningColorPicker, ServicePlanningColorStar } from "@/components/service-planning-color-picker"
-import { getServicePlanningColor, type ServicePlanningColor } from "@/lib/services/planning-colors"
+import { getEffectiveServicePlanningColor, type ServicePlanningColor } from "@/lib/services/planning-colors"
 
 export default function ServicesPage() {
   const isAuthorized = useRoleProtection(["admin", "manager"])
@@ -165,7 +165,7 @@ export default function ServicesPage() {
       image_url: service.image_url || "",
       is_active: service.is_active,
       required_staff_count: (service.required_staff_count || 1).toString(),
-      planning_color: getServicePlanningColor(service.planning_color)?.id || null,
+      planning_color: getEffectiveServicePlanningColor(service)?.id || null,
     })
     setPlanningColorChanged(false)
     setIsDialogOpen(true)
@@ -203,7 +203,7 @@ export default function ServicesPage() {
     try {
       const endpoint = editingService ? `/api/services/${editingService.id}` : "/api/services"
       const method = editingService ? "PUT" : "POST"
-      const originalPlanningColor = getServicePlanningColor(editingService?.planning_color)?.id || null
+      const originalPlanningColor = getEffectiveServicePlanningColor(editingService)?.id || null
 
       const payload = {
         salon_ids: formData.salon_ids,
@@ -216,6 +216,7 @@ export default function ServicesPage() {
         is_active: formData.is_active,
         required_staff_count: parseInt(formData.required_staff_count) || 1,
         ...(planningColorChanged && formData.planning_color !== originalPlanningColor ? { planning_color: formData.planning_color } : {}),
+        ...(planningColorChanged && formData.planning_color === null && editingService?.color ? { color: null } : {}),
       }
 
       const response = await fetch(endpoint, {
@@ -576,7 +577,7 @@ export default function ServicesPage() {
                         />
                         <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <ServicePlanningColorStar value={service.planning_color} />
+                          <ServicePlanningColorStar value={getEffectiveServicePlanningColor(service)?.id} />
                           <p className="truncate font-semibold">{service.name}</p>
                           <Badge
                             variant="outline"
@@ -742,7 +743,7 @@ export default function ServicesPage() {
                           checked={selectedServiceIds.includes(service.id)}
                             onCheckedChange={(checked) => toggleServiceSelection(service.id, checked === true)}
                           />
-                          <ServicePlanningColorStar value={service.planning_color} />
+                          <ServicePlanningColorStar value={getEffectiveServicePlanningColor(service)?.id} />
                           <span className="min-w-0 flex-1 truncate text-sm font-medium">{service.name}</span>
                           {!service.is_active ? (
                             <Badge variant="outline" className="border-[#d99a65] bg-[#fff3e8] text-[#8b3f12]">Inactif</Badge>

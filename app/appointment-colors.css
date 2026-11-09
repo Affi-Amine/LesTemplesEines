@@ -20,6 +20,43 @@
   --appointment-ink: #51465e;
   --appointment-border: #c7c0d1;
 }
+/* Prestation tones: on a booked card the colour says which care it is, so a
+   column can be read without opening anything. Assigned from the service. */
+.appointment-tone-amber {
+  --appointment-bg: #fbeed9;
+  --appointment-ink: #5a3c12;
+  --appointment-border: #e4cfa6;
+}
+.appointment-tone-violet {
+  --appointment-bg: #ece2f8;
+  --appointment-ink: #432a63;
+  --appointment-border: #cbb8e2;
+}
+.appointment-tone-teal {
+  --appointment-bg: #d9efee;
+  --appointment-ink: #14443f;
+  --appointment-border: #a8cfcb;
+}
+.appointment-tone-sky {
+  --appointment-bg: #ddeef8;
+  --appointment-ink: #1c4258;
+  --appointment-border: #abcde0;
+}
+.appointment-tone-rose {
+  --appointment-bg: #fae0ec;
+  --appointment-ink: #5e2446;
+  --appointment-border: #e0b3cb;
+}
+.appointment-tone-lime {
+  --appointment-bg: #e6f0d4;
+  --appointment-ink: #35471a;
+  --appointment-border: #bdd09c;
+}
+/* Payment keeps its own signal on the left edge of the card, which the agenda
+   draws 3px wide: green settled, amber part-settled, red still to collect. */
+.appointment-tone.appointment-pay-paid { border-left-color: #2f7d52; }
+.appointment-tone.appointment-pay-partial { border-left-color: #b5761b; }
+.appointment-tone.appointment-pay-unpaid { border-left-color: #b3303f; }
 .appointment-tone {
   color-scheme: only light;
   background-color: var(--appointment-bg);

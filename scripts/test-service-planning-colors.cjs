@@ -9,7 +9,7 @@ const [salon, service, secondary, staff] = [1,2,3,4].map(id)
 const plain = value => JSON.parse(JSON.stringify(value))
 let state
 function seed(extra={}) {
-  state = { payload:{staffId:staff,salonId:salon,role:'admin',email:'local@example.test'}, writes:[], queries:[], missing:false, catalogError:false, catalogThrows:false,
+  state = { payload:{staffId:staff,salonId:salon,role:'admin',email:'local@example.test'}, writes:[], queries:[], missing:false, legacyMissing:false, catalogError:false, catalogThrows:false,
     services:[{id:service,name:'Nom catalogue actuel',description:'QA',duration_minutes:60,price_cents:9000,required_staff_count:1,is_active:true,salon_id:salon,planning_color:'tangerine'},
       {id:secondary,name:'Second catalogue',duration_minutes:30,price_cents:4500,required_staff_count:1,is_active:true,salon_id:salon,planning_color:'cyan'}],
     service_salons:[{service_id:service,salon_id:salon},{service_id:secondary,salon_id:salon}],appointments:[],assignments:[], ...extra }
@@ -19,6 +19,7 @@ const db = { from(table) {
   let values
   const execute = single => {
     const cosmetic = table==='services' && trace.select.includes('planning_color')
+    if (table==='services' && trace.select==='id, color' && state.legacyMissing) return {data:null,error:{code:'42703',message:'Legacy colour column unavailable'}}
     if (cosmetic && state.catalogThrows && trace.select==='id, planning_color') throw new Error('Cosmetic network unavailable')
     if (cosmetic && (state.missing || (state.catalogError && trace.select==='id, planning_color'))) return {data:null,error:{code:'42703',message:'Optional cosmetic column unavailable'}}
     const source=table==='services'?state.services:table==='service_salons'?state.service_salons:table==='appointments'?state.appointments:table==='appointment_assignments'?state.assignments:[]
@@ -61,7 +62,8 @@ const context={params:Promise.resolve({id:service})}
 const createBody=extra=>({salon_ids:[salon],name:'Nouveau soin',duration_minutes:60,price_cents:8000,required_staff_count:1,...extra})
 async function main() {
   seed()
-  const colors=load('lib/services/planning-colors.ts').SERVICE_PLANNING_COLORS
+  const colorHelpers=load('lib/services/planning-colors.ts')
+  const colors=colorHelpers.SERVICE_PLANNING_COLORS
   const helper=load('lib/services/planning-presentation.ts')
   const routes=load('app/api/services/route.ts'), item=load('app/api/services/[id]/route.ts')
   for(const role of [null,'therapist','assistant','receptionist']) {
@@ -80,6 +82,27 @@ async function main() {
     assert.equal(response.status,201);assert.equal(response.data.planning_color,color.id)
   }
   console.log('PASS: twelve closed palette codes are validated by real service routes; invalid colours and unauthorized writers never mutate data')
+  const legacyTones=load('lib/utils.ts').SERVICE_TONES
+  for(const color of legacyTones) {
+    seed();const created=await routes.POST(request(createBody({color})))
+    assert.equal(created.status,201);assert.equal(created.data.color,color)
+    assert.equal((await item.PUT(request({color}),context)).status,200)
+    assert.equal(state.services[0].color,color)
+    assert(colorHelpers.getEffectiveServicePlanningColor({color}),`Legacy ${color} must resolve to a star`)
+  }
+  for(const color of ['red','graphite','#ffffff',42,{}]) {
+    seed();assert.equal((await routes.POST(request(createBody({color})))).status,400)
+    assert.equal((await item.PUT(request({color}),context)).status,400);assert.equal(state.writes.length,0)
+  }
+  seed({legacyMissing:true})
+  assert.equal((await routes.POST(request(createBody({planning_color:'cyan'})))).status,201)
+  assert(!Object.hasOwn(state.writes.find(write=>write.table==='services').values[0],'color'),'Creation must not require the optional legacy column')
+  seed();state.services[0].color='violet'
+  assert.equal((await item.PUT(request({planning_color:'cyan'}),context)).status,200)
+  assert.equal(state.services[0].color,'violet','Changing stars must not silently erase legacy configuration')
+  assert.equal((await item.PUT(request({planning_color:null,color:null}),context)).status,200)
+  assert.equal(state.services[0].color,null)
+  console.log('PASS: all eight legacy tones remain API compatible and map to stars; omitted legacy metadata stays untouched and explicit clearing remains possible')
   seed();let response=await item.PUT(request({planning_color:'fuchsia'}),context)
   assert.equal(response.status,200);assert.equal(state.services[0].planning_color,'fuchsia');assert.equal(state.services[0].price_cents,9000);assert.equal(state.services[0].duration_minutes,60)
   response=await item.PUT(request({description:'Autre information'}),context)
@@ -123,6 +146,26 @@ async function main() {
   seed();await helper.attachAppointmentPlanningServices(db,[bookings[2],bookings[3]])
   assert.equal(state.queries.length,0,'External IDs must never be sent to a UUID catalogue lookup')
   console.log('PASS: a single live catalogue batch produces every service star; quote names/prices/durations remain historical, and imports or cosmetic failures cannot hide the planning')
+
+  seed();state.services[0].planning_color=null;state.services[0].color='violet';state.services[1].color='rose'
+  enriched=await helper.attachAppointmentPlanningServices(db,bookings)
+  assert.equal(enriched[0].planning_services[0].planning_color,'orchid')
+  assert.equal(enriched[0].planning_services[1].planning_color,'cyan','Explicit twelve-colour selection must win over legacy colour')
+  const legacyLookup=state.queries.find(query=>query.select==='id, color')
+  assert.deepEqual(plain(legacyLookup.filters[0][2]),[service],'Only services without a valid planning colour need legacy metadata')
+  assert.equal(state.writes.length,0)
+  seed({legacyMissing:true});state.services[0].planning_color=null
+  enriched=await helper.attachAppointmentPlanningServices(db,bookings)
+  assert.equal(enriched[0].planning_services[0].planning_color,null)
+  assert.equal(enriched[0].planning_services[1].planning_color,'cyan','A missing legacy column must never hide a valid star')
+  seed({missing:true});state.services[0].color='amber'
+  enriched=await helper.attachAppointmentPlanningServices(db,bookings)
+  assert.equal(enriched[0].planning_services[0].planning_color,'apricot','Legacy colours still work if the newer column is absent')
+  seed({missing:true,legacyMissing:true});enriched=await helper.attachAppointmentPlanningServices(db,bookings)
+  assert.equal(enriched.length,bookings.length)
+  assert(enriched.flatMap(booking=>booking.planning_services).every(service=>service.planning_color===null))
+  assert.deepEqual(plain(enriched[0].service_items),quote)
+  console.log('PASS: explicit legacy configurations fall back to stars, new choices win, and either missing optional column leaves the planning and historical quote intact')
 
   seed({appointments:[bookings[0],bookings[1],bookings[2]]})
   const appointmentRoute=load('app/api/appointments/route.ts')

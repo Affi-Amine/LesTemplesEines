@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, User } from "lucide-react"
+import { Calendar, User, X } from "lucide-react"
 import { format } from "date-fns"
 import { formatInTimeZone } from "date-fns-tz"
 import { useServices } from "@/lib/hooks/use-services"
@@ -36,6 +36,7 @@ import { ClientSuggestionList } from "@/components/client-suggestion-list"
 import { AppointmentSchedulePicker } from "@/components/calendar/appointment-schedule-picker"
 import { useAppointmentSchedule } from "@/lib/hooks/use-appointment-schedule"
 import { ClientDataSchema } from "@/lib/appointments/client-data"
+import { combineServices } from "@/lib/appointments/service-selection"
 
 type QuickCreateMode = "appointment" | "blocked"
 type QuickPaymentMethod = "on_site" | "pack" | "gift_card"
@@ -102,7 +103,8 @@ function QuickCreateSession({
 
   const [form, setForm] = useState({
     client_id: "",
-    service_id: "",
+    // Several prestations can follow one another in a single booking, as on Planity.
+    service_ids: [] as string[],
     staff_ids: prefillData?.staffId ? [prefillData.staffId] : [] as string[],
     first_name: "",
     last_name: "",
@@ -146,15 +148,36 @@ function QuickCreateSession({
     return () => window.clearTimeout(timeout)
   }, [clientSearchTerm])
 
-  const selectedService = useMemo(
-    () => services?.find((service) => service.id === form.service_id),
-    [services, form.service_id]
+  const primaryServiceId = form.service_ids[0] || ""
+  const isMultiService = form.service_ids.length > 1
+  const chosenServices = useMemo(
+    () => form.service_ids.map(id => services?.find(service => service.id === id)).filter((service): service is NonNullable<typeof service> => Boolean(service)),
+    [services, form.service_ids]
   )
+  // One booking covering every chosen prestation: durations add up, the team stays the same.
+  const bundle = useMemo(() => {
+    if (!chosenServices.length) return { service: undefined, error: "" }
+    try {
+      return { service: combineServices(chosenServices), error: "" }
+    } catch (error) {
+      return { service: undefined, error: error instanceof Error ? error.message : "Sélection de prestations invalide." }
+    }
+  }, [chosenServices])
+  const selectedService = bundle.service
   const selectedServiceRequiredStaffCount = selectedService?.required_staff_count || 1
+
+  const addService = (serviceId: string) => setForm(current => current.service_ids.includes(serviceId)
+    ? current
+    : { ...current, service_ids: [...current.service_ids, serviceId], client_pack_id: "",
+        // A pack or a gift card covers a single prestation; a chained booking is settled on site or online.
+        ...(current.service_ids.length ? { payment_method: "on_site" as QuickPaymentMethod, gift_card_code: "" } : {}) })
+  const removeService = (serviceId: string) => setForm(current => ({
+    ...current, service_ids: current.service_ids.filter(id => id !== serviceId), client_pack_id: "",
+  }))
   const eligibleStaff = useMemo(() => (staff || []).filter(member =>
     member.salon_id === salonId && canStaffTakeBookings(member)), [staff, salonId])
   const schedule = useAppointmentSchedule({
-    salonId, serviceId: form.service_id, date: format(selectedDate, "yyyy-MM-dd"),
+    salonId, serviceId: primaryServiceId, serviceIds: form.service_ids, date: format(selectedDate, "yyyy-MM-dd"),
     requiredStaff: selectedServiceRequiredStaffCount, durationMinutes: selectedService?.duration_minutes || 0,
     includePast: true,
   }, mode === "appointment" && isOpen, prefillData?.staffId)
@@ -203,7 +226,7 @@ function QuickCreateSession({
     }
 
     return null
-  }, [existingAppointments, form.service_id, form.staff_ids, mode, selectedEnd, selectedStart])
+  }, [existingAppointments, form.service_ids, form.staff_ids, mode, selectedEnd, selectedStart])
 
   const toggleStaffSelection = (staffId: string) => {
     if (!eligibleStaff.some(member => member.id === staffId)) return
@@ -241,18 +264,19 @@ function QuickCreateSession({
   const clientPackSearchTerm = normalizedEmail || normalizedPhone || `${form.first_name} ${form.last_name}`.trim()
 
   const { data: clientPacks, isFetching: isFetchingClientPacks } = useQuery({
-    queryKey: ["quick-create-client-packs", form.client_id, clientPackSearchTerm, form.service_id],
+    queryKey: ["quick-create-client-packs", form.client_id, clientPackSearchTerm, primaryServiceId],
     queryFn: () => fetchAPI<ClientPack[]>(`/client-packs?search=${encodeURIComponent(clientPackSearchTerm)}`),
     enabled:
       mode === "appointment" &&
       form.payment_method === "pack" &&
-      Boolean(form.service_id) &&
+      !isMultiService &&
+      Boolean(primaryServiceId) &&
       Boolean(form.client_id || clientPackSearchTerm),
     staleTime: 20 * 1000,
   })
 
   const eligibleClientPacks = useMemo(() => {
-    if (!clientPacks || !form.service_id) {
+    if (!clientPacks || !primaryServiceId || isMultiService) {
       return []
     }
 
@@ -267,10 +291,10 @@ function QuickCreateSession({
         sameClient &&
           clientPack.remaining_sessions > 0 &&
           canUseClientPackStatus(clientPack.payment_status) &&
-          clientPack.pack?.allowed_services?.includes(form.service_id)
+          clientPack.pack?.allowed_services?.includes(primaryServiceId)
       )
     })
-  }, [clientPacks, form.client_id, form.service_id, normalizedEmail, normalizedPhone])
+  }, [clientPacks, form.client_id, primaryServiceId, normalizedEmail, normalizedPhone])
 
   const { data: validatedGiftCard, isFetching: isValidatingGiftCard, isError: giftCardHasError } = useQuery({
     queryKey: ["quick-create-gift-card", form.gift_card_code],
@@ -285,8 +309,8 @@ function QuickCreateSession({
 
   const giftCardMatchesService = Boolean(
     validatedGiftCard &&
-      form.service_id &&
-      validatedGiftCard.service_id === form.service_id
+      primaryServiceId &&
+      validatedGiftCard.service_id === primaryServiceId
   )
 
   const updatePaymentMethod = (payment_method: QuickPaymentMethod) => {
@@ -308,7 +332,8 @@ function QuickCreateSession({
       (
         mode === "blocked"
           ? selectedEnd
-          : form.service_id &&
+          : primaryServiceId &&
+            !bundle.error &&
             validatedClient.success &&
             (
               form.payment_method === "on_site" ||
@@ -343,7 +368,7 @@ function QuickCreateSession({
         await fetchAPI("/gift-cards/redeem", {
           method: "POST",
           body: JSON.stringify({
-            code: form.gift_card_code, salon_id: salonId, service_id: form.service_id,
+            code: form.gift_card_code, salon_id: salonId, service_id: primaryServiceId,
             start_time: bookingStart, staff_ids: staffIds,
             client_data: clientData,
             client_notes: form.notes || undefined,
@@ -358,7 +383,9 @@ function QuickCreateSession({
           notes: form.notes || "Créneau bloqué depuis le calendrier", status: "blocked",
           payment_status: "unpaid", payment_method: "on_site",
         } : {
-          salon_id: salonId, service_id: form.service_id, staff_ids: staffIds, staff_id: staffIds[0],
+          salon_id: salonId, service_id: primaryServiceId, staff_ids: staffIds, staff_id: staffIds[0],
+          ...(isMultiService ? { service_ids: form.service_ids } : {}),
+          expected_price_cents: selectedService?.price_cents,
           start_time: bookingStart,
           client_data: clientData,
           client_notes: form.notes, status: "confirmed", booking_source: "admin",
@@ -423,16 +450,37 @@ function QuickCreateSession({
 
         <div className="space-y-5 py-2">
           {mode === "appointment" ? <>
-            <section className="space-y-2 rounded-xl border p-4">
-              <Label htmlFor="quick-service" className="text-sm font-semibold">1. Le soin</Label>
-              <Select value={form.service_id} disabled={isSaving || servicesLoading || servicesError}
-                onValueChange={value => setForm(current => ({ ...current, service_id: value, client_pack_id: "" }))}>
-                <SelectTrigger id="quick-service"><SelectValue placeholder={servicesLoading ? "Chargement des soins…" : "Choisir un soin"} /></SelectTrigger>
-                <SelectContent>{services?.map(service => <SelectItem key={service.id} value={service.id}>
+            <section className="space-y-3 rounded-xl border p-4">
+              <Label htmlFor="quick-service" className="text-sm font-semibold">1. Les soins</Label>
+
+              {chosenServices.length > 0 && <ol className="space-y-2">
+                {chosenServices.map((service, index) => <li key={service.id} className="flex min-w-0 items-start gap-2 rounded-lg border bg-muted/30 p-2">
+                  <span className="mt-1 text-xs tabular-nums text-muted-foreground">{index + 1}.</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-medium">{service.name}</p>
+                    <p className="text-xs text-muted-foreground">{service.duration_minutes} min · {typeof service.price_cents === "number" ? `${(service.price_cents / 100).toFixed(2)} €` : "Prix non renseigné"}</p>
+                  </div>
+                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={`Retirer ${service.name}`}
+                    onClick={() => removeService(service.id)}><X className="h-4 w-4" /></Button>
+                </li>)}
+              </ol>}
+
+              <Select value="" disabled={isSaving || servicesLoading || servicesError}
+                onValueChange={value => addService(value)}>
+                <SelectTrigger id="quick-service">
+                  <SelectValue placeholder={servicesLoading ? "Chargement des soins…" : chosenServices.length ? "Ajouter un soin à la suite" : "Choisir un soin"} />
+                </SelectTrigger>
+                <SelectContent>{services?.filter(service => !form.service_ids.includes(service.id)).map(service => <SelectItem key={service.id} value={service.id}>
                   {service.name} · {service.duration_minutes} min · {typeof service.price_cents === "number" ? `${(service.price_cents / 100).toFixed(2)} €` : "Prix non renseigné"}
                 </SelectItem>)}</SelectContent>
               </Select>
-              {selectedService && <p className="text-xs text-muted-foreground">{selectedServiceRequiredStaffCount === 1 ? "Une masseuse" : `${selectedServiceRequiredStaffCount} masseuses`} pendant {selectedService.duration_minutes} minutes. Les créneaux tiennent compte de toute la durée.</p>}
+
+              {bundle.error && <p role="alert" className="text-sm text-destructive">{bundle.error}</p>}
+              {selectedService && <p className="text-xs text-muted-foreground">
+                {isMultiService && <span className="font-medium text-foreground">Total : {selectedService.duration_minutes} min · {(selectedService.price_cents / 100).toFixed(2)} €. </span>}
+                {selectedServiceRequiredStaffCount === 1 ? "Une masseuse" : `${selectedServiceRequiredStaffCount} masseuses`} pendant {selectedService.duration_minutes} minutes.
+                {isMultiService ? " Les soins s’enchaînent avec la même équipe ; le créneau couvre toute la durée." : " Les créneaux tiennent compte de toute la durée."}
+              </p>}
               {servicesError && <div role="alert" className="text-sm text-destructive">Impossible de charger les soins. <Button type="button" variant="link" onClick={() => void reloadServices()}>Réessayer</Button></div>}
             </section>
             <AppointmentSchedulePicker schedule={schedule} disabled={isSaving} onDateChange={value => setSelectedDate(new Date(`${value}T12:00:00`))} />
@@ -535,10 +583,11 @@ function QuickCreateSession({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="on_site">Paiement sur place</SelectItem>
-                    <SelectItem value="pack">Utiliser un forfait / abonnement</SelectItem>
-                    <SelectItem value="gift_card">Utiliser une carte cadeau</SelectItem>
+                    <SelectItem value="pack" disabled={isMultiService}>Utiliser un forfait / abonnement</SelectItem>
+                    <SelectItem value="gift_card" disabled={isMultiService}>Utiliser une carte cadeau</SelectItem>
                   </SelectContent>
                 </Select>
+                {isMultiService && <p className="text-xs text-muted-foreground">Un forfait ou une carte cadeau ne couvre qu’un seul soin : un rendez-vous enchaîné se règle sur place.</p>}
 
                 {form.payment_method === "pack" ? (
                   <div className="space-y-2">
@@ -546,7 +595,7 @@ function QuickCreateSession({
                     <Select
                       value={form.client_pack_id}
                       onValueChange={(value) => setForm({ ...form, client_pack_id: value })}
-                      disabled={!form.service_id || eligibleClientPacks.length === 0}
+                      disabled={!primaryServiceId || eligibleClientPacks.length === 0}
                     >
                       <SelectTrigger>
                         <SelectValue

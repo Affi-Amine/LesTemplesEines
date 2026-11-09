@@ -108,8 +108,8 @@ function GiftPageContent() {
             </p>
           </div>
 
-          <div className="grid items-start gap-6 lg:grid-cols-[1.3fr_0.9fr] lg:gap-8">
-            <div className="space-y-3 sm:space-y-6">
+          <div className="grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)] lg:gap-8">
+            <div className="min-w-0 space-y-3 sm:space-y-6">
               <h2 className="text-base font-semibold sm:text-2xl">1. Choisir une prestation</h2>
               {isLoading ? (
                 <div className="space-y-3">
@@ -131,7 +131,7 @@ function GiftPageContent() {
               )}
             </div>
 
-            <Card className="gap-3.5 space-y-0 rounded-xl border-primary/10 bg-card/60 px-3.5 py-4 shadow-none sm:gap-4 sm:space-y-5 sm:p-6 lg:sticky lg:top-24">
+            <Card className="min-w-0 gap-3.5 space-y-0 rounded-xl border-primary/10 bg-card/60 px-3.5 py-4 shadow-none sm:gap-4 sm:space-y-5 sm:p-6 lg:sticky lg:top-24">
               <h2 className="text-base font-semibold sm:text-2xl">2. Informations d&apos;envoi</h2>
 
               {selectedService ? (

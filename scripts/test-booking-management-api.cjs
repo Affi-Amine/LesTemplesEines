@@ -59,6 +59,7 @@ function load(relative) {
 
       if(name.startsWith('@/'))return load(name.slice(2)+'.ts')
       if(name.startsWith('.'))return load(path.relative(root,path.resolve(path.dirname(filename),name))+'.ts')
+      if (name === '@/lib/sync/trigger') return { syncAfterBookingChange: () => {}, loadRemoteCopies: async () => [], cancelRemoteCopiesAfterDelete: () => {} }
       return require(name)
     },
   },{filename})

@@ -2,7 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
-import { ReactNode, CSSProperties, useId } from "react"
+import { ReactNode, CSSProperties, useEffect, useId, useRef } from "react"
 
 interface DraggableAppointmentProps {
   id: string
@@ -11,6 +11,8 @@ interface DraggableAppointmentProps {
   disabled?: boolean
   style?: CSSProperties
   className?: string
+  /** Opening the booking on a plain tap, while a held drag moves it. */
+  onClick?: () => void
 }
 
 export function DraggableAppointment({
@@ -20,6 +22,7 @@ export function DraggableAppointment({
   disabled = false,
   style: externalStyle,
   className = "",
+  onClick,
 }: DraggableAppointmentProps) {
   const instance = useId()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -28,6 +31,14 @@ export function DraggableAppointment({
     data: { appointment },
     disabled,
   })
+
+  // A drop fires a click on some browsers; that one must not open the booking.
+  const dragged = useRef(false)
+  useEffect(() => { if (isDragging) dragged.current = true }, [isDragging])
+  const handleClick = () => {
+    if (dragged.current) { dragged.current = false; return }
+    onClick?.()
+  }
 
   const combinedStyle: CSSProperties = {
     ...externalStyle,
@@ -50,6 +61,7 @@ export function DraggableAppointment({
       style={combinedStyle}
       {...(disabled ? {} : listeners)}
       {...(disabled ? {} : attributes)}
+      {...(onClick ? { onClick: handleClick } : {})}
       className={`${className} ${isDragging ? "shadow-lg ring-2 ring-primary" : ""}`}
     >
       {children}

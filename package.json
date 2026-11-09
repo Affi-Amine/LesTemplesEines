@@ -18,7 +18,7 @@
     "test:ui": "node scripts/test-slot-selection.cjs && node scripts/test-payment-presentation.cjs && node scripts/test-prestation-counts.cjs",
     "test:service-colors": "node scripts/test-service-planning-colors.cjs",
     "test:clients": "node scripts/test-client-profile.cjs",
-    "test:management": "node scripts/test-booking-management-api.cjs && node scripts/test-booking-management-sql.cjs && node scripts/test-booking-management-notifications.cjs",
+    "test:management": "node scripts/test-booking-management-api.cjs && node scripts/test-booking-management-sql.cjs && node scripts/test-booking-management-notifications.cjs && node scripts/test-booking-notifications.cjs",
     "test:sync": "node scripts/test-platform-sync.cjs",
     "test:cash-sheet": "node scripts/test-cash-sheet.cjs",
     "test:connect": "node scripts/test-treatwell-session.cjs"

@@ -117,7 +117,9 @@ function logAppointmentTiming(requestId: string | undefined, step: string, start
 export async function resolveAppointmentTiming(
   supabase: SupabaseClient,
   input: Pick<BookableAppointmentInput, "service_id" | "service_ids" | "start_time" | "end_time"> & { salon_id?: string },
-  quote?: SelectedService[]
+  quote?: SelectedService[],
+  // Staff stretching a booking on the planning set its real length themselves.
+  options?: { allowCustomDuration?: boolean }
 ) {
   let endTime = input.end_time
   if (input.service_ids) getSelectedServiceIds(input.service_id, input.service_ids)
@@ -127,7 +129,10 @@ export async function resolveAppointmentTiming(
     if (items.map(item => item.id).join() !== bundle.ids.join()) throw new Error("Devis de prestations invalide.")
     const service = combineServices(items)
     const computedEnd = new Date(Date.parse(input.start_time) + service.duration_minutes * 60_000).toISOString()
-    if (endTime && Date.parse(endTime) !== Date.parse(computedEnd)) throw new Error("La durée doit couvrir toutes les prestations.")
+    if (endTime && Date.parse(endTime) !== Date.parse(computedEnd)) {
+      if (!options?.allowCustomDuration) throw new Error("La durée doit couvrir toutes les prestations.")
+      return { endTime, service, serviceItems: items }
+    }
     return { endTime: computedEnd, service, serviceItems: items }
   }
 
@@ -178,10 +183,12 @@ export async function validateAppointmentScheduling(
     quote?: SelectedService[]
     /** Staff may record an appointment whose slot has already passed (walk-ins logged after the fact). */
     allowPastStart?: boolean
+    /** Resize on the planning: the given end wins over the prestations' catalogue duration. */
+    allowCustomDuration?: boolean
   }
 ) {
   if (!options?.allowPastStart) assertAppointmentStartIsNotInPast(input.start_time)
-  const { endTime, service, serviceItems } = await resolveAppointmentTiming(supabase, input, options?.quote)
+  const { endTime, service, serviceItems } = await resolveAppointmentTiming(supabase, input, options?.quote, { allowCustomDuration: options?.allowCustomDuration })
   const salonGroup = await resolveSalonGroup(supabase, input.salon_id)
   const salonIds = salonGroup?.salonIds || [input.salon_id]
 

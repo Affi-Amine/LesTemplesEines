@@ -6,6 +6,10 @@ import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { AppointmentPaymentBadge } from "@/components/appointment-payment-badge"
 import { AppointmentProgressActions } from "@/components/appointment-progress-actions"
+import { ClientDetailsModal } from "@/components/client-details-modal"
+import { ClientSuggestionList } from "@/components/client-suggestion-list"
+import { AppointmentCheckoutDialog, amountDueCents } from "@/components/calendar/appointment-checkout-dialog"
+import { useClientSearch } from "@/lib/hooks/use-client-search"
 import { getAppointmentColor, getStatusLabel } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,7 +17,7 @@ import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Clock, User, MapPin, Scissors, Phone, Mail, FileText, Edit, X } from "lucide-react"
+import { Calendar, Clock, User, MapPin, Scissors, Phone, Mail, FileText, Edit, Wallet, X } from "lucide-react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { formatInTimeZone } from "date-fns-tz"
@@ -43,6 +47,7 @@ interface BookingDetailsModalProps {
     staff_id?: string
     assignments?: any[]
     client?: {
+      id?: string
       first_name: string
       last_name: string
       phone?: string
@@ -77,6 +82,8 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
   const [liveStatus, setLiveStatus] = useState<string | null>(null)
   useEffect(() => { setLiveStatus(null) }, [appointment?.id, appointment?.status])
   const [isEditMode, setIsEditMode] = useState(false)
+  const [clientFileOpen, setClientFileOpen] = useState(false)
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [editError, setEditError] = useState("")
   const saving = useRef(false)
@@ -91,7 +98,16 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
     time: "",
     status: "",
     notes: "",
+    client_id: "",
+    client_label: "",
   })
+  const [clientQuery, setClientQuery] = useState("")
+  const [debouncedClientQuery, setDebouncedClientQuery] = useState("")
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedClientQuery(clientQuery.trim()), 250)
+    return () => clearTimeout(timer)
+  }, [clientQuery])
+  const { data: clientMatches, isFetching: isSearchingClients } = useClientSearch(debouncedClientQuery, 6)
 
   // Fetch salons
   const { data: salons } = useQuery({
@@ -125,7 +141,10 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
         time: formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm"),
         status: appointment.status,
         notes: appointment.client_notes || "",
+        client_id: appointment.client?.id || "",
+        client_label: `${appointment.client?.first_name || ""} ${appointment.client?.last_name || ""}`.trim(),
       })
+      setClientQuery("")
     }
   }, [appointment, isEditMode])
 
@@ -166,6 +185,11 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
   }, [appointment?.id, appointment?.updated_at, isEditMode, editKey])
 
   if (!appointment) return null
+
+  // Nothing to cash in for a blocked slot, a released booking, or one already settled.
+  const currentStatus = liveStatus || appointment.status
+  const canCheckout = !["blocked", "cancelled", "no_show"].includes(currentStatus) &&
+    appointment.payment_status !== "paid" && amountDueCents(appointment as never) > 0
 
   const handleEdit = () => {
     setIsEditMode(true)
@@ -306,6 +330,32 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="edit-client">Client</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">{editForm.client_label || "Sans client"}</Badge>
+              </div>
+              <Input
+                id="edit-client"
+                value={clientQuery}
+                onChange={(event) => setClientQuery(event.target.value)}
+                placeholder="Changer de client : nom, téléphone ou email"
+              />
+              <ClientSuggestionList
+                visible={clientQuery.trim().length >= 2}
+                clients={clientMatches}
+                isLoading={isSearchingClients}
+                onSelect={(client) => {
+                  setEditForm(current => ({
+                    ...current,
+                    client_id: client.id,
+                    client_label: `${client.first_name || ""} ${client.last_name || ""}`.trim(),
+                  }))
+                  setClientQuery("")
+                }}
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="edit-therapist">Thérapeutes</Label>
               <Select onValueChange={handleAddStaff} disabled={!editForm.salon_id}>
                 <SelectTrigger id="edit-therapist">
@@ -419,6 +469,12 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
         <div className="space-y-6">
           <AppointmentProgressActions appointment={{ ...appointment, status: liveStatus || appointment.status }}
             onUpdated={status => { setLiveStatus(status); onRefetch?.() }} />
+          {canCheckout && (
+            <Button type="button" className="w-full" onClick={() => setCheckoutOpen(true)}>
+              <Wallet className="mr-2 h-4 w-4" />
+              Encaisser {amountDueCents(appointment as never) > 0 ? `${(amountDueCents(appointment as never) / 100).toFixed(2)} €` : ""}
+            </Button>
+          )}
           <AppointmentManagementLinkButton appointment={appointment} />
           {/* Date and Time */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -467,6 +523,16 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
                       <Mail className="w-4 h-4" />
                       <span className="min-w-0 break-all">{appointment.client.email}</span>
                     </div>
+                  )}
+                  {appointment.client.phone && (
+                    <a href={`tel:${appointment.client.phone}`} className="inline-flex h-10 items-center gap-2 text-sm font-medium text-primary hover:underline">
+                      <Phone className="h-4 w-4" />Appeler
+                    </a>
+                  )}
+                  {appointment.client.id && (
+                    <Button type="button" variant="outline" className="w-full" onClick={() => setClientFileOpen(true)}>
+                      <User className="mr-2 h-4 w-4" />Fiche client et historique
+                    </Button>
                   )}
                 </div>
               </div>
@@ -574,12 +640,26 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
         </div>
         )}
       </DialogContent>
+      {appointment.client?.id && (
+        <ClientDetailsModal
+          open={clientFileOpen}
+          onOpenChange={setClientFileOpen}
+          client={appointment.client}
+          showHistory
+        />
+      )}
+      <AppointmentCheckoutDialog
+        appointment={appointment as never}
+        open={checkoutOpen}
+        onOpenChange={setCheckoutOpen}
+        onPaid={() => onRefetch?.()}
+      />
     </Dialog>
   )
 }
 
 type EditableAppointment = NonNullable<BookingDetailsModalProps["appointment"]>
-type EditForm = { salon_id: string; service_id: string; staff_ids: string[]; date: string; time: string; status: string; notes: string }
+type EditForm = { salon_id: string; service_id: string; staff_ids: string[]; date: string; time: string; status: string; notes: string; client_id: string; client_label: string }
 
 interface ServicePaymentPreview {
   previous_price_cents: number
@@ -604,6 +684,7 @@ function buildEditPayload(appointment: EditableAppointment, form: EditForm) {
   if (form.status !== appointment.status) payload.status = form.status
   if (form.notes !== (appointment.client_notes || "")) payload.client_notes = form.notes
   if (!releasing) {
+    if (form.client_id && form.client_id !== (appointment.client?.id || "")) payload.client_id = form.client_id
     if (form.salon_id !== (appointment.salon_id || appointment.salon?.id || "")) payload.salon_id = form.salon_id
     if (form.service_id !== (appointment.service_id || appointment.service?.id || "")) payload.service_id = form.service_id
     if ([...form.staff_ids].sort().join() !== getAppointmentStaffIds(appointment).sort().join()) payload.staff_ids = form.staff_ids

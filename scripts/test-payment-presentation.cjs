@@ -51,6 +51,18 @@ assert.equal(colour({status:'in_progress'}), colour({status:'completed'}))
 assert.equal(colour({status:'unexpected'}), utils.getStatusColor('blocked'))
 console.log('PASS: attendance alone colours cards; payment and elapsed time never imply arrival or absence')
 
+// Older deployments stored an eight-tone service colour. Its API contract remains
+// valid, while those tones must never change an appointment's attendance colour.
+const legacyColorMigration = fs.readFileSync('database/migrations/2026-11-06_service_color.sql','utf8')
+for (const legacyTone of utils.SERVICE_TONES) {
+  assert(utils.isServiceTone(legacyTone))
+  assert(utils.SERVICE_TONE_LABELS[legacyTone])
+  assert(legacyColorMigration.includes(`'${legacyTone}'`))
+  for (const status of Object.keys(attendanceColours)) {
+    assert.equal(colour({status,payment_status:'paid',service:{color:legacyTone}}),utils.getStatusColor(status))
+  }
+}
+
 // Render the real marker and legend so glyphs, labels and booking-source codes
 // stay consistent across the compact planning and the detailed payment badge.
 const path = require('node:path')

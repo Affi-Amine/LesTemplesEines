@@ -121,7 +121,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
   }
 
   return (
-    <div className={cn("space-y-2.5 sm:space-y-4", className)}>
+    <div className={cn("min-w-0 space-y-2.5 sm:space-y-4", className)}>
       {groupedServices.length > 1 ? (
         <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:gap-2 sm:px-1">
           {groupedServices.map((group) => (
@@ -180,7 +180,7 @@ export function ServiceCatalog<T extends ServiceCatalogItem>({
                         disabled={!selectable}
                         aria-pressed={selectable ? isSelected : undefined}
                         className={cn(
-                          "grid w-full grid-cols-[1fr_auto] gap-2 px-3 py-2.5 text-left transition-colors sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-3 sm:px-5 sm:py-4",
+                          "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 px-3 py-2.5 text-left transition-colors sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-3 sm:px-5 sm:py-4",
                           selectable ? "cursor-pointer hover:bg-primary/6" : "cursor-default",
                           isSelected && "bg-primary/8"
                         )}

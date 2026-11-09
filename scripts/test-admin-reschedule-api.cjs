@@ -17,6 +17,7 @@ async function scenario(rpcError=null,options={}){
   // Synchronization runs after the route; this test covers the versioned database write only.
   if(name==='@/lib/sync/trigger')return {syncAfterBookingChange(){},loadRemoteCopies:async()=>[],cancelRemoteCopiesAfterDelete(){}}
   if(name==='next/server')return {NextResponse:{json:(data,init)=>({data,status:init?.status||200})}}
+  if(name==='@/lib/sync/trigger')return { syncAfterBookingChange: () => {}, loadRemoteCopies: async () => [], cancelRemoteCopiesAfterDelete: () => {} }
   return require(name)
  }})
  const response=await mod.exports.PATCH({json:async()=>({start_time:'2099-11-02T13:00:00.000Z',staff_ids:[options.sameTeam?id(4):id(5)],staff_id:options.sameTeam?id(4):id(5),expected_updated_at:options.stale?'2026-02-01T00:00Z':existing.updated_at})},{params:Promise.resolve({id:id(1)})})

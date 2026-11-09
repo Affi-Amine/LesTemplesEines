@@ -4,6 +4,7 @@ import { isUUID, resolveSalonGroup } from "@/lib/salons/resolve"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { assertServicePlanningColorStorage, ServicePlanningColorSchema } from "@/lib/services/planning-presentation"
+import { SERVICE_TONES } from "@/lib/utils"
 
 const ServiceSchema = z.object({
   salon_id: z.string().uuid().optional(),
@@ -16,6 +17,8 @@ const ServiceSchema = z.object({
   category_order: z.number().min(0).optional(),
   image_url: z.string().optional(),
   is_active: z.boolean().optional(),
+  // Preserve the legacy palette for existing API clients and configurations.
+  color: z.enum(SERVICE_TONES).nullable().optional(),
   required_staff_count: z.number().min(1).default(1),
   planning_color: ServicePlanningColorSchema,
 }).refine((data) => Boolean(data.salon_id || (data.salon_ids && data.salon_ids.length > 0)), {
@@ -127,6 +130,7 @@ export async function POST(request: NextRequest) {
       category_order: serviceData.category_order ?? 0,
       image_url: serviceData.image_url,
       is_active: serviceData.is_active ?? true,
+      ...(serviceData.color !== undefined ? { color: serviceData.color } : {}),
       required_staff_count: serviceData.required_staff_count,
       salon_id: salonIds[0] ?? null,
       ...(serviceData.planning_color !== undefined ? { planning_color: serviceData.planning_color } : {}),

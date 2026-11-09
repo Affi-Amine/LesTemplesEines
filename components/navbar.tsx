@@ -24,7 +24,7 @@ export function Navbar() {
           </div>
         </Link>
 
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden min-[1280px]:flex items-center gap-8">
           <Link href="/nos-prestations" className="text-sm text-muted-foreground hover:text-primary transition-colors">
             Prestations
           </Link>
@@ -48,7 +48,7 @@ export function Navbar() {
           </Link>
         </div>
 
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden min-[1280px]:flex items-center gap-3">
           <Button asChild variant="ghost" size="sm" className="text-sm hover:bg-primary/10 hover:text-primary">
             <Link href="/admin/login">{t("admin.login")}</Link>
           </Button>
@@ -59,15 +59,16 @@ export function Navbar() {
 
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="md:hidden p-2 hover:bg-primary/10 rounded-lg transition-colors"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center p-2 hover:bg-primary/10 rounded-lg transition-colors min-[1280px]:hidden"
           aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          aria-expanded={isOpen}
         >
           {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
       </div>
 
       {isOpen && (
-        <div className="md:hidden border-t border-primary/15 bg-background/95 backdrop-blur-sm">
+        <div className="min-[1280px]:hidden border-t border-primary/15 bg-background/95 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-4">
             <Link href="/nos-prestations" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Prestations

@@ -65,13 +65,11 @@
 }
 .appointment-tone .text-muted-foreground { color: inherit; }
 [data-tablet-agenda] {
-  --agenda-columns: var(--agenda-columns-phone);
-  --agenda-min-width: var(--agenda-min-width-phone);
+  --agenda-card-inset: 1px;
 }
 @media (min-width: 640px) {
   [data-tablet-agenda] {
-    --agenda-columns: var(--agenda-columns-wide);
-    --agenda-min-width: var(--agenda-min-width-wide);
+    --agenda-card-inset: 4px;
   }
 }
 /* On short phone screens, let the controls scroll away so the planning stays usable. */

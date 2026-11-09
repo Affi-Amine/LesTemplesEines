@@ -16,6 +16,13 @@ import { getAppointmentPayment } from "@/lib/appointments/payment-presentation"
  */
 export const RELEASED_CARD_CLASS = "pointer-events-none border-dashed opacity-55 shadow-none"
 
+function CardStartTime({ time }: { time: string }) {
+  return <span data-card-start-time className="shrink-0 tabular-nums">
+    <span data-card-time-full>{time}</span>
+    <span data-card-time-split aria-hidden="true"><span>{time.slice(0, 2)}</span><span>{time.slice(2)}</span></span>
+  </span>
+}
+
 // Keep short bookings readable without making their visual duration inaccurate.
 export function AppointmentCardContent({ appointment, height }: { appointment: any; height: number }) {
   const blocked = appointment.status === "blocked"
@@ -29,7 +36,7 @@ export function AppointmentCardContent({ appointment, height }: { appointment: a
   const blockNote = blocked && appointment.client_notes ? ` · ${appointment.client_notes}` : ""
   if (blocked) return <div className="agenda-card-content @container relative min-w-0 space-y-0.5 leading-4" title={`${start}–${end} · ${name}${blockNote}`}>
     <div className="flex min-w-0 flex-wrap items-center gap-0.5 text-[8px] font-semibold @min-[38px]:text-[10px] @min-[100px]:text-xs">
-      <span className="shrink-0 tabular-nums"><span className="@min-[20px]:hidden" aria-hidden="true">{start.slice(0, 2)}<br />{start.slice(2)}</span><span className="hidden @min-[20px]:inline">{start}</span></span>
+      <CardStartTime time={start} />
       {height < 48 && <span className="hidden min-w-0 truncate @min-[90px]:inline">{name}</span>}
     </div>
     {height >= 48 && <p className="truncate text-[10px] font-semibold @min-[100px]:text-xs"><span className="@min-[45px]:hidden" aria-hidden="true">{initials}</span><span className="hidden @min-[45px]:inline">{name}</span></p>}
@@ -42,6 +49,13 @@ export function AppointmentCardContent({ appointment, height }: { appointment: a
   const markerCount = appointmentMarkerCount(appointment)
   const markerRows = markerCount > 9 ? 3 : markerCount > 4 ? 2 : 1
   const textSpace = height < 44 ? 0 : height >= 110 ? 70 : height >= 84 ? 52 : height >= 64 ? 28 : 14
+  // Narrow columns use more rows instead of giving badges a minimum width.
+  // Reserve the split time and initials before assigning the remaining height.
+  const narrowTextSpace = height < 44 ? 0 : height >= 84 ? 42 : height >= 64 ? 30 : 18
+  const narrowColumns = Math.max(1, Math.min(2, markerCount))
+  const narrowRows = Math.max(1, Math.ceil(markerCount / narrowColumns))
+  const shortColumns = Math.max(1, Math.min(3, markerCount))
+  const shortRows = Math.max(1, Math.ceil(markerCount / shortColumns))
   const markerStyle = {
     "--card-marker-count": Math.max(1, markerCount),
     "--card-marker-columns": Math.max(1, Math.ceil(markerCount / markerRows)),
@@ -50,6 +64,11 @@ export function AppointmentCardContent({ appointment, height }: { appointment: a
     "--card-short-max": `${Math.min(20, height - 2)}px`,
     "--card-short-wrap-columns": Math.max(1, Math.ceil(markerCount / 2)),
     "--card-short-wrap-max": `${Math.max(5, Math.min(20, Math.floor((height - 3) / 2)))}px`,
+    "--card-narrow-columns": narrowColumns,
+    "--card-narrow-max": `${Math.max(1, Math.min(20, Math.floor((height - narrowTextSpace - 8 - (narrowRows - 1)) / narrowRows)))}px`,
+    "--card-short-narrow-columns": shortColumns,
+    "--card-short-narrow-max": `${Math.max(1, Math.min(20, Math.floor((height - 2 - (shortRows - 1)) / shortRows)))}px`,
+    "--card-short-tiny-max": `${Math.max(1, Math.min(20, Math.floor((height - 2 - (narrowRows - 1)) / narrowRows)))}px`,
   } as CSSProperties
   const label = `${start}–${end} · ${name} · ${appointment.service?.name || "Massage"} · ${presence} · ${getAppointmentPayment(appointment)?.label || ""}`
   return <div className="agenda-card-content @container relative min-w-0 space-y-0.5 leading-4" data-card-short={height < 44 || undefined}
@@ -67,7 +86,7 @@ export function AppointmentCardContent({ appointment, height }: { appointment: a
     {height < 44 && <span data-card-inline-time className="min-w-0 flex-1 truncate text-right text-[9px] font-semibold tabular-nums">{start}</span>}
     </div>
     {height >= 44 && <div data-card-time className="flex min-w-0 items-center gap-1 text-[10px] font-semibold leading-3.5 @min-[100px]:text-xs">
-      <span className="shrink-0 tabular-nums">{start}</span>
+      <CardStartTime time={start} />
       {height < 64 && <span className={`min-w-0 truncate ${released ? "line-through" : ""}`}>{name}</span>}
       {height >= 110 && <span className="hidden truncate font-normal opacity-80 @min-[100px]:inline">– {end}</span>}
     </div>}

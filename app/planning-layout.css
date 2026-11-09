@@ -1,11 +1,12 @@
 /* Staff columns fit the workspace. Their indicators wrap within each real card
    width instead of forcing the entire calendar wider than the screen. */
 .agenda-card-content [data-appointment-markers] {
-  --fitted-marker-size: min(var(--card-marker-max, 20px), calc((100cqi - (var(--card-marker-columns, 1) - 1) * 1px) / var(--card-marker-columns, 1)));
+  --card-marker-gap: 1px;
+  --fitted-marker-size: min(var(--card-marker-max, 20px), calc((100cqi - (var(--card-marker-columns, 1) - 1) * var(--card-marker-gap)) / var(--card-marker-columns, 1)));
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
-  gap: 1px;
+  gap: var(--card-marker-gap);
   line-height: 1;
 }
 .agenda-card-content [data-appointment-markers] :is([data-payment-marker], [data-appointment-service-stars], [data-source-marker]) { display: contents; }
@@ -24,6 +25,7 @@
 .agenda-card-content [data-appointment-markers] [data-released-marker] { border-radius: 50%; }
 .agenda-card-content[data-card-short] [data-appointment-markers] { --card-marker-columns: var(--card-marker-count); --card-marker-max: var(--card-short-max); }
 .agenda-card-content[data-card-short] [data-card-inline-time] { display: none; }
+.agenda-card-content [data-card-time-split] { display: none; }
 @container (max-width: 110px) {
   .agenda-card-content [data-card-time] { font-size: 10px; line-height: 12px; gap: 1px; }
   .agenda-card-content [data-card-name] { font-size: 11px; line-height: 12px; }
@@ -169,4 +171,23 @@
 
 @container (min-width: 419px) {
   .agenda-card-content:not([data-card-short])[data-marker-count="20"] [data-appointment-markers] { --card-marker-columns: var(--card-marker-count); --card-marker-max: var(--card-marker-single-max); }
+}
+
+/* The full team stays visible on phones, including the very narrow lanes of
+   simultaneous bookings. Time keeps every digit and badges use the card height. */
+@container (max-width: 30px) {
+  .agenda-card-content [data-card-time-full] { display: none; }
+  .agenda-card-content [data-card-time-split] { display: inline-flex; flex-direction: column; font-size: min(8px, 40cqi); line-height: 1.1; }
+  .agenda-card-content [data-card-name] { font-size: min(9px, 50cqi); line-height: 10px; }
+  .agenda-card-content:not([data-card-short]) [data-appointment-markers] { --card-marker-columns: var(--card-narrow-columns); --card-marker-max: var(--card-narrow-max); }
+  .agenda-card-content [data-appointment-markers] { --card-marker-gap: .5px; }
+  .agenda-card-content [data-appointment-markers] :is(.appointment-payment-symbol, .appointment-code, .appointment-staff-choice, [data-service-color-star], [data-duo-marker], [data-released-marker]) { border-width: 0; font-size: calc(var(--fitted-marker-size) * .62); }
+  .agenda-card-content [data-appointment-markers] [data-duo-marker] { font-size: calc(var(--fitted-marker-size) * .4); }
+  .agenda-card-content [data-appointment-markers] svg { width: calc(var(--fitted-marker-size) * .9); height: calc(var(--fitted-marker-size) * .9); filter: none !important; }
+}
+@container (max-width: 27px) {
+  .agenda-card-content[data-card-short] [data-appointment-markers] { --card-marker-columns: var(--card-short-narrow-columns); --card-marker-max: var(--card-short-narrow-max); }
+}
+@container (max-width: 15px) {
+  .agenda-card-content[data-card-short] [data-appointment-markers] { --card-marker-columns: var(--card-narrow-columns); --card-marker-max: var(--card-short-tiny-max); }
 }

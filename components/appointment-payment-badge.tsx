@@ -3,6 +3,7 @@ import { AppointmentCode, PaymentStatusSymbol } from "@/components/calendar/appo
 import { StaffChoiceSymbol } from "@/components/calendar/appointment-staff-choice-marker"
 import { Star } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { ReactNode } from "react"
 
 export function AppointmentPaymentBadge({ appointment, compact = false, iconOnly = false, className }: {
   appointment: AppointmentPaymentLike; compact?: boolean; iconOnly?: boolean; className?: string
@@ -42,6 +43,41 @@ export function AppointmentPaymentLegend() {
       <span className="inline-flex items-center gap-1"><span aria-hidden="true" className="rounded border border-[#8a5b12] bg-[#e7bc65] px-0.5 text-[10px] font-black leading-4 text-[#382304]">×2</span>Duo</span>
       <span className="inline-flex items-center gap-1"><StaffChoiceSymbol decorative />Masseuse choisie par le client</span>
       <span className="inline-flex items-center gap-1"><Star aria-hidden="true" className="h-5 w-5" />Couleur de la prestation</span>
+    </div>
+  </div>
+}
+
+function CompactLegendSymbol({ children }: { children: ReactNode }) {
+  return <span aria-hidden="true" className="relative inline-block h-3.5 w-3.5 shrink-0">
+    <span className="absolute left-0 top-0 origin-top-left scale-[.7]">{children}</span>
+  </span>
+}
+
+/** Keep the meaning of every marker visible while leaving room for the phone agenda. */
+export function CompactAppointmentPaymentLegend() {
+  return <div data-compact-agenda-legend aria-label="Légende du planning" className="space-y-0.5 text-[10px] leading-[14px]">
+    <div className="flex flex-wrap items-center gap-x-1.5">
+      <span className="font-semibold text-muted-foreground">Client</span>
+      {[
+        ["Attendu", "blue"], ["Venu", "green"], ["Absent", "red"], ["Annulé", "red"], ["Bloqué", "blocked"],
+      ].map(([label, tone]) => <span key={label} className="inline-flex items-center gap-0.5 whitespace-nowrap">
+        <span aria-hidden="true" className={cn("appointment-tone h-2 w-2 rounded-sm border", `appointment-tone-${tone}`,
+          (label === "Absent" || label === "Annulé") && "border-dashed opacity-55")} />{label}
+      </span>)}
+    </div>
+    <div className="flex flex-wrap items-center gap-x-2">
+      <span className="font-semibold text-muted-foreground">Paiement</span>
+      <span role="img" aria-label="Coche : rendez-vous payé" className="inline-flex items-center gap-0.5 whitespace-nowrap"><CompactLegendSymbol><PaymentStatusSymbol paid /></CompactLegendSymbol>Payé</span>
+      <span role="img" aria-label="Croix : montant restant à payer, y compris paiement partiel" className="inline-flex items-center gap-0.5 whitespace-nowrap"><CompactLegendSymbol><PaymentStatusSymbol paid={false} /></CompactLegendSymbol>À payer, même partiel</span>
+    </div>
+    <div className="flex flex-wrap items-center gap-x-1.5 text-muted-foreground">
+      {codes.map(([code, label]) => <span key={code} role="img" aria-label={`${code} : ${label}`} title={label}
+        className="inline-flex items-center gap-0.5 whitespace-nowrap"><CompactLegendSymbol><AppointmentCode code={code} /></CompactLegendSymbol>{code === "L" ? "En ligne" : code === "C" ? "Cadeau" : label}</span>)}
+    </div>
+    <div className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
+      <span role="img" aria-label="Deux : rendez-vous duo avec deux masseuses" className="inline-flex items-center gap-0.5 whitespace-nowrap"><span aria-hidden="true" className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-sm border border-[#8a5b12] bg-[#e7bc65] text-[8px] font-black leading-none text-[#382304]">×2</span>Duo</span>
+      <span role="img" aria-label="Cadenas : masseuse choisie par le client" title="Masseuse choisie par le client" className="inline-flex items-center gap-0.5 whitespace-nowrap"><CompactLegendSymbol><StaffChoiceSymbol decorative /></CompactLegendSymbol>Choix client</span>
+      <span role="img" aria-label="Étoile : couleur de la prestation" className="inline-flex items-center gap-0.5 whitespace-nowrap"><CompactLegendSymbol><Star className="h-5 w-5" /></CompactLegendSymbol>Prestation</span>
     </div>
   </div>
 }

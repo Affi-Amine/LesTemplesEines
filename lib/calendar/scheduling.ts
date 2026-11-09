@@ -284,8 +284,12 @@ export function layoutAppointmentLanes(appointments: CalendarAppointmentLike[]):
 }
 
 /** CSS `left`/`width` for a card in its lane, keeping `insetPx` clear on each side. */
-export function getLaneBox(lane: AppointmentLane | undefined, insetPx: number) {
+export function getLaneBox(lane: AppointmentLane | undefined, insetPx: number | string) {
   const { lane: index, lanes } = lane || { lane: 0, lanes: 1 }
+  if (typeof insetPx === "string") return {
+    left: `calc(${(index / lanes) * 100}% + ${insetPx})`,
+    width: `calc(${100 / lanes}% - ${insetPx} - ${insetPx})`,
+  }
   return { left: `calc(${(index / lanes) * 100}% + ${insetPx}px)`, width: `calc(${100 / lanes}% - ${insetPx * 2}px)` }
 }
 

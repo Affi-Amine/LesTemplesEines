@@ -3,8 +3,9 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 // Isolated local fixture regression: no user profile or real API writes.
-// node scripts/qa-planning-interactions.cjs --url=http://127.0.0.1:3390
+// node scripts/qa-planning-interactions.cjs --url=http://127.0.0.1:3490
 // Optional: --only=drop or --only=payment, --case=simple-card, and --resume.
+// --only=phone checks first/last-column taps, immediate drag and payment on 390px.
 const { origin, contextFor, time, id, salonId, day } = require('./qa-planning-fit.cjs')
 const args = Object.fromEntries(process.argv.slice(2).map(arg => { const [key, ...value] = arg.replace(/^--/, '').split('='); return [key, value.join('=') || true] }))
 const outDir = path.resolve('output/playwright'), reportFile = path.join(outDir, 'qa-planning-interactions-results.json')
@@ -14,12 +15,12 @@ const roles = ['admin', 'manager', 'receptionist', 'assistant', 'therapist']
 const card = (page, n = 1000) => page.locator(`[data-appointment-id="${id(n)}"]:visible`).first()
 async function shot(page, name) { captures.push({ name: `${name}.png`, bytes: await page.screenshot({ animations: 'disabled' }) }) }
 async function reveal(page, element) {
-  await element.scrollIntoViewIfNeeded()
+  const before = await element.boundingBox(), width = await page.evaluate(() => innerWidth)
+  assert(before && before.x >= -1 && before.x + before.width <= width + 1, 'Card must already fit the phone/tablet width before tapping or moving')
   await element.evaluate(el => {
-    const scroll = document.querySelector('[data-agenda-scroll]')
-    if (scroll && scroll.scrollWidth > scroll.clientWidth) scroll.scrollLeft += el.getBoundingClientRect().left - scroll.getBoundingClientRect().left - 45
-    const toolbar = document.querySelector('[data-agenda-toolbar]'); scrollBy(0, el.getBoundingClientRect().top - (toolbar?.getBoundingClientRect().bottom || 80) - 18)
+    const toolbar = document.querySelector('[data-agenda-toolbar]'); scrollBy({ left: 0, top: el.getBoundingClientRect().top - (toolbar?.getBoundingClientRect().bottom || 80) - 18 })
   })
+  assert.equal(await page.evaluate(() => scrollX), 0, 'Interaction must never reveal a card by panning horizontally')
 }
 async function gesture(run, from, to, hold = false, beforeEnd) {
   const session = await run.context.newCDPSession(run.page)
@@ -32,8 +33,8 @@ async function gesture(run, from, to, hold = false, beforeEnd) {
   await beforeEnd?.()
   await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await session.detach()
 }
-async function setup(browser, { role = 'admin', width = 820, mode = 'success', payment = false } = {}) {
-  const run = await contextFor(browser, width, 2, role), { state, context } = run
+async function setup(browser, { role = 'admin', width = 820, mode = 'success', payment = false, count = 2 } = {}) {
+  const run = await contextFor(browser, width, count, role, width < 640 ? 844 : 1100), { state, context } = run
   state.readCount = 0; state.results = new Map(); state.mode = mode; state.initialRole = role
   if (payment) {
     const row = state.rows.find(row => row.id === id(2400))
@@ -87,8 +88,8 @@ async function drag(run) {
   await gesture(run, { x: source.x + source.width / 2, y: source.y + 8 }, { x: target.x + target.width / 2, y: target.y + 8 }, true, () => assert.equal(state.mutations.length, before, 'Move saved before drop'))
   assert.equal(await page.getByRole('heading', { name: 'Confirmer le déplacement', exact: true }).count(), 0, 'Drop still opens confirmation')
 }
-async function dropSuccess(browser, role, kind = 'salon') {
-  const run = await setup(browser, { role }), { page, state } = run
+async function dropSuccess(browser, role, kind = 'salon', width = 820) {
+  const run = await setup(browser, { role, width }), { page, state } = run
   try {
     if (kind === 'salon') await openSalon(run)
     else {
@@ -107,8 +108,8 @@ async function dropSuccess(browser, role, kind = 'salon') {
     assert(state.readCount > reads, 'Drop did not refresh appointments')
     assert.equal(await page.getByRole('dialog').count(), 0, 'Drop opened an unwanted dialog')
     assert.deepEqual(run.errors, []); assert.deepEqual(state.unexpected, [])
-    if (role === 'therapist') await shot(page, 'planning-drop-therapist-820')
-    return { scenario: 'drop-success', role, kind, requests: state.mutations, refresh: true, confirmation: false }
+    if (role === 'therapist' || width < 640) await shot(page, `planning-drop-${role}-${width}`)
+    return { scenario: 'drop-success', role, kind, width, requests: state.mutations, refresh: true, confirmation: false }
   } finally { await run.context.close() }
 }
 async function dropRetry(browser, mode) {
@@ -213,17 +214,46 @@ async function paymentRetry(browser) {
     return { scenario: 'payment-retry', requests: state.mutations, preservedMethodAndAmount: true }
   } finally { await run.context.close() }
 }
+async function phoneFirstLast(browser) {
+  const run = await setup(browser, { width: 390, count: 6 }), { page, state } = run
+  state.rows = state.rows.filter(row => ![id(2000), id(2001), id(2101), id(2102)].includes(row.id))
+  try {
+    await openSalon(run)
+    const opened = []
+    for (const n of [1000, 1005]) {
+      const chosen = card(page, n); await reveal(page, chosen)
+      const rect = await chosen.boundingBox()
+      await page.touchscreen.tap(rect.x + rect.width / 2, rect.y + Math.min(8, rect.height / 2))
+      const details = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: /Détails du rendez-vous/i }) })
+      await details.waitFor()
+      assert((await details.innerText()).includes(`Client ${n}`), 'Tap opened a neighbouring appointment')
+      opened.push(n)
+      await details.getByRole('button', { name: 'Fermer la fenêtre', exact: true }).click()
+      await details.waitFor({ state: 'hidden' })
+    }
+    const left = await page.evaluate(() => ({ page: scrollX, grid: (document.querySelector('[data-agenda-scroll]') || document.querySelector('[data-agenda-grid]').parentElement).scrollLeft }))
+    assert.deepEqual(left, { page: 0, grid: 0 })
+    assert.equal(state.mutations.length, 0); assert.deepEqual(state.unexpected, []); assert.deepEqual(run.errors, [])
+    await shot(page, 'planning-phone-first-last-taps-390')
+    return { scenario: 'phone-first-last', width: 390, staff: 6, opened, noHorizontalPan: true, requests: [] }
+  } finally { await run.context.close() }
+}
 async function main() {
   const browser = await chromium.launch({ channel: 'chrome', headless: true })
-  const checks = args.only === 'payment' ? [] : roles.map(role => ({ name: `drop-${role}`, run: () => dropSuccess(browser, role) }))
-  if (args.only !== 'payment') {
+  const checks = ['payment', 'phone'].includes(args.only) ? [] : roles.map(role => ({ name: `drop-${role}`, run: () => dropSuccess(browser, role) }))
+  if (!['payment', 'phone'].includes(args.only)) {
     checks.push({ name: 'drop-global-strict-therapist', run: () => dropSuccess(browser, 'therapist', 'global') })
     for (const mode of ['server-error', 'network-before', 'network-after']) checks.push({ name: `drop-${mode}`, run: () => dropRetry(browser, mode) })
   }
-  if (args.only !== 'drop') for (const variant of ['simple-card', 'simple-cash', 'partial-card', 'partial-mixed']) checks.push({ name: variant, run: () => paymentCase(browser, variant) })
-  if (args.only !== 'drop') {
+  if (!['drop', 'phone'].includes(args.only)) for (const variant of ['simple-card', 'simple-cash', 'partial-card', 'partial-mixed']) checks.push({ name: variant, run: () => paymentCase(browser, variant) })
+  if (!['drop', 'phone'].includes(args.only)) {
     checks.push({ name: 'already-paid', run: () => alreadyPaidCase(browser) })
     checks.push({ name: 'payment-retry', run: () => paymentRetry(browser) })
+  }
+  if (!['drop', 'payment'].includes(args.only)) {
+    checks.push({ name: 'phone-first-last', run: () => phoneFirstLast(browser) })
+    checks.push({ name: 'drop-phone-admin', run: () => dropSuccess(browser, 'admin', 'salon', 390) })
+    if (args.only === 'phone') checks.push({ name: 'simple-card', run: () => paymentCase(browser, 'simple-card', 390) })
   }
   const selected = checks.filter(check => !args.case || args.case === check.name)
   assert(selected.length, 'No requested interaction scenario matched')

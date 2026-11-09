@@ -228,6 +228,21 @@ export function isBookedAppointment(status?: string | null): boolean {
   return status !== "blocked" && !isReleasedAppointment(status)
 }
 
+/** A duo is one reservation but contributes one prestation per assigned practitioner. */
+export function countAppointmentPrestations(appointments: CalendarAppointmentLike[]) {
+  let singles = 0
+  let duos = 0
+  let total = 0
+  for (const appointment of appointments) {
+    if (!isBookedAppointment(appointment.status)) continue
+    const teamSize = Math.max(1, getAppointmentStaffIds(appointment).length)
+    if (teamSize > 1) duos++
+    else singles++
+    total += teamSize
+  }
+  return { singles, duos, total }
+}
+
 export interface AppointmentLane { lane: number; lanes: number }
 
 /**

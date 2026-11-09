@@ -1,5 +1,7 @@
-import { Check, CircleAlert, CircleDashed, Clock3 } from "lucide-react"
 import { getAppointmentPayment, type AppointmentPaymentLike } from "@/lib/appointments/payment-presentation"
+import { AppointmentCode, PaymentStatusSymbol } from "@/components/calendar/appointment-payment-marker"
+import { StaffChoiceSymbol } from "@/components/calendar/appointment-staff-choice-marker"
+import { Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function AppointmentPaymentBadge({ appointment, compact = false, iconOnly = false, className }: {
@@ -7,38 +9,39 @@ export function AppointmentPaymentBadge({ appointment, compact = false, iconOnly
 }) {
   const payment = getAppointmentPayment(appointment)
   if (!payment) return null
-  const Icon = payment.icon === "check" ? Check : payment.icon === "alert" ? CircleAlert : payment.icon === "partial" ? CircleDashed : Clock3
   return <span data-payment-state={payment.state} data-payment-channel={payment.channel}
     title={payment.label} aria-label={payment.label}
-    className={cn("inline-flex shrink-0 items-center justify-center gap-1 rounded-md border font-semibold leading-none",
-      payment.className, `appointment-tone appointment-tone-${payment.state === "paid" ? payment.channel === "online" ? "blue" : "green" : "red"}`, compact ? "px-1 py-0.5 text-[9px]" : "px-2 py-1 text-xs",
-      iconOnly && "h-4 w-4 rounded-full p-0", className)}>
-    <Icon aria-hidden="true" className={compact || iconOnly ? "h-2.5 w-2.5" : "h-3 w-3"} strokeWidth={2.5} />
+    className={cn("inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-[#c7c0b5] bg-[#fbf8f2] font-semibold leading-none text-[#302b24]",
+      compact ? "px-1 py-0.5 text-[10px]" : "px-2 py-1 text-xs", iconOnly && "border-0 bg-transparent p-0", className)}>
+    <PaymentStatusSymbol paid={payment.state === "paid"} />
     <span className={iconOnly ? "sr-only" : undefined}>{compact ? payment.short : payment.label}</span>
   </span>
 }
 
+const codes = [
+  ["L", "Payé en ligne"], ["T", "Treatwell"], ["P", "Planity"], ["F", "Forfait"], ["C", "Carte cadeau"],
+] as const
+
 export function AppointmentPaymentLegend() {
-  return <div aria-label="Repères de paiement" className="space-y-2 text-xs">
-    <div className="flex flex-wrap items-center gap-1.5">
-    <span className="font-medium text-muted-foreground">Planning :</span>
-    <span className="appointment-tone appointment-tone-red rounded border px-2 py-1">À payer</span>
-    <span className="appointment-tone appointment-tone-green rounded border px-2 py-1">Payé</span>
-    <span className="appointment-tone appointment-tone-blue rounded border px-2 py-1">Effectué</span>
-    <span className="appointment-tone appointment-tone-blocked rounded border px-2 py-1">Bloqué</span>
+  return <div data-agenda-legend aria-label="Légende du planning" className="space-y-1.5 text-[11px] leading-4 sm:text-xs">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="font-semibold text-muted-foreground">Client</span>
+      <span className="inline-flex items-center gap-1"><span aria-hidden="true" className="appointment-tone appointment-tone-blue h-3 w-3 rounded-sm border" />Attendu</span>
+      <span className="inline-flex items-center gap-1"><span aria-hidden="true" className="appointment-tone appointment-tone-green h-3 w-3 rounded-sm border" />Venu</span>
+      <span className="inline-flex items-center gap-1"><span aria-hidden="true" className="appointment-tone appointment-tone-red h-3 w-3 rounded-sm border border-dashed opacity-55" />Absent</span>
+      <span className="inline-flex items-center gap-1"><span aria-hidden="true" className="appointment-tone appointment-tone-red h-3 w-3 rounded-sm border border-dashed opacity-55" />Annulé</span>
+      <span className="inline-flex items-center gap-1"><span aria-hidden="true" className="appointment-tone appointment-tone-blocked h-3 w-3 rounded-sm border" />Bloqué</span>
     </div>
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
-      <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#8a5b12] bg-[#e7bc65] text-[9px] font-black text-[#382304]">L</span>Payé en ligne</span>
-      <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#39785d] bg-[#d3eddf] text-[9px] font-black text-[#17432f]">S</span>Payé sur place</span>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="font-semibold text-muted-foreground">Paiement</span>
+      <span className="inline-flex items-center gap-1"><PaymentStatusSymbol paid />Payé</span>
+      <span className="inline-flex items-center gap-1"><PaymentStatusSymbol paid={false} />À payer, même partiel</span>
     </div>
-    <details>
-    <summary className="w-fit cursor-pointer rounded text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">Comprendre les paiements</summary>
-    <div className="mt-2 flex flex-wrap gap-2">
-    <AppointmentPaymentBadge appointment={{payment_status:"paid",payment_method:"stripe"}} />
-    <AppointmentPaymentBadge appointment={{payment_status:"paid",payment_method:"cash"}} />
-    <AppointmentPaymentBadge appointment={{payment_status:"unpaid"}} />
-    <AppointmentPaymentBadge appointment={{payment_status:"partial"}} />
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
+      {codes.map(([code, label]) => <span key={code} className="inline-flex items-center gap-1"><AppointmentCode code={code} />{label}</span>)}
+      <span className="inline-flex items-center gap-1"><span aria-hidden="true" className="rounded border border-[#8a5b12] bg-[#e7bc65] px-0.5 text-[10px] font-black leading-4 text-[#382304]">×2</span>Duo</span>
+      <span className="inline-flex items-center gap-1"><StaffChoiceSymbol decorative />Masseuse choisie par le client</span>
+      <span className="inline-flex items-center gap-1"><Star aria-hidden="true" className="h-5 w-5" />Couleur de la prestation</span>
     </div>
-    </details>
   </div>
 }

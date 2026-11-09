@@ -77,7 +77,7 @@ const appointments = [
   appointment({ start_time: at("19:00"), end_time: plus(at("19:00"), 60), status: "no_show", client: { first_name: "Jean-Marc", last_name: "Huyghues-Beaufond" }, staff: [staff("Eiw")] }),
   appointment({ start_time: at("20:00"), end_time: plus(at("20:00"), 30), payment_status: "unpaid", payment_method: null, amount_paid_cents: 0, service: { name: "Huiles chaudes (Duo)", price_cents: 7000 }, client: { first_name: "Farri", last_name: "" }, staff: [staff("Nuch"), staff("Lea")] }),
   // Multi-service booking: price is the sum of the items.
-  appointment({ start_time: at("12:00"), end_time: plus(at("12:00"), 90), amount_paid_cents: 0, service: null, service_items: [{ name: "Détente", price_cents: 3500 }, { name: "Thai Traditional", price_cents: 3500 }], client: { first_name: "Bonita", last_name: "Colada" }, staff: [staff("Pim")] }),
+  appointment({ start_time: at("12:00"), end_time: plus(at("12:00"), 90), amount_paid_cents: 7000, service: null, service_items: [{ name: "Détente", price_cents: 3500 }, { name: "Thai Traditional", price_cents: 3500 }], client: { first_name: "Bonita", last_name: "Colada" }, staff: [staff("Pim")] }),
   // Never on the sheet.
   appointment({ start_time: at("09:00"), end_time: plus(at("09:00"), 60), status: "cancelled" }),
   appointment({ start_time: at("09:30"), end_time: plus(at("09:30"), 60), status: "blocked", client: null, service: null }),
@@ -85,6 +85,78 @@ const appointments = [
 ]
 
 const sheet = aggregateCashSheet({ salon, date: "2026-11-01", appointments, signerName: "Joël", now: new Date("2026-11-01T19:06:00Z") })
+
+test("sources are independent from payments, duo counts twice, partial never becomes fully paid", () => {
+  const result = aggregateCashSheet({ salon, date: "2026-11-01", appointments: [
+    appointment({ source: "planity", payment_method: "cash" }),
+    appointment({ source: "treatwell", payment_status: "unpaid", amount_paid_cents: 0, payment_method: "treatwell", staff: [staff("A"), staff("B")] }),
+    appointment({ source: "site", payment_status: "partial", amount_paid_cents: 2000, payment_method: "stripe" }),
+    appointment({ source: "site", payment_status: "partial", amount_paid_cents: 0 }),
+    appointment({ source: "planity", status: "no_show" }),
+  ] })
+  assert.equal(result.activity.singles, 3)
+  assert.equal(result.activity.duos, 1)
+  assert.equal(result.activity.total, 5)
+  assert.deepEqual(result.activity.sources.treatwell, { bookings: 1, prestations: 2 })
+  assert.equal(result.activity.sources.planity.bookings, 1)
+  assert.equal(result.totals.treatwell, 0)
+  assert.equal(result.totals.cash, 6500)
+  assert.equal(result.totals.online, 2000)
+  assert.equal(result.lines.filter(l => l.status === "partial").length, 2)
+  assert.equal(result.activity.outstandingCents, 6500 + 4500 + 6500)
+})
+
+test("a recorded zero is never replaced by the catalogue price", () => {
+  const result = aggregateCashSheet({ salon, date: "2026-11-01", appointments: [appointment({ amount_paid_cents: 0 })] })
+  assert.equal(sumAmounts(result.totals), 0)
+})
+
+test("an 80 euro service covered by a 65 euro gift card leaves 15 euros, without cash receipts", () => {
+  for (const payments of [[{ method: "gift_card", amount_cents: 6500 }], []]) {
+    const result = aggregateCashSheet({ salon, date: "2026-11-01", appointments: [appointment({
+      payment_status: "partial", payment_method: "gift_card", amount_paid_cents: 6500,
+      service: { name: "Massage modifié", price_cents: 8000 }, payments,
+    })] })
+    assert.equal(result.activity.outstandingCents, 1500)
+    assert.equal(result.lines[0].status, "partial")
+    assert.equal(result.activity.partial, 1)
+    assert.equal(sumAmounts(result.totals), 0)
+    assert.equal(result.counts.giftCards, 1)
+  }
+})
+
+test("a mixed card and gift payment deducts both from the balance but only card enters cash totals", () => {
+  const result = aggregateCashSheet({ salon, date: "2026-11-01", appointments: [appointment({
+    payment_status: "partial", payment_method: "mixed", amount_paid_cents: 8000,
+    service: { name: "Massage", price_cents: 8000 },
+    payments: [{ method: "card", amount_cents: 2000 }, { method: "gift_card", amount_cents: 4500 }],
+  })] })
+  // Payment rows are authoritative: do not fill their missing 15 euros from
+  // the appointment's cumulative amount or count the voucher a second time.
+  assert.equal(result.activity.outstandingCents, 1500)
+  assert.equal(result.lines[0].status, "partial")
+  assert.deepEqual(result.totals, { card: 2000, cash: 0, treatwell: 0, online: 0, other: 0 })
+})
+
+test("partial packs and stamp cards use only recorded coverage and keep missing values unpaid", () => {
+  for (const method of ["pack", "loyalty"]) {
+    for (const [payments, amountPaid, expectedDue] of [
+      [[], null, 8000],
+      [[], 0, 8000],
+      [[], 3000, 5000],
+      [[{ method, amount_cents: 0 }], 6500, 8000],
+      [[{ method, amount_cents: 3000 }], 6500, 5000],
+    ]) {
+      const result = aggregateCashSheet({ salon, date: "2026-11-01", appointments: [appointment({
+        payment_status: "partial", payment_method: method, amount_paid_cents: amountPaid,
+        service: { name: "Massage", price_cents: 8000 }, payments,
+      })] })
+      assert.equal(result.activity.outstandingCents, expectedDue)
+      assert.equal(result.lines[0].status, "partial")
+      assert.equal(sumAmounts(result.totals), 0)
+    }
+  }
+})
 
 test("only sheet statuses are listed, sorted by time", () => {
   assert.equal(sheet.lines.length, 13)

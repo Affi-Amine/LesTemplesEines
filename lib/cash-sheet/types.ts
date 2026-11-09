@@ -28,7 +28,9 @@ export interface SheetLine {
   staff: string
   /** Duration as the sheet prints it: "1.00" = 1 h, "0.30" = 30 min, "1.30" = 1 h 30. */
   duration: string
-  status: "paid" | "unpaid" | "no_show"
+  status: "paid" | "partial" | "unpaid" | "no_show"
+  source?: "site" | "planity" | "treatwell" | "unknown"
+  prestationCount?: number
   /** Price of the service(s), used for no-shows and unpaid lines. */
   priceCents: number
 }
@@ -47,6 +49,25 @@ export interface CashSheet {
   counts: { lines: number; giftCards: number; packs: number; stamps: number; noShows: number; unpaid: number }
   noShowAmountCents: number
   unpaidAmountCents: number
+  /** Absent on old, frozen closures: never reconstruct historical data. */
+  activity?: {
+    singles: number; duos: number; total: number
+    sources: Record<"site" | "planity" | "treatwell" | "unknown", { bookings: number; prestations: number }>
+    paid: number; partial: number; outstandingCents: number
+  }
+}
+
+export const SOURCE_LABELS = { site: "Site / saisie équipe", planity: "Planity", treatwell: "Treatwell", unknown: "Origine non renseignée" }
+
+export function activityRecap(sheet: CashSheet): [string, string][] {
+  const a = sheet.activity
+  if (!a) return [["Détail prestations / origines", "Non disponible sur cette ancienne clôture"]]
+  return [
+    ["RDV simples", String(a.singles)], ["RDV duo", String(a.duos)],
+    ["Total prestations par masseuse", String(a.total)],
+    ...Object.entries(a.sources).map(([source, n]): [string, string] => [SOURCE_LABELS[source as keyof typeof SOURCE_LABELS], `${n.bookings} RDV / ${n.prestations} prestations`]),
+    ["RDV réglés", String(a.paid)], ["RDV partiellement réglés", String(a.partial)],
+  ]
 }
 
 export interface CashSheetSettings {

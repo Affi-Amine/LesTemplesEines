@@ -17,6 +17,7 @@ interface CreateAppointmentData {
   salon_id: string
   staff_id?: string
   staff_ids?: string[]
+  client_requested_staff_ids?: string[]
   service_ids?: string[]
   expected_price_cents?: number
   service_id?: string

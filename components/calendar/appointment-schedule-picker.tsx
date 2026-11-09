@@ -117,7 +117,7 @@ export function AppointmentSchedulePicker({ schedule, onDateChange, disabled = f
               return <button key={member.id} type="button" aria-pressed={selected}
                 disabled={unavailable || full} onClick={() => schedule.toggleStaff(member.id)}
                 className={`flex min-h-14 items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 ${selected ? "border-primary bg-primary/5" : "hover:border-primary/50 hover:bg-muted/30"}`}>
-                <span><span className="block text-sm font-medium">{getStaffDisplayName(member)}</span><span className="mt-0.5 block text-xs text-muted-foreground">Disponible sur tout le créneau</span></span>
+                <span><span className="block text-sm font-medium">{getStaffDisplayName(member)}</span><span className="mt-0.5 block text-xs text-muted-foreground">{selected ? schedule.requestedStaffIds.includes(member.id) ? "Choisie par vous" : "Attribution automatique" : "Disponible sur tout le créneau"}</span></span>
                 <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"}`}>{selected && <Check className="h-3.5 w-3.5" />}</span>
               </button>
             })}

@@ -9,6 +9,7 @@ import { Plus, Edit, Clock, Tags, Search, ListFilter, Power, RotateCcw, CheckCir
 import { Badge } from "@/components/ui/badge"
 import { useTranslations } from "@/lib/i18n/use-translations"
 import { useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   Dialog,
   DialogContent,
@@ -32,9 +33,12 @@ import type { Service } from "@/lib/types/database"
 
 import { SalonFilter } from "@/components/salon-filter"
 import { useRoleProtection } from "@/lib/hooks/use-role-protection"
+import { ServicePlanningColorPicker, ServicePlanningColorStar } from "@/components/service-planning-color-picker"
+import { getServicePlanningColor, type ServicePlanningColor } from "@/lib/services/planning-colors"
 
 export default function ServicesPage() {
   const isAuthorized = useRoleProtection(["admin", "manager"])
+  const queryClient = useQueryClient()
   const { t } = useTranslations()
   const { data: services, isLoading, refetch } = useServices(undefined, true, true)
   const { data: salons } = useSalons()
@@ -131,6 +135,7 @@ export default function ServicesPage() {
 
   const [editingService, setEditingService] = useState<Service | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [planningColorChanged, setPlanningColorChanged] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -143,6 +148,7 @@ export default function ServicesPage() {
     image_url: "",
     is_active: true,
     required_staff_count: "1",
+    planning_color: null as ServicePlanningColor | null,
   })
 
   if (!isAuthorized) return null
@@ -159,7 +165,9 @@ export default function ServicesPage() {
       image_url: service.image_url || "",
       is_active: service.is_active,
       required_staff_count: (service.required_staff_count || 1).toString(),
+      planning_color: getServicePlanningColor(service.planning_color)?.id || null,
     })
+    setPlanningColorChanged(false)
     setIsDialogOpen(true)
   }
 
@@ -175,7 +183,9 @@ export default function ServicesPage() {
       image_url: "",
       is_active: true,
       required_staff_count: "1",
+      planning_color: null,
     })
+    setPlanningColorChanged(false)
     setIsDialogOpen(true)
   }
 
@@ -193,6 +203,7 @@ export default function ServicesPage() {
     try {
       const endpoint = editingService ? `/api/services/${editingService.id}` : "/api/services"
       const method = editingService ? "PUT" : "POST"
+      const originalPlanningColor = getServicePlanningColor(editingService?.planning_color)?.id || null
 
       const payload = {
         salon_ids: formData.salon_ids,
@@ -204,6 +215,7 @@ export default function ServicesPage() {
         image_url: formData.image_url || undefined,
         is_active: formData.is_active,
         required_staff_count: parseInt(formData.required_staff_count) || 1,
+        ...(planningColorChanged && formData.planning_color !== originalPlanningColor ? { planning_color: formData.planning_color } : {}),
       }
 
       const response = await fetch(endpoint, {
@@ -223,7 +235,11 @@ export default function ServicesPage() {
       })
 
       setIsDialogOpen(false)
-      refetch()
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["services"] }),
+        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
+        queryClient.invalidateQueries({ queryKey: ["staff-appointments"] }),
+      ])
     } catch (error: any) {
       toast.error("Erreur", {
         description: error.message || "Impossible de sauvegarder le service",
@@ -560,6 +576,7 @@ export default function ServicesPage() {
                         />
                         <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <ServicePlanningColorStar value={service.planning_color} />
                           <p className="truncate font-semibold">{service.name}</p>
                           <Badge
                             variant="outline"
@@ -725,6 +742,7 @@ export default function ServicesPage() {
                           checked={selectedServiceIds.includes(service.id)}
                             onCheckedChange={(checked) => toggleServiceSelection(service.id, checked === true)}
                           />
+                          <ServicePlanningColorStar value={service.planning_color} />
                           <span className="min-w-0 flex-1 truncate text-sm font-medium">{service.name}</span>
                           {!service.is_active ? (
                             <Badge variant="outline" className="border-[#d99a65] bg-[#fff3e8] text-[#8b3f12]">Inactif</Badge>
@@ -775,6 +793,9 @@ export default function ServicesPage() {
                 placeholder="Massage suédois"
               />
             </div>
+
+            <ServicePlanningColorPicker value={formData.planning_color} name={formData.name} disabled={isSaving}
+              onChange={planning_color => { setFormData(current => ({ ...current, planning_color })); setPlanningColorChanged(true) }} />
 
             <div className="space-y-2 rounded-xl border border-primary/15 bg-primary/5 p-4">
               <Label htmlFor="category" className="flex items-center gap-2">

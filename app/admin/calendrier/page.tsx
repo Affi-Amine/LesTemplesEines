@@ -1,4 +1,5 @@
 "use client"
+import { PrestationCounts } from "@/components/calendar/prestation-counts"
 
 import { TabletAgenda } from "@/components/calendar/tablet-agenda"
 import { appointmentCollisionDetection } from "@/lib/calendar/drag-collision"
@@ -9,6 +10,9 @@ import { useTabletWorkspace } from "@/lib/hooks/use-tablet-workspace"
 import { CalendarClosedHours, CalendarHourLabel, isCalendarQuarterOpen } from "@/components/calendar/closed-hours"
 import { getScheduleHoursIncludingAppointments } from "@/lib/calendar/scheduling"
 import { AppointmentPaymentMarker } from "@/components/calendar/appointment-payment-marker"
+import { AppointmentStaffChoiceMarker } from "@/components/calendar/appointment-staff-choice-marker"
+import { AppointmentServiceStars } from "@/components/calendar/appointment-service-stars"
+import { appointmentMarkerLaneWidth } from "@/lib/calendar/marker-layout"
 import { AppointmentCardContent, RELEASED_CARD_CLASS } from "@/components/calendar/appointment-card-content"
 import { useState, useEffect, useMemo, type CSSProperties } from "react"
 import { useQuery } from "@tanstack/react-query"
@@ -39,7 +43,6 @@ import {
   getStaffDisplayName,
   getDefaultStartTimeForDate,
   getScheduleHourRange,
-  isBookedAppointment,
   isReleasedAppointment,
   layoutAppointmentLanes,
   resolveOpeningHoursForDate,
@@ -124,6 +127,11 @@ function WeekView({
     return [dayDateStr, layoutAppointmentLanes(appointments.filter((appointment) =>
       formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === dayDateStr))]
   }))
+  const dayWidths = weekDays.map(day => {
+    const laneWidth = appointmentMarkerLaneWidth(appointments.filter(appointment => formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === format(day, "yyyy-MM-dd")))
+    return Math.max(128, ...[...(dayLanes.get(format(day, "yyyy-MM-dd"))?.values() || [])].map(lane => lane.lanes * laneWidth))
+  })
+  const weekColumns = `84px ${dayWidths.map(width => `minmax(${width}px, 1fr)`).join(" ")}`
 
   const getAppointmentsForDayAndHour = (day: Date, hour: number) => {
     return appointments.filter(appointment => {
@@ -165,10 +173,10 @@ function WeekView({
     isInvalidDestination({ date: day, hour, minute })
 
   return (
-    <div className="overflow-x-hidden md:overflow-x-auto">
-      <div className="min-w-0 md:min-w-[1100px]">
+    <div className="overflow-x-auto">
+      <div style={{ minWidth: 84 + dayWidths.reduce((sum, width) => sum + width, 0) + 28 }}>
         {/* Header with days */}
-        <div className="mb-2 grid grid-cols-8 gap-0.5 sm:mb-4 sm:gap-1">
+        <div style={{ gridTemplateColumns: weekColumns }} className="mb-2 grid gap-0.5 sm:mb-4 sm:gap-1">
           <div className="p-1 sm:p-2"></div>
           {weekDays.map((day) => (
             <div key={day.toISOString()} className="min-w-0 p-1 text-center font-medium sm:p-2">
@@ -189,7 +197,7 @@ function WeekView({
               Le salon est fermé sur cette semaine.
             </div>
           ) : hours.map((hourStart) => (
-            <div key={hourStart} className="grid grid-cols-8 gap-0.5 sm:gap-1">
+            <div key={hourStart} style={{ gridTemplateColumns: weekColumns }} className="grid gap-0.5 sm:gap-1">
               <div className="pt-1 pr-0.5 text-right text-[9px] text-muted-foreground sm:p-2 sm:text-sm">
                 {`${hourStart.toString().padStart(2, "0")}:00`}
               </div>
@@ -240,7 +248,7 @@ function WeekView({
                             ...getLaneBox(dayLanes.get(format(day, "yyyy-MM-dd"))?.get(appointment.id), 1),
                             ...(released ? { zIndex: 5 } : {}),
                           }}
-                          className={`overflow-hidden rounded border p-0.5 text-[8px] transition-shadow hover:shadow-md sm:p-1 sm:text-xs ${released ? RELEASED_CARD_CLASS : ""} ${getAppointmentColor(appointment)}`}
+                          className={`overflow-hidden rounded border ${position.height < 44 && appointment.status !== "blocked" ? "p-0" : "p-0.5 sm:p-1"} text-[8px] transition-shadow hover:shadow-md sm:text-xs ${released ? RELEASED_CARD_CLASS : ""} ${getAppointmentColor(appointment)}`}
                         >
                           <div
                             className="w-full h-full"
@@ -288,12 +296,16 @@ function DayView({
   const hours = getScheduleHoursIncludingAppointments(openingHours, currentDate, appointments)
   const hourHeight = useScheduleHourHeight()
   const activeStaffMembers = staffMembers.filter((member) => member.is_active !== false)
-  const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(activeStaffMembers.length, 1) * STAFF_COLUMN_MIN_WIDTH
 
   const currentDayStr = format(currentDate, "yyyy-MM-dd")
   const staffLanes = new Map(activeStaffMembers.map((member) => [member.id, layoutAppointmentLanes(appointments.filter((appointment) =>
     formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === currentDayStr &&
     getAppointmentStaffIds(appointment).includes(member.id)))]))
+  const staffColumnWidths = new Map(activeStaffMembers.map(member => {
+    const laneWidth = appointmentMarkerLaneWidth(appointments.filter(appointment => getAppointmentStaffIds(appointment).includes(member.id)))
+    return [member.id, Math.max(STAFF_COLUMN_MIN_WIDTH, ...[...(staffLanes.get(member.id)?.values() || [])].map(lane => lane.lanes * laneWidth))] as const
+  }))
+  const scheduleMinWidth = TIME_COLUMN_WIDTH + (activeStaffMembers.length ? [...staffColumnWidths.values()].reduce((sum, width) => sum + width, 0) : STAFF_COLUMN_MIN_WIDTH)
 
   const getAppointmentsForHour = (hour: number, staffId?: string) => {
     return appointments.filter(appointment => {
@@ -328,7 +340,7 @@ function DayView({
 
     return {
       top: topOffset,
-      height: Math.max((durationMinutes / 60) * hourHeight, 20),
+      height: Math.max((durationMinutes / 60) * hourHeight, appointment.status === "blocked" ? 20 : 22),
     }
   }
 
@@ -345,7 +357,7 @@ function DayView({
           <div className="sticky top-0 z-20 mb-3 flex border-b border-border bg-card/95 pb-2 backdrop-blur">
             <div className="w-10 shrink-0 md:w-[84px]"></div>
             {activeStaffMembers.map((member) => (
-              <div key={member.id} className="min-w-0 flex-1 border-l border-border px-0.5 text-center md:min-w-[152px] md:px-2">
+              <div key={member.id} style={{ "--staff-min-width": `${staffColumnWidths.get(member.id)}px` } as CSSProperties} className="min-w-0 flex-1 border-l border-border px-0.5 text-center md:min-w-[var(--staff-min-width)] md:px-2">
                 <div className="truncate text-[10px] font-semibold md:text-sm lg:text-base">{getStaffDisplayName(member)}</div>
                 <div className="hidden text-[10px] uppercase tracking-wide text-muted-foreground sm:block">Masseuse</div>
               </div>
@@ -373,7 +385,7 @@ function DayView({
                 const hourAppointments = getAppointmentsForHour(hourStart, member.id)
 
                 return (
-                  <div key={`${member.id}-${hourStart}`} className="relative min-w-0 flex-1 border-l border-border bg-background/80 md:min-w-[152px]">
+                  <div key={`${member.id}-${hourStart}`} style={{ "--staff-min-width": `${staffColumnWidths.get(member.id)}px` } as CSSProperties} className="relative min-w-0 flex-1 border-l border-border bg-background/80 md:min-w-[var(--staff-min-width)]">
                     <CalendarClosedHours hour={hourStart} date={currentDate} openingHours={openingHours} />
                     <div className="absolute inset-0 grid grid-rows-4">
                       {[0, 15, 30, 45].map((minute, idx) => (
@@ -413,7 +425,7 @@ function DayView({
                         ...getLaneBox(staffLanes.get(member.id)?.get(appointment.id), 1),
                         ...(released ? { zIndex: 5 } : {}),
                       }}
-                      className={`overflow-hidden rounded-[4px] border p-0.5 text-[9px] shadow-sm transition-shadow hover:shadow-md md:rounded-md md:border-2 md:p-1 md:text-xs ${released ? RELEASED_CARD_CLASS : ""} ${getAppointmentColor(appointment)}`}
+                      className={`overflow-hidden rounded-[4px] border ${position.height < 44 && appointment.status !== "blocked" ? "p-0" : "p-0.5 md:border-2 md:p-1"} text-[9px] shadow-sm transition-shadow hover:shadow-md md:rounded-md md:text-xs ${released ? RELEASED_CARD_CLASS : ""} ${getAppointmentColor(appointment)}`}
                     >
                       <div
                         className="w-full h-full"
@@ -621,7 +633,7 @@ export default function CalendrierPage() {
             onCreate={handleOpenQuickCreate}
             movingAppointment={activeAppointment}
             isInvalidDestination={isInvalidDestination}
-            summary={<><AppointmentPaymentLegend /><Button variant="outline" onClick={() => setShowOverview(true)}>Vue mois ou semaine</Button></>}
+            summary={<Button variant="outline" onClick={() => setShowOverview(true)}>Vue mois ou semaine</Button>}
             salonControl={<select aria-label="Salon du planning" value={selectedSalon} onChange={event => setSelectedSalon(event.target.value)} className="h-11 max-w-[180px] min-w-0 rounded-lg border bg-card px-2 text-sm">
               <option value="all">Tous les salons</option>
               {salons.map(salon => <option key={salon.id} value={salon.id}>{salon.name}</option>)}
@@ -819,11 +831,11 @@ export default function CalendrierPage() {
                               {dayAppointments.slice(0, 3).map((appointment) => (
                                 <div
                                   key={appointment.id}
-                                  className={`@container relative flex min-h-8 items-end justify-between gap-0.5 overflow-hidden rounded-[3px] border px-0.5 pt-3.5 text-[8px] font-bold leading-4 ${isReleasedAppointment(appointment.status) ? "border-dashed line-through opacity-55" : ""} ${getAppointmentColor(appointment)}`}
+                                  className={`@container relative flex min-h-8 flex-col items-start gap-0.5 overflow-hidden rounded-[3px] border p-0.5 text-[8px] font-bold leading-4 ${isReleasedAppointment(appointment.status) ? "border-dashed line-through opacity-55" : ""} ${getAppointmentColor(appointment)}`}
                                   title={`${formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")} - ${appointment.client?.first_name || 'Client'} ${appointment.client?.last_name || 'Inconnu'}`}
                                 >
                                   <span>{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
-                                  <AppointmentPaymentMarker appointment={appointment} />
+                                  <div className="flex flex-wrap items-center gap-0.5"><AppointmentPaymentMarker appointment={appointment} inline /><AppointmentServiceStars appointment={appointment} /><AppointmentStaffChoiceMarker appointment={appointment} /></div>
                                 </div>
                               ))}
                               {dayAppointments.length > 3 && (
@@ -875,8 +887,8 @@ Masseuse : ${appointment.staff?.first_name || 'Inconnu'} ${appointment.staff?.la
 Salon: ${appointment.salon?.name || 'Salon Inconnu'}
 Statut: ${getStatusLabel(appointment.status)}`}
                                 >
-                                  <AppointmentPaymentMarker appointment={appointment} />
-                                  <div className="flex items-center justify-between gap-1 pr-4 font-medium">
+                                  <div className="flex flex-wrap items-center gap-0.5"><AppointmentPaymentMarker appointment={appointment} inline /><AppointmentServiceStars appointment={appointment} /><AppointmentStaffChoiceMarker appointment={appointment} /></div>
+                                  <div className="flex items-center justify-between gap-1 font-medium">
                                     <span>{formatInTimeZone(appointment.start_time, "Europe/Paris", "HH:mm")}</span>
                                   </div>
                                   <div className="truncate">
@@ -931,19 +943,9 @@ Statut: ${getStatusLabel(appointment.status)}`}
           </CardContent>
         </Card>
 
+        <PrestationCounts appointments={appointments} />
         {/* Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Rendez-vous</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{appointments.filter(a => isBookedAppointment(a.status)).length}</div>
-              <p className="text-xs text-muted-foreground">
-                {format(currentDate, "MMMM yyyy", { locale: fr })}
-              </p>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
           <Card>
             <CardHeader className="pb-2">

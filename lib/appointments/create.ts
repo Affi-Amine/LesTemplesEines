@@ -17,12 +17,44 @@ const APPOINTMENT_TIMEZONE = "Europe/Paris"
 
 export { ClientDataSchema } from "@/lib/appointments/client-data"
 
+export const ClientRequestedStaffIdsSchema = z.array(z.string().uuid()).max(20)
+  .refine(ids => new Set(ids).size === ids.length, "Le choix des masseuses ne doit pas contenir de doublon.").default([])
+
+type ClientStaffChoice = { staff_id?: string; staff_ids?: string[]; client_requested_staff_ids?: string[]; booking_source?: "client" | "admin" }
+
+export function clientStaffChoiceIsAssigned(input: ClientStaffChoice) {
+  const assigned = new Set(input.staff_ids || (input.staff_id ? [input.staff_id] : []))
+  return input.booking_source === "admin" || (input.client_requested_staff_ids || []).every(id => assigned.has(id))
+}
+
+/** Never infer a client request from an assignment, including automatic solo/duo teams. */
+export function resolveClientRequestedStaffIds(input: ClientStaffChoice) {
+  const requested = ClientRequestedStaffIdsSchema.parse(input.client_requested_staff_ids)
+  const validated = ClientRequestedStaffIdsSchema.refine(
+    ids => clientStaffChoiceIsAssigned({ ...input, client_requested_staff_ids: ids }),
+    "Les masseuses choisies par le client doivent appartenir à l’équipe du rendez-vous.",
+  ).parse(requested)
+  return input.booking_source === "admin" ? [] : validated
+}
+
+async function assertClientStaffChoiceStorage(supabase: SupabaseClient, input: ClientStaffChoice) {
+  if (!resolveClientRequestedStaffIds(input).length) return
+  const { error } = await supabase.from("appointments").select("client_requested_staff_ids").limit(0)
+  if (error) {
+    const unavailable = new Error("Le choix de la masseuse ne peut pas être enregistré pour le moment. Réessayez plus tard ou contactez le salon.") as Error & { code: string; status: number }
+    unavailable.code = "CLIENT_STAFF_CHOICE_STORAGE"
+    unavailable.status = 503
+    throw unavailable
+  }
+}
+
 export const BookableAppointmentSchema = z.object({
   salon_id: z.string().uuid(),
   client_id: z.string().uuid().optional(),
   client_data: ClientDataSchema.optional(),
   staff_id: z.string().uuid().optional(),
   staff_ids: z.array(z.string().uuid()).optional(),
+  client_requested_staff_ids: ClientRequestedStaffIdsSchema,
   service_id: z.string().uuid(),
   service_ids: z.array(z.string().uuid()).min(1).max(8).optional(),
   expected_price_cents: z.number().int().min(0).optional(),
@@ -41,10 +73,12 @@ export const BookableAppointmentSchema = z.object({
   message: "Either client_id or client_data must be provided",
 }).refine((data) => data.staff_id || (data.staff_ids && data.staff_ids.length > 0), {
   message: "At least one staff member must be assigned",
-})
+}).refine(clientStaffChoiceIsAssigned, {
+  path: ["client_requested_staff_ids"], message: "Les masseuses choisies par le client doivent appartenir à l’équipe du rendez-vous.",
+}).transform(data => ({ ...data, client_requested_staff_ids: data.booking_source === "admin" ? [] : data.client_requested_staff_ids }))
 
 type SupabaseClient = ReturnType<typeof createAdminClient>
-export type BookableAppointmentInput = z.infer<typeof BookableAppointmentSchema>
+export type BookableAppointmentInput = z.input<typeof BookableAppointmentSchema>
 export type AppointmentSchedulingInput = Pick<
   BookableAppointmentInput,
   "salon_id" | "service_id" | "service_ids" | "start_time" | "end_time" | "staff_id" | "staff_ids"
@@ -122,6 +156,8 @@ export async function validateBookableAppointment(
   quote?: SelectedService[],
   options?: { allowPastStart?: boolean }
 ) {
+  // Check this optional storage before creating a client, accepting payment or consuming a pack.
+  await assertClientStaffChoiceStorage(supabase, input)
   // New bookings always reserve the full service duration. The rescheduling
   // validator below still accepts the original duration of an existing booking.
   const { endTime, service, serviceItems } = await validateAppointmentScheduling(supabase, { ...input, end_time: undefined }, { quote, allowPastStart: options?.allowPastStart })
@@ -434,6 +470,7 @@ export async function createBookableAppointment(
 ) {
   const requestId = options?.requestId
   const totalStartedAt = Date.now()
+  const clientRequestedStaffIds = resolveClientRequestedStaffIds(input)
   const validateStartedAt = Date.now()
   const { endTime, allStaffIds, service, serviceItems } = await validateBookableAppointment(supabase, input, options?.quote, { allowPastStart: options?.allowPastStart })
   logAppointmentTiming(requestId, "validateBookableAppointment", validateStartedAt, {
@@ -456,6 +493,7 @@ export async function createBookableAppointment(
       salon_id: input.salon_id,
       client_id: clientId,
       staff_id: primaryStaffId,
+      ...(clientRequestedStaffIds.length ? { client_requested_staff_ids: clientRequestedStaffIds } : {}),
       service_id: input.service_id,
       ...(serviceItems ? { service_items: serviceItems } : {}),
       start_time: input.start_time,

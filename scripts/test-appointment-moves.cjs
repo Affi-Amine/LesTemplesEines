@@ -65,11 +65,133 @@ for(const member of [{...staff[0],salon_id:'elsewhere'},{...staff[0],is_active:f
 assert.throws(()=>move({appointment:{...booking,service_items:[{id:'massage'},{id:'extra'}]},staff:[{...staff[0],allowed_service_ids:['massage']}]}),/toutes les prestations/)
 assert.notEqual(appointmentMoveVersion(booking),appointmentMoveVersion({...booking,status:'cancelled'}))
 console.log('PASS: finished sessions, inactive/foreign/unqualified staff and stale snapshots are protected')
+
+// The salon planning is an explicit exception. Other callers retain every rule above.
+const originalBooking=JSON.stringify(booking)
+const unrestricted=move({mode:'salon-admin',now:Date.parse('2100-01-01'),openingHours:Object.fromEntries(Object.keys(hours).map(day=>[day,null])),
+ staff:[{...staff[0],allowed_service_ids:['another']}],appointments:[booking,{...other,staff_id:'a'}]})
+assert.equal(unrestricted.mode,'salon-admin')
+assert.equal(unrestricted.end-unrestricted.start,90*60_000)
+assert.deepEqual(Array.from(unrestricted.staffIds),['a'])
+assert.equal(unrestricted.warnings.length,4)
+for(const phrase of [/passé/,/horaires/,/habilitée/,/chevauche/])assert(unrestricted.warnings.some(warning=>phrase.test(warning)))
+assert.equal(JSON.stringify(booking),originalBooking)
+assert.equal(move().mode,'strict');assert.equal(move().warnings.length,0)
+for(const status of ['in_progress','completed']){
+ assert.equal(canMoveAppointment({status},'salon-admin'),true)
+ assert.equal(move({mode:'salon-admin',appointment:{...booking,status}}).appointment.status,status)
+}
+for(const status of ['cancelled','no_show','unknown']){
+ assert.equal(canMoveAppointment({status},'salon-admin'),false)
+ assert.throws(()=>move({mode:'salon-admin',appointment:{...booking,status}}))
+}
+assert.throws(()=>move({mode:'salon-admin',appointment:duo,destination:{date:date(),hour:14,staffId:'c'}}),/duo/)
+assert.deepEqual(Array.from(move({mode:'salon-admin',appointment:duo,appointments:[duo,other],destination:{date:date(),hour:14,staffId:'a'}}).staffIds),['a','b'])
+for(const member of [{...staff[0],salon_id:'elsewhere'},{...staff[0],is_active:false},{...staff[0],role:'receptionist'}]){
+ assert.throws(()=>move({mode:'salon-admin',staff:[member]}))
+}
+for(const overrides of [
+ {destination:{date:new Date('invalid'),hour:14,staffId:'a'}},
+ {destination:{date:date(),hour:25,staffId:'a'}},
+ {destination:{date:date(),hour:14,minute:7,staffId:'a'}},
+ {appointment:{...booking,end_time:booking.start_time}},
+ {appointment:{...booking,salon_id:undefined}},
+ {appointment:{...booking,staff_id:null,assignments:[]}},
+])assert.throws(()=>move({...overrides,mode:'salon-admin'}))
+console.log('PASS: only salon-admin bypasses planning rules; duration, status, identity, active salon team and immutable duo stay protected')
 assert.equal(move({destination:{date:date(2,6),hour:14,staffId:'a'},now:Date.parse('2099-06-01')}).start.toISOString(),'2099-07-02T12:00:00.000Z')
 for(const tz of ['UTC','America/Los_Angeles','Asia/Tokyo']){
  const run=require('node:child_process').spawnSync(process.execPath,[__filename,'--timezone'],{env:{...process.env,TZ:tz},encoding:'utf8'})
  assert.equal(run.status,0,run.stderr);process.stdout.write(run.stdout)
 }
 console.log('PASS: winter/summer offsets and browser timezones are covered')
+
+// Render the real hook with a tiny hook dispatcher: verify requests and recovery,
+// rather than mirroring its implementation or requiring a browser for network state.
+function moveHookHarness({mode='strict',fetcher=async()=>({ok:true})}={}){
+ const slots=[];let cursor=0,uuidCount=0,refreshes=0
+ const args={appointments:[{...booking,updated_at:'2099-10-01T00:00:00.000Z'}],staff,openingHours:hours,mode,salonId:'salon',onRefresh(){refreshes++}}
+ const hookModule={}
+ const react={
+  useState(initial){const index=cursor++;if(index>=slots.length)slots[index]=typeof initial==='function'?initial():initial;return [slots[index],value=>{slots[index]=typeof value==='function'?value(slots[index]):value}]},
+  useRef(initial){const index=cursor++;if(index>=slots.length)slots[index]={current:initial};return slots[index]},
+ }
+ vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,'lib/hooks/use-appointment-move.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{
+  exports:hookModule,Date,Intl,console,Error,TypeError,crypto:{randomUUID(){return `00000000-0000-4000-8000-${String(++uuidCount).padStart(12,'0')}`}},
+  fetch:(...values)=>fetcher(...values),require(name){
+   if(name==='react')return react
+   if(name==='sonner')return {toast:{success(){},error(){}}}
+   return name.startsWith('@/')?load(name.slice(2)+'.ts'):require(name)
+  },
+ })
+ const render=()=>{cursor=0;return hookModule.useAppointmentMove(args)}
+ const drop=(destination={date:date(),hour:14,minute:0,staffId:'b'})=>{
+  render().handleDragEnd({active:{data:{current:{appointment:args.appointments[0]}}},over:{data:{current:destination}}})
+  return render()
+ }
+ return {args,render,drop,get refreshes(){return refreshes}}
+}
+
+;(async()=>{
+ const strictCalls=[]
+ const strict=moveHookHarness({fetcher:async(url,options)=>{strictCalls.push({url,...options,body:JSON.parse(options.body)});return {ok:true}}})
+ await strict.drop().confirmMove()
+ assert.equal(strictCalls.length,1);assert.equal(strictCalls[0].url,'/api/appointments/booked');assert.equal(strictCalls[0].method,'PATCH')
+ assert.deepEqual(Object.keys(strictCalls[0].body).sort(),['expected_updated_at','staff_id','staff_ids','start_time'])
+ assert.equal(strict.render().pendingMove,null)
+
+ const salonCalls=[]
+ const salon=moveHookHarness({mode:'salon-admin',fetcher:async(url,options)=>{salonCalls.push({url,...options,body:JSON.parse(options.body)});return {ok:true}}})
+ const pending=salon.drop()
+ assert.equal(salonCalls.length,0,'Drop must await the existing confirmation')
+ await Promise.all([pending.confirmMove(),pending.confirmMove()])
+ assert.equal(salonCalls.length,1,'Double confirmation must send one mutation')
+ assert.equal(salonCalls[0].url,'/api/admin/salons/salon/appointments/booked/move');assert.equal(salonCalls[0].method,'POST')
+ assert.deepEqual(Object.keys(salonCalls[0].body).sort(),['expected_updated_at','request_id','staff_ids','start_time'])
+ assert.match(salonCalls[0].body.request_id,/^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i)
+ assert.equal(salonCalls[0].body.expected_updated_at,'2099-10-01T00:00:00.000Z')
+
+ const retries=[];let retryHarness
+ retryHarness=moveHookHarness({mode:'salon-admin',fetcher:async(url,options)=>{
+  const body=JSON.parse(options.body);retries.push({url,method:options.method,body})
+  if(retries.length===1){
+   retryHarness.args.appointments=[{...retryHarness.args.appointments[0],start_time:body.start_time,
+    end_time:new Date(Date.parse(body.start_time)+90*60_000).toISOString(),staff_id:'b',updated_at:'2099-10-02T00:00:00.000Z'}]
+   throw new TypeError('Response lost after server commit')
+  }
+  return {ok:true}
+ }})
+ await retryHarness.drop().confirmMove()
+ assert(retryHarness.render().pendingMove,'A lost response must keep the pending request recoverable')
+ assert(retryHarness.render().moveError)
+ await retryHarness.render().confirmMove()
+ assert.equal(retries.length,2)
+ assert.deepEqual(retries[1],retries[0],'Retry must retain the request ID and original snapshot even after a refetch')
+ assert.equal(retryHarness.render().pendingMove,null)
+
+ let staleCalls=0
+ const stale=moveHookHarness({mode:'salon-admin',fetcher:async()=>{staleCalls++;return {ok:true}}})
+ stale.drop();stale.args.appointments=[{...stale.args.appointments[0],updated_at:'2099-10-03T00:00:00.000Z'}]
+ await stale.render().confirmMove()
+ assert.equal(staleCalls,0,'A new move must reject a stale local snapshot before contacting the server')
+ assert.match(stale.render().moveError,/modifié/)
+
+ let missingVersionCalls=0
+ for(const version of [null,undefined,'not-a-date']){
+  const missing=moveHookHarness({mode:'salon-admin',fetcher:async()=>{missingVersionCalls++;return {ok:true}}})
+  missing.args.appointments=[{...missing.args.appointments[0],updated_at:version}]
+  await missing.drop().confirmMove()
+  assert.match(missing.render().moveError,/Actualisez.*version/)
+ }
+ assert.equal(missingVersionCalls,0,'Salon moves must always carry a valid concurrency version')
+
+ const cancelled=moveHookHarness({mode:'salon-admin'})
+ const firstId=cancelled.drop().pendingMove.requestId
+ cancelled.render().cancelMove();assert.equal(cancelled.render().pendingMove,null)
+ assert.notEqual(cancelled.drop().pendingMove.requestId,firstId,'A fresh drag must receive a fresh request ID')
+ const foreign=moveHookHarness({mode:'salon-admin'})
+ foreign.args.salonId='another-salon';assert.equal(foreign.drop().pendingMove,null)
+ console.log('PASS: salon-only POST, strict PATCH, mandatory version, pending confirmation, stable retry IDs, stale snapshots and duplicate/cancel protections')
+})().catch(error=>{console.error(error);process.exitCode=1})
 
 

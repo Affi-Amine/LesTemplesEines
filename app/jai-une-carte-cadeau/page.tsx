@@ -125,6 +125,7 @@ export default function RedeemGiftCardPage() {
           service_id: giftCard.service_id,
           start_time: selection.slot.start,
           staff_ids: staffIds,
+          client_requested_staff_ids: selection.requestedStaffIds,
           client_data: {
             first_name: clientForm.first_name,
             last_name: clientForm.last_name,

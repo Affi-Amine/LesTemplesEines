@@ -3,7 +3,7 @@ export const runtime = "nodejs"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizeGiftCardCode } from "@/lib/gift-cards"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
-import { ClientDataSchema, createBookableAppointment } from "@/lib/appointments/create"
+import { ClientDataSchema, ClientRequestedStaffIdsSchema, clientStaffChoiceIsAssigned, createBookableAppointment } from "@/lib/appointments/create"
 import { resolveSalonGroup } from "@/lib/salons/resolve"
 import { after, type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
@@ -14,8 +14,11 @@ const RedeemGiftCardSchema = z.object({
   service_id: z.string().uuid(),
   start_time: z.string(),
   staff_ids: z.array(z.string().uuid()).min(1),
+  client_requested_staff_ids: ClientRequestedStaffIdsSchema,
   client_data: ClientDataSchema,
   client_notes: z.string().optional(),
+}).refine(clientStaffChoiceIsAssigned, {
+  path: ["client_requested_staff_ids"], message: "Les masseuses choisies par le client doivent appartenir à l’équipe du rendez-vous.",
 })
 
 function scheduleGiftCardAppointmentNotifications(appointment: any) {
@@ -93,6 +96,8 @@ export async function POST(request: NextRequest) {
       start_time: payload.start_time,
       staff_id: assignedStaffIds[0],
       staff_ids: assignedStaffIds,
+      client_requested_staff_ids: payload.client_requested_staff_ids,
+      booking_source: "client",
       client_data: payload.client_data,
       client_notes: payload.client_notes,
       status: "confirmed",
@@ -137,6 +142,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }
     if (error instanceof Error && "code" in error && error.code === "SALON_HOURS") return NextResponse.json({ error: error.message }, { status: 400 })
+    if (error instanceof Error && "code" in error && error.code === "CLIENT_STAFF_CHOICE_STORAGE") return NextResponse.json({ error: error.message }, { status: 503 })
     if (error instanceof Error && "status" in error && error.status === 409) return NextResponse.json({ error: error.message }, { status: 409 })
     return NextResponse.json({ error: "Failed to redeem gift card" }, { status: 500 })
   }

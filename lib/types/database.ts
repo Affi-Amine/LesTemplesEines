@@ -1,3 +1,5 @@
+import type { ServicePlanningColor } from "@/lib/services/planning-colors"
+
 export interface Salon {
   id: string
   name: string
@@ -16,6 +18,7 @@ export interface Salon {
 }
 
 export interface Service {
+  planning_color?: ServicePlanningColor | null
   id: string
   salon_id: string | null
   salon_ids: string[]
@@ -80,6 +83,9 @@ export interface Client {
 }
 
 export interface Appointment {
+  planning_services?: { id: string; name: string; planning_color: ServicePlanningColor | null }[]
+  /** Original explicit client choices, independent of later staff reassignment. */
+  client_requested_staff_ids?: string[]
   service_items?: import("@/lib/appointments/service-selection").SelectedService[] | null
   id: string
   salon_id: string

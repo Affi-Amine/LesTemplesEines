@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useAvailability } from "@/lib/hooks/use-availability"
 import { useStaff } from "@/lib/hooks/use-staff"
-import { chooseScheduleSlot, EMPTY_SLOT_SELECTION, getSelectableSlots, reconcileSlotSelection, scheduleContextKey, type ScheduleContext, type SlotSelection } from "@/lib/calendar/slot-selection"
+import { assignScheduleStaffAutomatically, chooseScheduleSlot, EMPTY_SLOT_SELECTION, getSelectableSlots, reconcileSlotSelection, scheduleContextKey, toggleScheduleStaff, type ScheduleContext, type SlotSelection } from "@/lib/calendar/slot-selection"
 
 export function useAppointmentSchedule(context: ScheduleContext, enabled = true, preferredStaffId?: string) {
   const { salonId, serviceId, date, requiredStaff, durationMinutes, includePast } = context
@@ -27,14 +27,14 @@ export function useAppointmentSchedule(context: ScheduleContext, enabled = true,
 
   useEffect(() => {
     if (selection.context !== key) {
-      setSelection({ context: key, start: "", staffIds: [] })
+      setSelection({ context: key, start: "", staffIds: [], requestedStaffIds: [] })
       setNotice("")
       return
     }
     if (!query.isSuccess || query.isFetching || staffQuery.isPending || hasError) return
     const available = getSelectableSlots(stableContext, query.data.available_slots, staffQuery.data || [])
     const next = reconcileSlotSelection(stableContext, selection, available)
-    if (next.start !== selection.start || next.staffIds.join() !== selection.staffIds.join()) {
+    if (next.start !== selection.start || next.staffIds.join() !== selection.staffIds.join() || next.requestedStaffIds?.join() !== (selection.requestedStaffIds || []).join()) {
       setSelection(next)
       if (selection.start) setNotice(next.start
         ? "La disponibilité de l'équipe a changé. Choisissez les masseuses encore libres."
@@ -52,15 +52,11 @@ export function useAppointmentSchedule(context: ScheduleContext, enabled = true,
     if (!slot?.available_staff?.includes(id) || isLoading || hasError) return
     setSelection(previous => {
       const current = reconcileSlotSelection(stableContext, previous, slots)
-      const selected = current.staffIds.includes(id)
-      if (!selected && current.staffIds.length >= requiredStaff) {
-        return requiredStaff === 1 ? { ...current, staffIds: [id] } : current
-      }
-      return { ...current, staffIds: selected ? current.staffIds.filter(item => item !== id) : [...current.staffIds, id] }
+      return toggleScheduleStaff(stableContext, current, slot, id)
     })
   }
   const assignAutomatically = () => {
-    if (slot && !isLoading && !hasError) setSelection({ ...current, staffIds: slot.available_staff.slice(0, requiredStaff) })
+    if (slot && !isLoading && !hasError) setSelection(assignScheduleStaffAutomatically(stableContext, current, slot))
   }
   const refreshSelection = async () => {
     const snapshot = latest.current
@@ -69,10 +65,11 @@ export function useAppointmentSchedule(context: ScheduleContext, enabled = true,
       query.refetch({ throwOnError: true }), staffQuery.refetch({ throwOnError: true }),
     ])
     if (latest.current.key !== snapshot.key || latest.current.selection.start !== snapshot.selection.start ||
-        latest.current.selection.staffIds.join() !== snapshot.selection.staffIds.join()) return null
+        latest.current.selection.staffIds.join() !== snapshot.selection.staffIds.join() ||
+        (latest.current.selection.requestedStaffIds || []).join() !== (snapshot.selection.requestedStaffIds || []).join()) return null
     if ((result.data?.required_staff !== undefined && result.data.required_staff !== requiredStaff) ||
         (result.data?.service_duration_minutes !== undefined && result.data.service_duration_minutes !== durationMinutes)) {
-      setSelection({ context: key, start: "", staffIds: [] })
+      setSelection({ context: key, start: "", staffIds: [], requestedStaffIds: [] })
       setNotice("Le soin a été modifié. Ses disponibilités vont être actualisées ; choisissez un nouveau créneau.")
       return null
     }
@@ -84,11 +81,11 @@ export function useAppointmentSchedule(context: ScheduleContext, enabled = true,
       setNotice("Ce choix vient de changer. Sélectionnez un créneau et son équipe parmi les disponibilités actualisées.")
       return null
     }
-    return { slot: refreshedSlot, staffIds: next.staffIds }
+    return { slot: refreshedSlot, staffIds: next.staffIds, requestedStaffIds: next.requestedStaffIds || [] }
   }
   const refresh = () => Promise.all([query.refetch(), staffQuery.refetch()])
-  const clear = (message = "") => { setSelection({ context: key, start: "", staffIds: [] }); setNotice(message) }
-  return { context: stableContext, slots, slot, staff, staffIds: current.staffIds, isValid, isLoading, hasError, notice,
+  const clear = (message = "") => { setSelection({ context: key, start: "", staffIds: [], requestedStaffIds: [] }); setNotice(message) }
+  return { context: stableContext, slots, slot, staff, staffIds: current.staffIds, requestedStaffIds: current.requestedStaffIds || [], isValid, isLoading, hasError, notice,
     chooseSlot, toggleStaff, assignAutomatically, refreshSelection, refresh, clear }
 }
 

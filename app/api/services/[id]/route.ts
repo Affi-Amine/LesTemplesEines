@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { assertServicePlanningColorStorage, ServicePlanningColorSchema } from "@/lib/services/planning-presentation"
 
 const UpdateServiceSchema = z.object({
   salon_id: z.string().uuid().optional(),
@@ -15,6 +16,7 @@ const UpdateServiceSchema = z.object({
   image_url: z.string().optional(),
   is_active: z.boolean().optional(),
   required_staff_count: z.number().min(1).optional(),
+  planning_color: ServicePlanningColorSchema,
 })
 
 function normalizeSalonIds(serviceData: z.infer<typeof UpdateServiceSchema>) {
@@ -75,7 +77,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
     const serviceData = UpdateServiceSchema.parse(body)
     const salonIds = normalizeSalonIds(serviceData)
 
@@ -87,6 +89,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (!existing) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 })
     }
+
+    if (serviceData.planning_color !== undefined) await assertServicePlanningColorStorage(supabase)
 
     // Update service
     const updatePayload: Record<string, unknown> = { ...serviceData }
@@ -139,6 +143,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     return NextResponse.json(mapService(fullService))
   } catch (error) {
     console.error("[v0] Update service error:", error)
+    if (error && typeof error === "object" && "code" in error && error.code === "SERVICE_PLANNING_COLOR_STORAGE") {
+      return NextResponse.json({ error: "message" in error ? String(error.message) : "Couleur du planning indisponible." }, { status: 503 })
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }

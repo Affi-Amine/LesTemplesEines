@@ -36,6 +36,8 @@ async function scenario(status, body, conflict) {
       if (name === '@/lib/supabase/admin') return { createAdminClient: () => db };
       if (name === '@/lib/appointments/create') return { validateAppointmentScheduling: async () => { validations++; if (conflict) throw new Error('conflict'); return { endTime: '2026-11-02T11:00:00Z' } } };
       if (name === '@/lib/auth/api-auth') return { requireStaffAuth: () => ({ payload: { role: 'admin' } }) };
+      // Platform synchronization is an external post-response effect, outside these scheduling assertions.
+      if (name === '@/lib/sync/trigger') return { syncAfterBookingChange() {}, loadRemoteCopies: async () => [], cancelRemoteCopiesAfterDelete() {} };
       if (name === 'next/server') return { NextResponse: { json: (data, init) => ({ data, status: init?.status || 200 }) } };
       return require(name);
     }

@@ -3,7 +3,7 @@ import { formatInTimeZone } from "date-fns-tz"
 import { buildCashSheet, TIMEZONE } from "@/lib/cash-sheet/build"
 import { cashSheetFilename, euros, renderCashSheetPdf } from "@/lib/cash-sheet/pdf"
 import { getCashSheetSettings, resolveRecipients } from "@/lib/cash-sheet/settings"
-import { sumAmounts, type CashSheet, type CashSheetClosure } from "@/lib/cash-sheet/types"
+import { activityRecap, sumAmounts, type CashSheet, type CashSheetClosure } from "@/lib/cash-sheet/types"
 import { escapeEmailHtml } from "@/lib/email/html"
 import { isEmailEnabled, sendEmail } from "@/lib/email/resend"
 import type { createAdminClient } from "@/lib/supabase/admin"
@@ -86,6 +86,7 @@ export async function sendCashSheet(supabase: SupabaseClient, closure: CashSheet
         <li>Total caisse (CB + espèces) : <strong>${cash} €</strong></li>
         <li>Total général : <strong>${total} €</strong></li>
         <li>Lignes enregistrées : ${sheet.counts.lines} · absences : ${sheet.counts.noShows} · non réglées : ${sheet.counts.unpaid}</li>
+        ${activityRecap(sheet).map(([label, value]) => `<li>${escapeEmailHtml(label)} : ${escapeEmailHtml(value)}</li>`).join("")}
       </ul>
       <p>Responsable : ${escapeEmailHtml(sheet.signerName || "—")}. Clôturée le ${escapeEmailHtml(formatInTimeZone(new Date(sheet.closedAt || closure.closed_at), TIMEZONE, "dd/MM/yyyy 'à' HH:mm"))}.</p>
     `,

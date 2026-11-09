@@ -27,6 +27,65 @@
   border-color: var(--appointment-border);
 }
 .appointment-tone .text-muted-foreground { color: inherit; }
+[data-tablet-agenda] {
+  --agenda-columns: var(--agenda-columns-phone);
+  --agenda-min-width: var(--agenda-min-width-phone);
+}
+@media (min-width: 640px) {
+  [data-tablet-agenda] {
+    --agenda-columns: var(--agenda-columns-wide);
+    --agenda-min-width: var(--agenda-min-width-wide);
+  }
+}
+/* On short phone screens, let the controls scroll away so the planning stays usable. */
+@media (max-height: 700px) {
+  [data-agenda-toolbar] { position: static; }
+}
+.appointment-payment-symbol {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid;
+  border-radius: 5px;
+  color-scheme: only light;
+}
+.appointment-payment-symbol-paid { color: #155b36; background: #effbf1; border-color: #39785d; }
+.appointment-payment-symbol-unpaid { color: #a1112c; background: #fff5f5; border-color: #b72b43; }
+.appointment-staff-choice {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #65586f;
+  border-radius: 5px;
+  color: #302638;
+  background: #faf7ff;
+  color-scheme: only light;
+}
+.appointment-code {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 18px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #746655;
+  border-radius: 4px;
+  background: #eee4d5;
+  color: #453c30;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  color-scheme: only light;
+}
+.appointment-code-l { background: #e7bc65; border-color: #8a5b12; color: #382304; }
+.appointment-code-p { background: #1d4ed8; border-color: #1e40af; color: #fff; }
+.appointment-code-t { background: #7e22ce; border-color: #6b21a8; color: #fff; }
 .appointment-tone:focus-visible {
   outline: 2px solid var(--appointment-ink);
   outline-offset: 2px;

@@ -156,7 +156,7 @@ body:has([data-admin-shell]) :is([data-slot="dialog-content"], [data-slot="dialo
   }
 
   [data-tablet-agenda] {
-    touch-action: pan-y pinch-zoom;
+    touch-action: pan-x pan-y pinch-zoom;
     overflow: visible;
     overflow-anchor: none;
   }

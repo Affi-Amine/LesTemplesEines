@@ -11,12 +11,11 @@ export type AppointmentStatus = "confirmed" | "pending" | "in_progress" | "compl
 export function getStatusColor(status: string): string {
   switch (status) {
     case "confirmed":
-      return "appointment-tone appointment-tone-blue bg-blue-100 text-blue-950 border-blue-200"
     case "pending":
-      return "appointment-tone appointment-tone-red bg-rose-100 text-rose-950 border-rose-200"
+      return "appointment-tone appointment-tone-blue bg-blue-100 text-blue-950 border-blue-200"
     case "in_progress":
     case "completed":
-      return "appointment-tone appointment-tone-blue bg-blue-100 text-blue-950 border-blue-200"
+      return "appointment-tone appointment-tone-green bg-emerald-100 text-emerald-950 border-emerald-200"
     case "cancelled":
       return "appointment-tone appointment-tone-red bg-rose-100 text-rose-950 border-rose-200"
     case "no_show":
@@ -28,12 +27,9 @@ export function getStatusColor(status: string): string {
   }
 }
 
-// Care progress takes precedence; payment only colours appointments awaiting care.
+// Card colour describes attendance only. Payment is displayed by its own marker.
 export function getAppointmentColor(appointment: { status: string; payment_status?: string | null }): string {
-  if (!["confirmed", "pending"].includes(appointment.status)) return getStatusColor(appointment.status)
-  return appointment.payment_status === "paid"
-    ? "appointment-tone appointment-tone-green bg-emerald-100 text-emerald-950 border-emerald-200"
-    : "appointment-tone appointment-tone-red bg-rose-100 text-rose-950 border-rose-200"
+  return getStatusColor(appointment.status)
 }
 
 export function getStatusLabel(status: string): string {

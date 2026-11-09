@@ -3,6 +3,7 @@ import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { isUUID, resolveSalonGroup } from "@/lib/salons/resolve"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { assertServicePlanningColorStorage, ServicePlanningColorSchema } from "@/lib/services/planning-presentation"
 
 const ServiceSchema = z.object({
   salon_id: z.string().uuid().optional(),
@@ -16,6 +17,7 @@ const ServiceSchema = z.object({
   image_url: z.string().optional(),
   is_active: z.boolean().optional(),
   required_staff_count: z.number().min(1).default(1),
+  planning_color: ServicePlanningColorSchema,
 }).refine((data) => Boolean(data.salon_id || (data.salon_ids && data.salon_ids.length > 0)), {
   message: "At least one salon must be selected",
 })
@@ -108,11 +110,13 @@ export async function POST(request: NextRequest) {
       return auth.response
     }
 
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
     const serviceData = ServiceSchema.parse(body)
     const salonIds = normalizeSalonIds(serviceData)
 
     const supabase = await createAdminClient()
+
+    if (serviceData.planning_color !== undefined) await assertServicePlanningColorStorage(supabase)
 
     const servicePayload = {
       name: serviceData.name,
@@ -125,6 +129,7 @@ export async function POST(request: NextRequest) {
       is_active: serviceData.is_active ?? true,
       required_staff_count: serviceData.required_staff_count,
       salon_id: salonIds[0] ?? null,
+      ...(serviceData.planning_color !== undefined ? { planning_color: serviceData.planning_color } : {}),
     }
 
     const { data: service, error } = await supabase.from("services").insert([servicePayload]).select().single()
@@ -154,6 +159,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(mapService(fullService), { status: 201 })
   } catch (error) {
     console.error("[v0] Create service error:", error)
+    if (error instanceof z.ZodError) return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
+    if (error && typeof error === "object" && "code" in error && error.code === "SERVICE_PLANNING_COLOR_STORAGE") {
+      return NextResponse.json({ error: "message" in error ? String(error.message) : "Couleur du planning indisponible." }, { status: 503 })
+    }
     return NextResponse.json({ error: "Failed to create service" }, { status: 500 })
   }
 }

@@ -14,6 +14,8 @@ async function scenario(rpcError=null,options={}){
   if(name==='@/lib/appointments/status')return {blocksAppointmentSchedule:status=>!['cancelled','completed','no_show'].includes(status),canRescheduleAppointmentStatus:status=>['confirmed','pending'].includes(status)}
   if(name==='@/lib/appointments/service-selection')return {presentAppointmentServices:value=>value}
   if(name==='@/lib/auth/api-auth')return {requireStaffAuth:()=>({payload:{role:'admin'}})}
+  // Synchronization runs after the route; this test covers the versioned database write only.
+  if(name==='@/lib/sync/trigger')return {syncAfterBookingChange(){},loadRemoteCopies:async()=>[],cancelRemoteCopiesAfterDelete(){}}
   if(name==='next/server')return {NextResponse:{json:(data,init)=>({data,status:init?.status||200})}}
   return require(name)
  }})

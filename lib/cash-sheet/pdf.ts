@@ -3,7 +3,7 @@ import type { Content, TDocumentDefinitions, TableCell } from "pdfmake/interface
 import { formatInTimeZone } from "date-fns-tz"
 
 import { TIMEZONE } from "@/lib/cash-sheet/build"
-import { sumAmounts, VOUCHER_LABELS, type CashSheet } from "@/lib/cash-sheet/types"
+import { activityRecap, SOURCE_LABELS, sumAmounts, VOUCHER_LABELS, type CashSheet } from "@/lib/cash-sheet/types"
 
 // pdfmake ships Roboto as base64 in its browser bundle; the server printer
 // takes the same bytes as Buffers, so no font file has to be deployed.
@@ -76,11 +76,11 @@ export function renderCashSheetPdf(sheet: CashSheet): Promise<Buffer> {
   const lineRows: TableCell[][] = sheet.lines.map((line) => {
     const muted = line.status !== "paid"
     const style = muted ? { color: "#777777", italics: true } : {}
-    const client = line.status === "no_show" ? `${line.client} (absent)` : line.status === "unpaid" ? `${line.client} (non réglé)` : line.client
+    const client = line.status === "no_show" ? `${line.client} (absent)` : line.status === "unpaid" ? `${line.client} (non réglé)` : line.status === "partial" ? `${line.client} (partiel)` : line.client
     return [
       { text: line.time, ...style },
       { text: client, ...style },
-      { text: line.service, ...style },
+      { text: `${line.service}${line.prestationCount ? ` · ${line.prestationCount} presta.` : ""}\n${SOURCE_LABELS[line.source || "unknown"]}`, ...style },
       { text: cell(line.amounts.card), alignment: "right" },
       { text: cell(line.amounts.cash), alignment: "right" },
       { text: cell(line.amounts.treatwell), alignment: "right" },
@@ -156,6 +156,11 @@ export function renderCashSheetPdf(sheet: CashSheet): Promise<Buffer> {
       layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => "#999999", vLineColor: () => "#999999", paddingTop: () => 3, paddingBottom: () => 3 },
       fontSize: 7.5,
     },
+    { text: "PRESTATIONS ET ORIGINES", style: "section", pageBreak: "before", margin: [0, 0, 0, 6] },
+    {
+      table: { widths: ["*", 170], body: activityRecap(sheet).map(([label, value]) => recap(label, value)) },
+      layout: "lightHorizontalLines", fontSize: 8.5,
+    },
     { text: "RÉCAPITULATIF DES ENCAISSEMENTS", style: "section", margin: [0, 14, 0, 6] },
     {
       columns: [
@@ -178,6 +183,7 @@ export function renderCashSheetPdf(sheet: CashSheet): Promise<Buffer> {
               recap("Clients absents - No Show (nombre)", String(sheet.counts.noShows)),
               recap("Montant non encaissé (absences, hors total)", `${euros(sheet.noShowAmountCents)} €`),
               recap("Prestations non réglées (nombre / montant, hors total)", `${sheet.counts.unpaid} / ${euros(sheet.unpaidAmountCents)} €`),
+              ...(sheet.activity ? [recap("Solde restant dû, hors absences", `${euros(sheet.activity.outstandingCents)} €`)] : []),
             ],
           },
           layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => "#999999", vLineColor: () => "#999999" },
@@ -205,7 +211,7 @@ export function renderCashSheetPdf(sheet: CashSheet): Promise<Buffer> {
       ],
     },
     {
-      text: "Les montants de ce document correspondent aux encaissements enregistrés dans le système à l’heure de la clôture. Une fois la clôture validée, la date, l’heure et les montants ne peuvent plus être modifiés. Les cartes cadeaux, forfaits et cartes tampon ne sont pas comptabilisés dans les montants en euros. Les absences (no show) et les prestations non réglées sont indiquées à titre d’information et ne sont pas incluses dans les totaux.",
+      text: "Les origines et prestations excluent les absences. Une origine Planity ou Treatwell ne prouve pas un paiement. Les montants correspondent aux règlements enregistrés pour les RDV de cette journée, même encaissés avant. Seule la part encaissée des paiements partiels entre dans les totaux. Les bons et forfaits sont comptés en prestations, hors montants en euros. Une clôture fige les données.",
       fontSize: 7,
       color: "#555555",
       margin: [0, 12, 0, 0],

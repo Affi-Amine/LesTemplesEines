@@ -1,7 +1,7 @@
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
 
 import type { createAdminClient } from "@/lib/supabase/admin"
-import { EMPTY_AMOUNTS, type CashSheet, type SheetAmounts, type SheetLine, type VoucherKind } from "@/lib/cash-sheet/types"
+import { EMPTY_AMOUNTS, sumAmounts, type CashSheet, type SheetAmounts, type SheetLine, type VoucherKind } from "@/lib/cash-sheet/types"
 
 export const TIMEZONE = "Europe/Paris"
 
@@ -10,6 +10,7 @@ type SupabaseClient = ReturnType<typeof createAdminClient>
 /** What the aggregation needs from one appointment; `buildCashSheet` fills it from the database. */
 export interface SheetAppointmentInput {
   id: string
+  source?: string | null
   start_time: string
   end_time: string
   status: string
@@ -19,7 +20,7 @@ export interface SheetAppointmentInput {
   service_items: { name: string; price_cents: number }[] | null
   client: { first_name: string | null; last_name: string | null } | null
   service: { name: string; price_cents: number } | null
-  staff: { first_name: string | null; last_name: string | null }[]
+  staff: { id?: string; first_name: string | null; last_name: string | null }[]
   payments: { amount_cents: number; method: string }[]
 }
 
@@ -100,6 +101,10 @@ export function aggregateCashSheet(input: {
   const lines: SheetLine[] = []
   const totals: SheetAmounts = { ...EMPTY_AMOUNTS }
   const counts = { lines: 0, giftCards: 0, packs: 0, stamps: 0, noShows: 0, unpaid: 0 }
+  const activity: NonNullable<CashSheet["activity"]> = {
+    singles: 0, duos: 0, total: 0, paid: 0, partial: 0, outstandingCents: 0,
+    sources: { site: { bookings: 0, prestations: 0 }, planity: { bookings: 0, prestations: 0 }, treatwell: { bookings: 0, prestations: 0 }, unknown: { bookings: 0, prestations: 0 } },
+  }
   let noShowAmountCents = 0
   let unpaidAmountCents = 0
 
@@ -110,6 +115,8 @@ export function aggregateCashSheet(input: {
   for (const appointment of sorted) {
     const amounts: SheetAmounts = { ...EMPTY_AMOUNTS }
     const vouchers = new Set<VoucherKind>()
+    // Recorded voucher coverage settles a balance without being a cash receipt.
+    let voucherCoverageCents = 0
     const priceCents = priceOf(appointment)
     let status: SheetLine["status"] = "paid"
 
@@ -122,33 +129,56 @@ export function aggregateCashSheet(input: {
         const key = column(payment.method)
         if (key) amounts[key] += payment.amount_cents
         const kind = voucher(payment.method)
-        if (kind) vouchers.add(kind)
+        if (kind) {
+          vouchers.add(kind)
+          voucherCoverageCents += payment.amount_cents
+        }
       }
       if (!appointment.payments.some((p) => column(p.method)) && !vouchers.size) status = "unpaid"
     } else if (appointment.payment_status === "paid" || appointment.payment_status === "partial") {
       const kind = voucher(appointment.payment_method)
-      if (kind) vouchers.add(kind)
+      if (kind) {
+        vouchers.add(kind)
+        // Legacy bookings may have no payment rows. Never infer a voucher's
+        // value from the catalogue price, especially for packs and loyalty.
+        voucherCoverageCents = appointment.amount_paid_cents ?? 0
+      }
       else {
         const key = column(appointment.payment_method) || "other"
-        amounts[key] += appointment.amount_paid_cents || priceCents
+        amounts[key] += appointment.amount_paid_cents ?? (appointment.payment_status === "paid" ? priceCents : 0)
       }
     } else {
       status = "unpaid"
     }
 
+    if (status === "paid" && (appointment.payment_status === "partial" || (!vouchers.size && sumAmounts(amounts) > 0 && sumAmounts(amounts) < priceCents))) status = "partial"
+    const prestationCount = Math.max(1, appointment.staff.length)
+    const source: NonNullable<SheetLine["source"]> = appointment.source === "site" || appointment.source === "planity" || appointment.source === "treatwell" ? appointment.source : "unknown"
+    if (status !== "no_show") {
+      if (prestationCount > 1) activity.duos++
+      else activity.singles++
+      activity.total += prestationCount
+      activity.sources[source].bookings++
+      activity.sources[source].prestations += prestationCount
+      if (status === "paid") activity.paid++
+      if (status === "partial") activity.partial++
+      if (status === "partial" || status === "unpaid") activity.outstandingCents += Math.max(0, priceCents - sumAmounts(amounts) - voucherCoverageCents)
+    }
     if (status === "unpaid") {
       counts.unpaid += 1
       unpaidAmountCents += priceCents
     }
     for (const key of Object.keys(totals) as (keyof SheetAmounts)[]) totals[key] += amounts[key]
-    if (vouchers.has("gift_card")) counts.giftCards += 1
-    if (vouchers.has("pack")) counts.packs += 1
-    if (vouchers.has("stamp")) counts.stamps += 1
+    if (vouchers.has("gift_card")) counts.giftCards += prestationCount
+    if (vouchers.has("pack")) counts.packs += prestationCount
+    if (vouchers.has("stamp")) counts.stamps += prestationCount
     if (status === "no_show") counts.noShows += 1
     counts.lines += 1
 
     lines.push({
       appointmentId: appointment.id,
+      source,
+      prestationCount,
       time: formatInTimeZone(new Date(appointment.start_time), TIMEZONE, "HH:mm"),
       client: clientLabel(appointment.client),
       service: appointment.service_items?.length ? appointment.service_items.map((s) => s.name).join(" + ") : appointment.service?.name || "Prestation",
@@ -179,6 +209,7 @@ export function aggregateCashSheet(input: {
     counts,
     noShowAmountCents,
     unpaidAmountCents,
+    activity,
   }
 }
 
@@ -194,11 +225,11 @@ export async function buildCashSheet(supabase: SupabaseClient, salonId: string, 
   const { data, error } = await supabase
     .from("appointments")
     .select(`
-      id, start_time, end_time, status, payment_status, payment_method, amount_paid_cents, service_items, staff_id,
+      id, source, start_time, end_time, status, payment_status, payment_method, amount_paid_cents, service_items, staff_id,
       client:clients(first_name, last_name),
       service:services(name, price_cents),
-      staff:staff!staff_id(first_name, last_name),
-      assignments:appointment_assignments(staff:staff(first_name, last_name)),
+      staff:staff!staff_id(id, first_name, last_name),
+      assignments:appointment_assignments(staff:staff(id, first_name, last_name)),
       payments(amount_cents, method)
     `)
     .eq("salon_id", salonId)
@@ -214,13 +245,14 @@ export async function buildCashSheet(supabase: SupabaseClient, salonId: string, 
     const extra = (row.assignments || []).map((a: any) => one(a.staff)).filter(Boolean)
     const seen = new Set<string>()
     const staff = [primary, ...extra].filter(Boolean).filter((s: any) => {
-      const key = `${s.first_name}|${s.last_name}`
+      const key = s.id || `${s.first_name}|${s.last_name}`
       if (seen.has(key)) return false
       seen.add(key)
       return true
     })
     return {
       id: row.id,
+      source: row.source,
       start_time: row.start_time,
       end_time: row.end_time,
       status: row.status,

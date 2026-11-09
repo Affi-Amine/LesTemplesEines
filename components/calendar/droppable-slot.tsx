@@ -15,6 +15,7 @@ interface DroppableSlotProps {
   isInvalidDrop?: boolean
   isDragActive?: boolean
   disabled?: boolean
+  dropDisabled?: boolean
 }
 
 export function DroppableSlot({
@@ -29,11 +30,12 @@ export function DroppableSlot({
   isInvalidDrop = false,
   isDragActive = false,
   disabled = false,
+  dropDisabled = disabled,
 }: DroppableSlotProps) {
   const { setNodeRef, isOver, active } = useDroppable({
     id,
     data: { hour, minute, staffId, date },
-    disabled,
+    disabled: dropDisabled,
   })
 
   const handleClick = (e: MouseEvent<HTMLDivElement>) => {

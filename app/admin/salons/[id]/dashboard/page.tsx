@@ -1,9 +1,11 @@
 "use client"
+import { PrestationCounts } from "@/components/calendar/prestation-counts"
 import { AppointmentManagementLinkButton } from "@/components/appointment-management-link-button"
 import { BookingDetailsModal } from "@/components/booking-details-modal"
 
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useTabletWorkspace } from "@/lib/hooks/use-tablet-workspace"
 import { TabletAgenda } from "@/components/calendar/tablet-agenda"
 import { SalonSwitcher } from "@/components/calendar/salon-switcher"
@@ -11,6 +13,9 @@ import { appointmentCollisionDetection } from "@/lib/calendar/drag-collision"
 import { useAppointmentMove } from "@/lib/hooks/use-appointment-move"
 import { canMoveAppointment } from "@/lib/calendar/appointment-move"
 import { AppointmentMoveDialog } from "@/components/calendar/appointment-move-dialog"
+import { SalonMoveJournal } from "@/components/calendar/salon-move-journal"
+import { appointmentMarkerLaneWidth } from "@/lib/calendar/marker-layout"
+import { AppointmentServiceColorKey } from "@/components/calendar/appointment-service-stars"
 import { useScheduleHourHeight } from "@/lib/hooks/use-schedule-hour-height"
 import { AppointmentPaymentBadge, AppointmentPaymentLegend } from "@/components/appointment-payment-badge"
 import { AppointmentProgressActions } from "@/components/appointment-progress-actions"
@@ -71,6 +76,14 @@ export default function SalonDashboardPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const salonId = params.id as string
+  const queryClient = useQueryClient()
+  const [canUseFreeMoves, setCanUseFreeMoves] = useState(false)
+  const [showAllHours, setShowAllHours] = useState(false)
+  useEffect(() => {
+    try { setCanUseFreeMoves(["admin", "manager", "receptionist"].includes(JSON.parse(localStorage.getItem("adminUser") || "{}").role)) }
+    catch { setCanUseFreeMoves(false) }
+  }, [])
+  const moveModePolicy = canUseFreeMoves ? "salon-admin" : "strict"
   const [date, setDate] = useState<Date | undefined>(() => {
     const value = searchParams.get("date")
     const selected = value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseISO(value) : null
@@ -143,7 +156,7 @@ export default function SalonDashboardPage() {
   }, [staff, allStaff, salonId])
   const selectedOpeningHours = salon?.opening_hours || null
   const selectedDayHours = date ? resolveOpeningHoursForDate(selectedOpeningHours, date) : null
-  const scheduleHours = date ? getScheduleHoursIncludingAppointments(selectedOpeningHours, date, appointments || []) : []
+  const scheduleHours = date ? canUseFreeMoves && showAllHours ? Array.from({ length: 24 }, (_, hour) => hour) : getScheduleHoursIncludingAppointments(selectedOpeningHours, date, appointments || []) : []
   const dayAppointments = appointments || []
   const sortedDayAppointments = [...dayAppointments].sort(
     (a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
@@ -151,12 +164,16 @@ export default function SalonDashboardPage() {
   const bookableStaff = useMemo(() => dashboardStaff.filter(canStaffTakeBookings).sort((a, b) =>
     getStaffDisplayName(a).localeCompare(getStaffDisplayName(b), "fr")
   ), [dashboardStaff])
-  const scheduleMinWidth = TIME_COLUMN_WIDTH + Math.max(bookableStaff.length, 1) * STAFF_COLUMN_MIN_WIDTH
   const mobileTimelineHours = scheduleHours
   // Counters show real bookings only: blocked slots and cancelled/absent traces are not appointments.
   const bookedAppointments = dayAppointments.filter((apt: any) => isBookedAppointment(apt.status))
   const staffLanes = new Map(bookableStaff.map((member) => [member.id,
     layoutAppointmentLanes(dayAppointments.filter((apt: any) => getAppointmentStaffIds(apt).includes(member.id)))]))
+  const staffColumnWidths = new Map(bookableStaff.map(member => {
+    const laneWidth = appointmentMarkerLaneWidth(dayAppointments.filter((apt: any) => getAppointmentStaffIds(apt).includes(member.id)))
+    return [member.id, Math.max(STAFF_COLUMN_MIN_WIDTH, ...[...(staffLanes.get(member.id)?.values() || [])].map(lane => lane.lanes * laneWidth))] as const
+  }))
+  const scheduleMinWidth = TIME_COLUMN_WIDTH + (bookableStaff.length ? [...staffColumnWidths.values()].reduce((sum, width) => sum + width, 0) : STAFF_COLUMN_MIN_WIDTH)
   const confirmedAppointments = dayAppointments.filter((apt: any) => apt.status === "confirmed" || apt.status === "pending")
   const inProgressAppointments = dayAppointments.filter((apt: any) => apt.status === "in_progress")
   const completedAppointments = dayAppointments.filter((apt: any) => apt.status === "completed")
@@ -409,7 +426,8 @@ export default function SalonDashboardPage() {
   const { activeAppointment, pendingMove, isMovingAppointment, moveError, handleDragStart, handleDragEnd,
     handleDragCancel, confirmMove, cancelMove, isInvalidDestination } = useAppointmentMove({
       appointments: appointments || [], staff: dashboardStaff, openingHours: selectedOpeningHours,
-      onRefresh: refetchAppointments,
+      mode: moveModePolicy, salonId,
+      onRefresh: () => Promise.all([refetchAppointments(), queryClient.invalidateQueries({ queryKey: ["salon-move-log", salonId] })]),
     })
   const isInvalidSlotForActive = (slotDate: Date, staffId: string, hour: number, minute: number) =>
     isInvalidDestination({ date: slotDate, staffId, hour, minute })
@@ -504,18 +522,10 @@ export default function SalonDashboardPage() {
           onBlock={handleBlockSlot}
           movingAppointment={activeAppointment}
           isInvalidDestination={isInvalidDestination}
-          summary={<><AppointmentPaymentLegend />
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <Card className="gap-2 rounded-lg border-l-4 border-l-blue-200 p-3 shadow-sm sm:p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-muted-foreground">Rendez-vous</span>
-                <CalendarIcon className="h-4 w-4 text-blue-200" />
-              </div>
-              <div className="text-2xl font-bold sm:text-3xl">{bookedAppointments.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {selectedDayHours ? `${selectedDayHours.open} - ${selectedDayHours.close}` : "Salon fermé"}
-              </p>
-            </Card>
+          moveModePolicy={moveModePolicy}
+          toolbarAction={canUseFreeMoves ? <SalonMoveJournal salonId={salonId} /> : undefined}
+          summary={<>
+          <div className="grid grid-cols-3 gap-3">
             <Card className="gap-2 rounded-lg border-l-4 border-l-blue-200 p-3 shadow-sm sm:p-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-muted-foreground">En cours</span>
@@ -550,20 +560,15 @@ export default function SalonDashboardPage() {
           title={`Tableau de bord - ${salon?.name || "Chargement..."}`}
           description="Gestion opérationnelle du salon"
         />
-        <div className="px-3 pt-3 sm:px-6"><AppointmentPaymentLegend /></div>
+        <div className="space-y-3 px-3 pt-3 sm:px-6">
+          {canUseFreeMoves && <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-muted-foreground">Déplacements libres dans ce salon · chaque modification est journalisée.</p><div className="flex gap-2"><Button variant="outline" className="h-11" aria-pressed={showAllHours} onClick={() => setShowAllHours(value => !value)}>{showAllHours ? "Horaires du salon" : "Afficher les 24 h"}</Button><SalonMoveJournal salonId={salonId} /></div></div>}
+          <AppointmentPaymentLegend />
+          <AppointmentServiceColorKey appointments={dayAppointments} />
+        </div>
 
         <div className="container mx-auto space-y-5 p-4 md:p-6">
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <Card className="gap-2 rounded-lg border-l-4 border-l-blue-200 p-3 shadow-sm sm:p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-muted-foreground">Rendez-vous</span>
-                <CalendarIcon className="h-4 w-4 text-blue-200" />
-              </div>
-              <div className="text-2xl font-bold sm:text-3xl">{bookedAppointments.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {selectedDayHours ? `${selectedDayHours.open} - ${selectedDayHours.close}` : "Salon fermé"}
-              </p>
-            </Card>
+          <PrestationCounts appointments={dayAppointments} />
+          <div className="grid grid-cols-3 gap-3">
             <Card className="gap-2 rounded-lg border-l-4 border-l-blue-200 p-3 shadow-sm sm:p-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-muted-foreground">En cours</span>
@@ -643,7 +648,7 @@ export default function SalonDashboardPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="outline" className="px-3 py-1">
-                      {bookedAppointments.length} rendez-vous
+                      {bookedAppointments.length} réservations
                     </Badge>
                     <Badge variant="secondary" className="px-3 py-1">
                       {selectedDayHours ? `${selectedDayHours.open} - ${selectedDayHours.close}` : "Salon fermé"}
@@ -774,7 +779,7 @@ export default function SalonDashboardPage() {
                                             event.stopPropagation()
                                             handleValidate(apt)
                                           }}
-                                          className={`absolute flex flex-col items-stretch justify-start overflow-hidden rounded-md border p-1 text-left shadow-sm ${released ? `z-[5] ${RELEASED_CARD_CLASS}` : "z-10"} ${getAppointmentColor(apt)}`}
+                                          className={`absolute flex flex-col items-stretch justify-start overflow-hidden rounded-md border ${heightPx < 44 && apt.status !== "blocked" ? "p-0" : "p-1"} text-left shadow-sm ${released ? `z-[5] ${RELEASED_CARD_CLASS}` : "z-10"} ${getAppointmentColor(apt)}`}
                                           style={{ top: `${topOffset}px`, height: `${heightPx}px`, ...getLaneBox(staffLanes.get(member.id)?.get(apt.id), 2) }}
                                         >
                                           <AppointmentCardContent appointment={apt} height={heightPx} />
@@ -798,7 +803,7 @@ export default function SalonDashboardPage() {
                       <div className="sticky top-0 z-20 mb-3 flex border-b border-border bg-card/95 pb-2 backdrop-blur">
                         <div className="shrink-0" style={{ width: TIME_COLUMN_WIDTH }}></div>
                         {bookableStaff.map(s => (
-                          <div key={s.id} className="min-w-[152px] flex-1 border-l border-border px-2 text-center">
+                          <div key={s.id} style={{ minWidth: staffColumnWidths.get(s.id) }} className="min-w-[152px] flex-1 border-l border-border px-2 text-center">
                             <div className="truncate text-sm font-semibold sm:text-base">{getStaffDisplayName(s)}</div>
                             <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Masseuse</div>
                           </div>
@@ -831,7 +836,7 @@ export default function SalonDashboardPage() {
                                 const slotId = `slot-dashboard-${s.id}-${hour}`
 
                                 return (
-                                  <div key={`${s.id}-${hour}`} className="relative min-w-[152px] flex-1 border-l border-border bg-background/80">
+                                  <div key={`${s.id}-${hour}`} style={{ minWidth: staffColumnWidths.get(s.id) }} className="relative min-w-[152px] flex-1 border-l border-border bg-background/80">
                                     <CalendarClosedHours hour={hour} date={date || new Date()} openingHours={selectedOpeningHours} />
                                     <div className="absolute inset-0 grid grid-rows-4">
                                       {[0, 15, 30, 45].map((minute, idx) => (
@@ -844,6 +849,7 @@ export default function SalonDashboardPage() {
                                           date={date || new Date()}
                                           onEmptyClick={(data) => handleEmptySlotClick({ ...data, date: date || new Date() })}
                                           disabled={!isCalendarQuarterOpen(hour, minute, date || new Date(), selectedOpeningHours)}
+                                          dropDisabled={canUseFreeMoves ? false : !isCalendarQuarterOpen(hour, minute, date || new Date(), selectedOpeningHours)}
                                           isInvalidDrop={isInvalidSlotForActive(date || new Date(), s.id, hour, minute)}
                                           isDragActive={Boolean(activeAppointment)}
                                           className={`${idx < 3 ? "border-b border-dashed border-border/50" : ""} min-h-[19px]`}
@@ -857,8 +863,8 @@ export default function SalonDashboardPage() {
                                       const startMinute = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "m"), 10)
                                       const startHour = parseInt(formatInTimeZone(apt.start_time, "Europe/Paris", "H"), 10)
                                       const topOffset = startHour === hour ? (startMinute / 60) * hourHeight : 0
-                                      const heightPx = Math.max((getAppointmentDurationMinutes(apt) / 60) * hourHeight, 20)
-                                      const isDraggable = canMoveAppointment(apt)
+                                      const heightPx = Math.max((getAppointmentDurationMinutes(apt) / 60) * hourHeight, apt.status === "blocked" ? 20 : 22)
+                                      const isDraggable = canMoveAppointment(apt, moveModePolicy)
                                       const released = isReleasedAppointment(apt.status)
 
                                       return (
@@ -874,7 +880,7 @@ export default function SalonDashboardPage() {
                                             ...getLaneBox(staffLanes.get(s.id)?.get(apt.id), 4),
                                             ...(released ? { zIndex: 5 } : {}),
                                           }}
-                                          className={`overflow-hidden rounded-md border-2 p-1 text-xs shadow-sm transition-shadow hover:shadow-md ${released ? RELEASED_CARD_CLASS : ""} ${getAppointmentColor(apt)}`}
+                                          className={`overflow-hidden rounded-md ${heightPx < 44 && apt.status !== "blocked" ? "border p-0" : "border-2 p-1"} text-xs shadow-sm transition-shadow hover:shadow-md ${released ? RELEASED_CARD_CLASS : ""} ${getAppointmentColor(apt)}`}
                                         >
                                           <div
                                             className="w-full h-full"

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { CheckCheck, UserX, CalendarX } from "lucide-react"
+import { CheckCheck, UserCheck, UserX, CalendarX } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { fetchAPI } from "@/lib/api/client"
@@ -31,12 +31,12 @@ export function AppointmentProgressActions({ appointment, onUpdated }: {
     lock.current = true
     setSaving(true)
     try {
-      // A status change releases the slot without deleting its history or payment.
+      // Attendance is recorded explicitly without changing the payment.
       await fetchAPI(`/appointments/${id}`, { method: "PATCH", body: JSON.stringify({ status }) })
       if (currentAppointment.current === id) { setConfirmation(null); onUpdated?.(status) }
       await Promise.all(["appointments", "availability", "staff-appointments", "employee-dashboard"].map(key =>
         queryClient.invalidateQueries({ queryKey: [key] })))
-      toast.success(status === "no_show" ? "Client marqué absent · créneau libéré" : status === "cancelled" ? "Rendez-vous annulé · créneau libéré" : "Massage marqué effectué")
+      toast.success(status === "no_show" ? "Client marqué absent · créneau libéré" : status === "cancelled" ? "Rendez-vous annulé · créneau libéré" : status === "in_progress" ? "Arrivée du client enregistrée" : "Massage marqué effectué")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Impossible de modifier le rendez-vous.")
     } finally {
@@ -54,11 +54,17 @@ export function AppointmentProgressActions({ appointment, onUpdated }: {
         <Button type="button" className="appointment-tone appointment-tone-red h-auto min-h-11 whitespace-normal border" disabled={saving} onClick={() => void update(confirmation)}>{saving ? "Enregistrement…" : confirmation === "no_show" ? "Confirmer l’absence" : "Confirmer l’annulation"}</Button>
       </div>
     </div> : <>
-      <p className="text-xs text-muted-foreground">Le client est venu ? Marquez le rendez-vous comme effectué.</p>
-      <Button type="button" disabled={saving} onClick={() => void update("completed")}
-        className="appointment-tone appointment-tone-blue min-h-11 w-full border font-semibold hover:brightness-95">
-        <CheckCheck className="mr-2 h-4 w-4" />{saving ? "Enregistrement…" : "Massage effectué"}
-      </Button>
+      <p className="text-xs text-muted-foreground">{appointment.status === "in_progress" ? "Client arrivé. Marquez le massage comme effectué une fois terminé." : "Indiquez l’arrivée du client, puis la fin du massage."}</p>
+      <div className={`grid gap-2 ${appointment.status !== "in_progress" ? "sm:grid-cols-2" : ""}`}>
+        {appointment.status !== "in_progress" && <Button type="button" disabled={saving} onClick={() => void update("in_progress")}
+          className="appointment-tone appointment-tone-green min-h-11 w-full border font-semibold hover:brightness-95">
+          <UserCheck className="mr-2 h-4 w-4" />{saving ? "Enregistrement…" : "Client arrivé"}
+        </Button>}
+        <Button type="button" variant="outline" disabled={saving} onClick={() => void update("completed")}
+          className={`min-h-11 w-full border font-semibold ${appointment.status === "in_progress" ? "appointment-tone appointment-tone-green hover:brightness-95" : ""}`}>
+          <CheckCheck className="mr-2 h-4 w-4" />{saving ? "Enregistrement…" : "Massage effectué"}
+        </Button>
+      </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <Button type="button" variant="outline" className="min-h-11" disabled={saving} onClick={() => setConfirmation("no_show")}><UserX className="h-4 w-4" />Client absent</Button>
         <Button type="button" variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={saving} onClick={() => setConfirmation("cancelled")}><CalendarX className="h-4 w-4" />Annuler le rendez-vous</Button>

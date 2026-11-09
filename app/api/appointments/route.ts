@@ -4,6 +4,8 @@ import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
 import {
   assertAppointmentStartIsNotInPast,
   ClientDataSchema,
+  ClientRequestedStaffIdsSchema,
+  clientStaffChoiceIsAssigned,
   createBookableAppointment,
 } from "@/lib/appointments/create"
 import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
@@ -16,6 +18,7 @@ import { z } from "zod"
 import { fromZonedTime } from "date-fns-tz"
 
 import { presentAppointmentServices } from "@/lib/appointments/service-selection"
+import { attachAppointmentPlanningServices } from "@/lib/services/planning-presentation"
 
 const AppointmentSchema = z.object({
   salon_id: z.string().uuid(),
@@ -23,6 +26,7 @@ const AppointmentSchema = z.object({
   client_data: ClientDataSchema.optional(),
   staff_id: z.string().uuid().optional(),
   staff_ids: z.array(z.string().uuid()).optional(),
+  client_requested_staff_ids: ClientRequestedStaffIdsSchema,
   service_id: z.string().uuid().optional(),
   service_ids: z.array(z.string().uuid()).min(1).max(8).optional(),
   expected_price_cents: z.number().int().min(0).optional(),
@@ -43,7 +47,9 @@ const AppointmentSchema = z.object({
   message: "Service ID is required (unless status is blocked)",
 }).refine((data) => data.staff_id || (data.staff_ids && data.staff_ids.length > 0), {
   message: "At least one staff member must be assigned",
-})
+}).refine(clientStaffChoiceIsAssigned, {
+  path: ["client_requested_staff_ids"], message: "Les masseuses choisies par le client doivent appartenir à l’équipe du rendez-vous.",
+}).transform(data => ({ ...data, client_requested_staff_ids: data.booking_source === "admin" ? [] : data.client_requested_staff_ids }))
 
 function scheduleAppointmentNotifications(
   appointment: any,
@@ -134,7 +140,7 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    return NextResponse.json((appointments || []).map(presentAppointmentServices))
+    return NextResponse.json((await attachAppointmentPlanningServices(supabase, appointments || [])).map(presentAppointmentServices))
   } catch (error) {
     console.error("[v0] Get appointments error:", error)
     return NextResponse.json({ error: "Failed to fetch appointments" }, { status: 500 })
@@ -168,6 +174,8 @@ export async function POST(request: NextRequest) {
         client_data: appointmentData.client_data,
         staff_id: appointmentData.staff_id,
         staff_ids: appointmentData.staff_ids,
+        client_requested_staff_ids: appointmentData.client_requested_staff_ids,
+        booking_source: appointmentData.booking_source,
         service_id: appointmentData.service_id!,
         service_ids: appointmentData.service_ids,
         expected_price_cents: appointmentData.expected_price_cents,
@@ -443,6 +451,6 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }
-    return NextResponse.json({ error: error.message || "Failed to create appointment" }, { status: error.code === "SALON_HOURS" ? 400 : [400, 409, 422].includes(error.status) ? error.status : 500 })
+    return NextResponse.json({ error: error.message || "Failed to create appointment" }, { status: error.code === "SALON_HOURS" ? 400 : [400, 409, 422, 503].includes(error.status) ? error.status : 500 })
   }
 }

@@ -19,6 +19,11 @@ yarn.lock
 /output/playwright/
 /supabase/.temp/
 
+# Local QA workspaces, generated previews and temporary PDFs.
+/.work/
+/output/
+/tmp/
+
 # Platform sync: Treatwell browser profile and captured agenda traffic (client data).
 /.sync/
 

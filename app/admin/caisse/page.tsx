@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { fetchAPI } from "@/lib/api/client"
-import { sumAmounts, VOUCHER_LABELS, type CashSheet, type CashSheetClosure, type CashSheetSettings } from "@/lib/cash-sheet/types"
+import { activityRecap, SOURCE_LABELS, sumAmounts, VOUCHER_LABELS, type CashSheet, type CashSheetClosure, type CashSheetSettings } from "@/lib/cash-sheet/types"
 import { useRoleProtection } from "@/lib/hooks/use-role-protection"
 
 type SettingsResponse = {
@@ -73,8 +73,11 @@ function SheetTable({ sheet }: { sheet: CashSheet }) {
                 {line.client}
                 {line.status === "no_show" && <Badge variant="outline" className="ml-2">absent</Badge>}
                 {line.status === "unpaid" && <Badge variant="outline" className="ml-2 border-amber-500 text-amber-700">non réglé</Badge>}
+                {line.status === "partial" && <Badge variant="outline" className="ml-2 border-amber-500 text-amber-700">partiellement réglé</Badge>}
               </td>
-              <td className="px-2 py-1.5">{line.service}</td>
+              <td className="px-2 py-1.5">{line.service}
+                <span className="block text-xs text-muted-foreground">{SOURCE_LABELS[line.source || "unknown"]}{line.prestationCount ? ` · ${line.prestationCount} prestation(s)` : ""}</span>
+              </td>
               <td className="px-2 py-1.5 text-right whitespace-nowrap">{money(line.amounts.card)}</td>
               <td className="px-2 py-1.5 text-right whitespace-nowrap">{money(line.amounts.cash)}</td>
               <td className="px-2 py-1.5 text-right whitespace-nowrap">{money(line.amounts.treatwell)}</td>
@@ -104,11 +107,12 @@ function SheetTable({ sheet }: { sheet: CashSheet }) {
 
 function Recap({ sheet }: { sheet: CashSheet }) {
   const rows: [string, string, boolean?][] = [
+    ...activityRecap(sheet),
     ["Carte bancaire (CB)", euros(sheet.totals.card)],
     ["Espèces", euros(sheet.totals.cash)],
     ["Total caisse (CB + espèces)", euros(sheet.totals.card + sheet.totals.cash), true],
     ["Paiement en ligne", euros(sheet.totals.online)],
-    ["Treatwell", euros(sheet.totals.treatwell)],
+    ["Paiements Treatwell enregistrés", euros(sheet.totals.treatwell)],
     ["Autres moyens", euros(sheet.totals.other)],
     ["Total général", euros(sumAmounts(sheet.totals)), true],
     ["Cartes cadeaux utilisées", String(sheet.counts.giftCards)],
@@ -117,6 +121,7 @@ function Recap({ sheet }: { sheet: CashSheet }) {
     ["Lignes enregistrées", String(sheet.counts.lines)],
     ["Absences (no show)", `${sheet.counts.noShows} · ${euros(sheet.noShowAmountCents)} non encaissés`],
     ["Non réglées", `${sheet.counts.unpaid} · ${euros(sheet.unpaidAmountCents)}`],
+    ...(sheet.activity ? [["Solde restant dû (hors absences)", euros(sheet.activity.outstandingCents)] as [string, string]] : []),
   ]
   return (
     <dl className="divide-y rounded-lg border text-sm">
@@ -354,6 +359,7 @@ export default function CaissePage() {
             <Card className="p-4">
               <h2 className="mb-3 text-lg font-semibold">Récapitulatif</h2>
               <Recap sheet={data.sheet} />
+              <p className="mt-3 text-xs text-muted-foreground">Les origines comptent les RDV hors absences. L'origine Planity ou Treatwell ne prouve pas un paiement. Les montants sont ceux enregistrés pour les RDV de cette journée, même si le paiement a eu lieu avant.</p>
             </Card>
           </div>
         )}

@@ -65,6 +65,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 })
     }
 
+    if (error && typeof error === "object" && "code" in error && error.code === "CLIENT_STAFF_CHOICE_STORAGE") {
+      return NextResponse.json({ error: "message" in error ? String(error.message) : "Le choix de la masseuse ne peut pas être enregistré pour le moment." }, { status: 503 })
+    }
     if (error && typeof error === "object" && "code" in error && error.code === "SALON_HOURS") {
       return NextResponse.json({ error: "message" in error ? String(error.message) : "Ce créneau dépasse les horaires du salon." }, { status: 400 })
     }

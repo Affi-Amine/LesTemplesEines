@@ -106,10 +106,9 @@ for(const tz of ['UTC','America/Los_Angeles','Asia/Tokyo']){
 }
 console.log('PASS: winter/summer offsets and browser timezones are covered')
 
-// Render the real hook with a tiny hook dispatcher: verify requests and recovery,
-// rather than mirroring its implementation or requiring a browser for network state.
+// Render the real hook: dropping saves once, and an ambiguous salon response can be replayed safely.
 function moveHookHarness({mode='strict',fetcher=async()=>({ok:true})}={}){
- const slots=[];let cursor=0,uuidCount=0,refreshes=0
+ const slots=[];let cursor=0,uuidCount=0,refreshes=0;const errors=[],successes=[]
  const args={appointments:[{...booking,updated_at:'2099-10-01T00:00:00.000Z'}],staff,openingHours:hours,mode,salonId:'salon',onRefresh(){refreshes++}}
  const hookModule={}
  const react={
@@ -117,35 +116,33 @@ function moveHookHarness({mode='strict',fetcher=async()=>({ok:true})}={}){
   useRef(initial){const index=cursor++;if(index>=slots.length)slots[index]={current:initial};return slots[index]},
  }
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,'lib/hooks/use-appointment-move.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{
-  exports:hookModule,Date,Intl,console,Error,TypeError,crypto:{randomUUID(){return `00000000-0000-4000-8000-${String(++uuidCount).padStart(12,'0')}`}},
+  exports:hookModule,Date,Intl,console,Error,TypeError,crypto:{randomUUID(){return '00000000-0000-4000-8000-'+String(++uuidCount).padStart(12,'0')}},
   fetch:(...values)=>fetcher(...values),require(name){
    if(name==='react')return react
-   if(name==='sonner')return {toast:{success(){},error(){}}}
+   if(name==='sonner')return {toast:{success(...args){successes.push(args)},error(...args){errors.push(args)}}}
    return name.startsWith('@/')?load(name.slice(2)+'.ts'):require(name)
   },
  })
  const render=()=>{cursor=0;return hookModule.useAppointmentMove(args)}
- const drop=(destination={date:date(),hour:14,minute:0,staffId:'b'})=>{
-  render().handleDragEnd({active:{data:{current:{appointment:args.appointments[0]}}},over:{data:{current:destination}}})
-  return render()
- }
- return {args,render,drop,get refreshes(){return refreshes}}
+ const destination={date:date(),hour:14,minute:0,staffId:'b'}
+ const drop=(target=destination,snapshot=args.appointments[0])=>render().handleDragEnd({active:{data:{current:{appointment:snapshot}}},over:{data:{current:target}}})
+ return {args,render,drop,errors,successes,get refreshes(){return refreshes}}
 }
 
 ;(async()=>{
  const strictCalls=[]
  const strict=moveHookHarness({fetcher:async(url,options)=>{strictCalls.push({url,...options,body:JSON.parse(options.body)});return {ok:true}}})
- await strict.drop().confirmMove()
+ await strict.drop()
  assert.equal(strictCalls.length,1);assert.equal(strictCalls[0].url,'/api/appointments/booked');assert.equal(strictCalls[0].method,'PATCH')
  assert.deepEqual(Object.keys(strictCalls[0].body).sort(),['expected_updated_at','staff_id','staff_ids','start_time'])
- assert.equal(strict.render().pendingMove,null)
+ assert.equal(strict.refreshes,1);assert.equal(strict.successes.length,1)
+ for(const file of ['app/admin/calendrier/page.tsx','app/admin/salons/[id]/dashboard/page.tsx'])assert(!fs.readFileSync(path.join(root,file),'utf8').includes('AppointmentMoveDialog'))
 
- const salonCalls=[]
- const salon=moveHookHarness({mode:'salon-admin',fetcher:async(url,options)=>{salonCalls.push({url,...options,body:JSON.parse(options.body)});return {ok:true}}})
- const pending=salon.drop()
- assert.equal(salonCalls.length,0,'Drop must await the existing confirmation')
- await Promise.all([pending.confirmMove(),pending.confirmMove()])
- assert.equal(salonCalls.length,1,'Double confirmation must send one mutation')
+ const salonCalls=[];let release
+ const salon=moveHookHarness({mode:'salon-admin',fetcher:(url,options)=>{salonCalls.push({url,...options,body:JSON.parse(options.body)});return new Promise(resolve=>{release=()=>resolve({ok:true})})}})
+ const first=salon.drop(),second=salon.drop()
+ assert.equal(salonCalls.length,1,'Drop sends immediately; another drop during the save cannot duplicate it')
+ assert.equal(salon.render().isMovingAppointment,true);release();await Promise.all([first,second])
  assert.equal(salonCalls[0].url,'/api/admin/salons/salon/appointments/booked/move');assert.equal(salonCalls[0].method,'POST')
  assert.deepEqual(Object.keys(salonCalls[0].body).sort(),['expected_updated_at','request_id','staff_ids','start_time'])
  assert.match(salonCalls[0].body.request_id,/^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i)
@@ -155,43 +152,31 @@ function moveHookHarness({mode='strict',fetcher=async()=>({ok:true})}={}){
  retryHarness=moveHookHarness({mode:'salon-admin',fetcher:async(url,options)=>{
   const body=JSON.parse(options.body);retries.push({url,method:options.method,body})
   if(retries.length===1){
-   retryHarness.args.appointments=[{...retryHarness.args.appointments[0],start_time:body.start_time,
-    end_time:new Date(Date.parse(body.start_time)+90*60_000).toISOString(),staff_id:'b',updated_at:'2099-10-02T00:00:00.000Z'}]
+   retryHarness.args.appointments=[{...retryHarness.args.appointments[0],start_time:body.start_time,end_time:new Date(Date.parse(body.start_time)+90*60_000).toISOString(),staff_id:'b',updated_at:'2099-10-02T00:00:00.000Z'}]
    throw new TypeError('Response lost after server commit')
   }
   return {ok:true}
  }})
- await retryHarness.drop().confirmMove()
- assert(retryHarness.render().pendingMove,'A lost response must keep the pending request recoverable')
+ await retryHarness.drop();retryHarness.render()
  assert(retryHarness.render().moveError)
- await retryHarness.render().confirmMove()
- assert.equal(retries.length,2)
- assert.deepEqual(retries[1],retries[0],'Retry must retain the request ID and original snapshot even after a refetch')
- assert.equal(retryHarness.render().pendingMove,null)
+ const action=retryHarness.errors.at(-1)[1].action;assert.equal(action.label,'Réessayer')
+ action.onClick();await new Promise(resolve=>setImmediate(resolve))
+ assert.equal(retries.length,2);assert.deepEqual(retries[1],retries[0],'Retry retains the request ID and original version after a refetch')
 
  let staleCalls=0
  const stale=moveHookHarness({mode:'salon-admin',fetcher:async()=>{staleCalls++;return {ok:true}}})
- stale.drop();stale.args.appointments=[{...stale.args.appointments[0],updated_at:'2099-10-03T00:00:00.000Z'}]
- await stale.render().confirmMove()
- assert.equal(staleCalls,0,'A new move must reject a stale local snapshot before contacting the server')
- assert.match(stale.render().moveError,/modifié/)
-
+ const old={...stale.args.appointments[0]};stale.args.appointments=[{...old,updated_at:'2099-10-03T00:00:00.000Z'}]
+ await stale.drop(undefined,old);assert.equal(staleCalls,0);assert.match(stale.render().moveError,/modifié/)
  let missingVersionCalls=0
  for(const version of [null,undefined,'not-a-date']){
   const missing=moveHookHarness({mode:'salon-admin',fetcher:async()=>{missingVersionCalls++;return {ok:true}}})
   missing.args.appointments=[{...missing.args.appointments[0],updated_at:version}]
-  await missing.drop().confirmMove()
-  assert.match(missing.render().moveError,/Actualisez.*version/)
+  await missing.drop();assert.match(missing.render().moveError,/Actualisez.*version/)
  }
- assert.equal(missingVersionCalls,0,'Salon moves must always carry a valid concurrency version')
-
- const cancelled=moveHookHarness({mode:'salon-admin'})
- const firstId=cancelled.drop().pendingMove.requestId
- cancelled.render().cancelMove();assert.equal(cancelled.render().pendingMove,null)
- assert.notEqual(cancelled.drop().pendingMove.requestId,firstId,'A fresh drag must receive a fresh request ID')
- const foreign=moveHookHarness({mode:'salon-admin'})
- foreign.args.salonId='another-salon';assert.equal(foreign.drop().pendingMove,null)
- console.log('PASS: salon-only POST, strict PATCH, mandatory version, pending confirmation, stable retry IDs, stale snapshots and duplicate/cancel protections')
+ assert.equal(missingVersionCalls,0)
+ const freshIds=[];const fresh=moveHookHarness({mode:'salon-admin',fetcher:async(url,options)=>{freshIds.push(JSON.parse(options.body).request_id);return {ok:true}}})
+ await fresh.drop();await fresh.drop();assert.notEqual(freshIds[0],freshIds[1])
+ const foreign=moveHookHarness({mode:'salon-admin',fetcher:async()=>{throw new Error('Must not fetch')}})
+ foreign.args.salonId='another-salon';await foreign.drop();assert.equal(foreign.errors.length,1)
+ console.log('PASS: immediate salon POST and strict PATCH, no confirmation dialog, one in-flight save, mandatory version, stable retry IDs and stale/foreign rejection')
 })().catch(error=>{console.error(error);process.exitCode=1})
-
-

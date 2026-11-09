@@ -105,3 +105,23 @@ assert.deepEqual(Array.from(duoPartial.staffIds), ['b','c'])
 assert.deepEqual(Array.from(duoPartial.requestedStaffIds), ['b'], 'A duo can contain one explicit and one automatic assignment')
 assert.deepEqual(Array.from(toggleScheduleStaff(context, sole, {...slots[0],available_staff:['a']}, 'not-available').staffIds), ['a'])
 console.log('PASS: explicit client preferences survive compatible changes; automatic/sole-team assignment never fabricates a preference and stale choices are removed')
+
+// Every card in an overlap chain shares one grid denominator. Otherwise a wide
+// early booking can cover a neighbour that later belongs to a three-way overlap.
+const {layoutAppointmentLanes}=load('lib/calendar/scheduling.ts')
+const chain=[
+ {id:'chain-a',start_time:'2099-11-02T09:00:00Z',end_time:'2099-11-02T10:00:00Z',status:'confirmed'},
+ {id:'chain-b',start_time:'2099-11-02T09:30:00Z',end_time:'2099-11-02T12:00:00Z',status:'confirmed'},
+ {id:'chain-c',start_time:'2099-11-02T10:30:00Z',end_time:'2099-11-02T11:30:00Z',status:'confirmed'},
+ {id:'chain-d',start_time:'2099-11-02T10:45:00Z',end_time:'2099-11-02T11:15:00Z',status:'confirmed'},
+ {id:'later',start_time:'2099-11-02T12:00:00Z',end_time:'2099-11-02T13:00:00Z',status:'confirmed'},
+]
+const chainLanes=layoutAppointmentLanes(chain)
+assert.equal(chainLanes.get('later').lanes,1,'Adjacent bookings start a new independent group')
+for(const item of chain.slice(0,4))assert.equal(chainLanes.get(item.id).lanes,3)
+for(const a of chain)for(const b of chain){
+ if(a.id===b.id||Date.parse(a.start_time)>=Date.parse(b.end_time)||Date.parse(b.start_time)>=Date.parse(a.end_time))continue
+ const x=chainLanes.get(a.id),y=chainLanes.get(b.id)
+ assert(x.lane/x.lanes+1/x.lanes<=y.lane/y.lanes+1e-9||y.lane/y.lanes+1/y.lanes<=x.lane/x.lanes+1e-9,'Simultaneous bookings must never visually cover each other')
+}
+console.log('PASS: overlap chains keep every concurrent booking visible, with exact adjacency independent')

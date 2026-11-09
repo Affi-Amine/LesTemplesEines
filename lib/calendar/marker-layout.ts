@@ -8,6 +8,20 @@ type MarkerAppointment = CalendarAppointmentLike & AppointmentPaymentLike & Clie
   service?: (NonNullable<AppointmentPlanningColorsLike["service"]> & { required_staff_count?: number }) | null
 }
 
+/** Visible indicators share the available card width in the fitted agenda. */
+export function appointmentMarkerCount(appointment: MarkerAppointment) {
+  if (appointment.status === "blocked") return 0
+  const payment = getAppointmentPayment(appointment)
+  const source = appointment.source === "planity" || appointment.source === "treatwell"
+  const method = payment?.state === "paid" && (payment.channel === "online" || payment.channel === "gift_card" || payment.channel === "pack"
+    || (payment.channel === "treatwell" && appointment.source !== "treatwell"))
+  return (payment ? 1 + Number(Boolean(method)) + Number(source) : 0)
+    + getAppointmentServiceColors(appointment).length
+    + Number(hasClientRequestedStaff(appointment))
+    + Number(getAppointmentStaffIds(appointment).length > 1 || appointment.service?.required_staff_count === 2)
+    + Number(isReleasedAppointment(appointment.status))
+}
+
 export function appointmentMarkerLaneWidth(appointments: readonly MarkerAppointment[]) {
   let width = staffChoiceLaneWidth(appointments)
   for (const appointment of appointments) {

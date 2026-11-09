@@ -263,10 +263,24 @@ export function layoutAppointmentLanes(appointments: CalendarAppointmentLike[]):
     while (taken.has(lane)) lane++
     placed.push({ id: appointment.id, lane, start, end })
   }
-  return new Map(placed.map(item => [item.id, {
-    lane: item.lane,
-    lanes: 1 + Math.max(...placed.filter(other => other.start < item.end && item.start < other.end).map(other => other.lane)),
-  }]))
+  // An entire connected overlap group needs one denominator. Per-card counts
+  // made a two-lane card cover a neighbouring three-lane card in overlap chains.
+  const result = new Map<string, AppointmentLane>()
+  const chronological = [...placed].sort((a, b) => a.start - b.start || a.end - b.end)
+  let group: typeof placed = []
+  let groupEnd = -Infinity
+  const finishGroup = () => {
+    if (!group.length) return
+    const lanes = 1 + Math.max(...group.map(item => item.lane))
+    for (const item of group) result.set(item.id, { lane: item.lane, lanes })
+  }
+  for (const item of chronological) {
+    if (item.start >= groupEnd) { finishGroup(); group = []; groupEnd = -Infinity }
+    group.push(item)
+    groupEnd = Math.max(groupEnd, item.end)
+  }
+  finishGroup()
+  return result
 }
 
 /** CSS `left`/`width` for a card in its lane, keeping `insetPx` clear on each side. */

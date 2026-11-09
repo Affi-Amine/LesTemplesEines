@@ -5,16 +5,14 @@ import { TabletAgenda } from "@/components/calendar/tablet-agenda"
 import { appointmentCollisionDetection } from "@/lib/calendar/drag-collision"
 import { useAppointmentMove } from "@/lib/hooks/use-appointment-move"
 import { canMoveAppointment, type MoveDestination } from "@/lib/calendar/appointment-move"
-import { AppointmentMoveDialog } from "@/components/calendar/appointment-move-dialog"
 import { useTabletWorkspace } from "@/lib/hooks/use-tablet-workspace"
 import { CalendarClosedHours, CalendarHourLabel, isCalendarQuarterOpen } from "@/components/calendar/closed-hours"
 import { getScheduleHoursIncludingAppointments } from "@/lib/calendar/scheduling"
 import { AppointmentPaymentMarker } from "@/components/calendar/appointment-payment-marker"
 import { AppointmentStaffChoiceMarker } from "@/components/calendar/appointment-staff-choice-marker"
 import { AppointmentServiceStars } from "@/components/calendar/appointment-service-stars"
-import { appointmentMarkerLaneWidth } from "@/lib/calendar/marker-layout"
 import { AppointmentCardContent, RELEASED_CARD_CLASS } from "@/components/calendar/appointment-card-content"
-import { useState, useEffect, useMemo, type CSSProperties } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { fetchAPI } from "@/lib/api/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -92,8 +90,7 @@ interface Appointment {
   }
 }
 
-const STAFF_COLUMN_MIN_WIDTH = 152
-const TIME_COLUMN_WIDTH = 84
+const TIME_COLUMN_WIDTH = 44
 
 // Week View Component with Drag-and-Drop
 function WeekView({
@@ -127,11 +124,7 @@ function WeekView({
     return [dayDateStr, layoutAppointmentLanes(appointments.filter((appointment) =>
       formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === dayDateStr))]
   }))
-  const dayWidths = weekDays.map(day => {
-    const laneWidth = appointmentMarkerLaneWidth(appointments.filter(appointment => formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === format(day, "yyyy-MM-dd")))
-    return Math.max(128, ...[...(dayLanes.get(format(day, "yyyy-MM-dd"))?.values() || [])].map(lane => lane.lanes * laneWidth))
-  })
-  const weekColumns = `84px ${dayWidths.map(width => `minmax(${width}px, 1fr)`).join(" ")}`
+  const weekColumns = `${TIME_COLUMN_WIDTH}px repeat(7, minmax(0, 1fr))`
 
   const getAppointmentsForDayAndHour = (day: Date, hour: number) => {
     return appointments.filter(appointment => {
@@ -173,10 +166,10 @@ function WeekView({
     isInvalidDestination({ date: day, hour, minute })
 
   return (
-    <div className="overflow-x-auto">
-      <div style={{ minWidth: 84 + dayWidths.reduce((sum, width) => sum + width, 0) + 28 }}>
+    <div className="min-w-0 overflow-x-auto sm:overflow-x-visible">
+      <div data-planning-grid="week" className="w-full min-w-[600px] sm:min-w-0">
         {/* Header with days */}
-        <div style={{ gridTemplateColumns: weekColumns }} className="mb-2 grid gap-0.5 sm:mb-4 sm:gap-1">
+        <div data-planning-header style={{ gridTemplateColumns: weekColumns }} className="mb-2 grid gap-0.5 sm:mb-4 sm:gap-1">
           <div className="p-1 sm:p-2"></div>
           {weekDays.map((day) => (
             <div key={day.toISOString()} className="min-w-0 p-1 text-center font-medium sm:p-2">
@@ -301,11 +294,10 @@ function DayView({
   const staffLanes = new Map(activeStaffMembers.map((member) => [member.id, layoutAppointmentLanes(appointments.filter((appointment) =>
     formatInTimeZone(appointment.start_time, "Europe/Paris", "yyyy-MM-dd") === currentDayStr &&
     getAppointmentStaffIds(appointment).includes(member.id)))]))
-  const staffColumnWidths = new Map(activeStaffMembers.map(member => {
-    const laneWidth = appointmentMarkerLaneWidth(appointments.filter(appointment => getAppointmentStaffIds(appointment).includes(member.id)))
-    return [member.id, Math.max(STAFF_COLUMN_MIN_WIDTH, ...[...(staffLanes.get(member.id)?.values() || [])].map(lane => lane.lanes * laneWidth))] as const
-  }))
-  const scheduleMinWidth = TIME_COLUMN_WIDTH + (activeStaffMembers.length ? [...staffColumnWidths.values()].reduce((sum, width) => sum + width, 0) : STAFF_COLUMN_MIN_WIDTH)
+  const scheduleColumns = `${TIME_COLUMN_WIDTH}px ${activeStaffMembers.map(member => {
+    const lanes = Math.max(1, ...[...(staffLanes.get(member.id)?.values() || [])].map(lane => lane.lanes))
+    return `minmax(0, ${lanes}fr)`
+  }).join(" ")}`
 
   const getAppointmentsForHour = (hour: number, staffId?: string) => {
     return appointments.filter(appointment => {
@@ -348,17 +340,14 @@ function DayView({
     isInvalidDestination({ date: currentDate, hour, minute, staffId })
 
   return (
-    <div className="overflow-x-hidden md:overflow-x-auto">
-      <div
-        className="min-w-0 space-y-1 md:min-w-[var(--schedule-min-width)]"
-        style={{ "--schedule-min-width": activeStaffMembers.length > 0 ? `${scheduleMinWidth}px` : undefined } as CSSProperties}
-      >
+    <div className="w-full min-w-0">
+      <div data-planning-grid="day" className="w-full min-w-0 space-y-1">
         {activeStaffMembers.length > 0 ? (
-          <div className="sticky top-0 z-20 mb-3 flex border-b border-border bg-card/95 pb-2 backdrop-blur">
-            <div className="w-10 shrink-0 md:w-[84px]"></div>
+          <div data-planning-header style={{ gridTemplateColumns: scheduleColumns }} className="sticky top-0 z-20 mb-3 grid border-b border-border bg-card/95 pb-2 backdrop-blur">
+            <div />
             {activeStaffMembers.map((member) => (
-              <div key={member.id} style={{ "--staff-min-width": `${staffColumnWidths.get(member.id)}px` } as CSSProperties} className="min-w-0 flex-1 border-l border-border px-0.5 text-center md:min-w-[var(--staff-min-width)] md:px-2">
-                <div className="truncate text-[10px] font-semibold md:text-sm lg:text-base">{getStaffDisplayName(member)}</div>
+              <div key={member.id} data-planning-staff-id={member.id} title={getStaffDisplayName(member)} className="min-w-0 border-l border-border px-0.5 text-center sm:px-1">
+                <div className="truncate text-[10px] font-semibold md:text-xs xl:text-sm">{getStaffDisplayName(member)}</div>
                 <div className="hidden text-[10px] uppercase tracking-wide text-muted-foreground sm:block">Masseuse</div>
               </div>
             ))}
@@ -377,15 +366,15 @@ function DayView({
           const slotId = `slot-day-${format(currentDate, "yyyy-MM-dd")}-${hourStart}`
 
           return (
-            <div key={hourStart} className="flex border-t border-border" style={{ height: hourHeight }}>
-              <div className="w-10 shrink-0 bg-card pr-1 pt-1 text-right text-[10px] font-medium text-muted-foreground md:w-[84px] md:p-2 md:text-sm">
+            <div key={hourStart} className="grid border-t border-border" style={{ height: hourHeight, gridTemplateColumns: scheduleColumns }}>
+              <div className="min-w-0 bg-card pr-1 pt-1 text-right text-[10px] font-medium text-muted-foreground md:text-[11px]">
                 <CalendarHourLabel hour={hourStart} date={currentDate} openingHours={openingHours} />
               </div>
               {activeStaffMembers.map((member) => {
                 const hourAppointments = getAppointmentsForHour(hourStart, member.id)
 
                 return (
-                  <div key={`${member.id}-${hourStart}`} style={{ "--staff-min-width": `${staffColumnWidths.get(member.id)}px` } as CSSProperties} className="relative min-w-0 flex-1 border-l border-border bg-background/80 md:min-w-[var(--staff-min-width)]">
+                  <div key={`${member.id}-${hourStart}`} data-planning-cell-staff-id={member.id} className="relative min-w-0 border-l border-border bg-background/80">
                     <CalendarClosedHours hour={hourStart} date={currentDate} openingHours={openingHours} />
                     <div className="absolute inset-0 grid grid-rows-4">
                       {[0, 15, 30, 45].map((minute, idx) => (
@@ -605,8 +594,8 @@ export default function CalendrierPage() {
     })
   }
 
-  const { activeAppointment, pendingMove, isMovingAppointment, moveError, handleDragStart, handleDragEnd,
-    handleDragCancel, confirmMove, cancelMove, isInvalidDestination } = useAppointmentMove({
+  const { activeAppointment, handleDragStart, handleDragEnd,
+    handleDragCancel, cancelMove, isInvalidDestination } = useAppointmentMove({
       appointments, staff: selectedSalonStaff, openingHours: selectedOpeningHours, onRefresh: fetchAppointments,
     })
 
@@ -637,7 +626,7 @@ export default function CalendrierPage() {
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className={dailyWorkspace ? "" : "space-y-4 p-3 sm:space-y-6 sm:p-6"}>
+      <div className={dailyWorkspace ? "min-w-0" : "min-w-0 space-y-4 px-2 py-3 sm:space-y-6"}>
         {dailyWorkspace ? <>
           {appointmentsError && <p role="alert" className="bg-destructive/10 p-3 text-sm">Le planning n’a pas pu être actualisé. <Button variant="outline" onClick={() => void fetchAppointments()}>Réessayer</Button></p>}
           <TabletAgenda
@@ -809,7 +798,7 @@ export default function CalendrierPage() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="px-2 pb-3 sm:px-6 sm:pb-6">
+          <CardContent className="px-1 pb-3 sm:px-2 sm:pb-6">
             {appointmentsError ? (
               <div className="text-center py-8 text-muted-foreground">Planning indisponible.</div>
             ) : loading ? (
@@ -1024,8 +1013,6 @@ Statut: ${getStatusLabel(appointment.status)}`}
           />
         )}
 
-        <AppointmentMoveDialog move={pendingMove} staff={selectedSalonStaff} saving={isMovingAppointment}
-          error={moveError} onCancel={cancelMove} onConfirm={() => void confirmMove()} />
         <BlockedSlotDialog slot={blockedSlot} open={Boolean(blockedSlot)}
           onOpenChange={open => { if (!open) setBlockedSlot(null) }} onChanged={() => void fetchAppointments()} />
       </div>

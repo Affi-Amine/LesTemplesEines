@@ -11,9 +11,11 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 
 export function AdminSidebar() {
   const pathname = usePathname()
+  const isPlanningPage = pathname === "/admin/calendrier" || /^\/admin\/salons\/[^/]+\/dashboard(?:\/|$)/.test(pathname)
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
+  const railMenuButton = useRef<HTMLButtonElement>(null)
   const [userInfo, setUserInfo] = useState<any>(null)
   const { t, mounted } = useTranslations()
 
@@ -21,10 +23,10 @@ export function AdminSidebar() {
 
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 1536px)")
-    const closeOnDesktop = () => { if (desktop.matches) setIsOpen(false) }
+    const closeOnDesktop = () => { if (!isPlanningPage && desktop.matches) setIsOpen(false) }
     desktop.addEventListener("change", closeOnDesktop)
     return () => desktop.removeEventListener("change", closeOnDesktop)
-  }, [])
+  }, [isPlanningPage])
 
   useEffect(() => {
     // Get user info from localStorage
@@ -122,7 +124,7 @@ export function AdminSidebar() {
 
   return (
     <>
-      <div className="fixed inset-x-0 top-0 z-40 flex h-16 items-center gap-3 border-b bg-card px-4 2xl:hidden">
+      <div className={`fixed inset-x-0 top-0 z-40 flex h-16 items-center gap-3 border-b bg-card px-4 ${isPlanningPage ? "md:hidden" : "2xl:hidden"}`}>
         <Button
           ref={menuButton}
           variant="outline"
@@ -141,15 +143,29 @@ export function AdminSidebar() {
         </div>
       </div>
 
-      <nav aria-label="Accès rapides" className="fixed bottom-0 left-0 top-16 z-30 hidden w-20 flex-col gap-2 border-r bg-card px-2 py-3 md:flex 2xl:hidden">
+      <nav aria-label="Accès rapides" data-planning-rail={isPlanningPage || undefined} className={`fixed bottom-0 left-0 z-30 hidden flex-col border-r bg-card md:flex ${isPlanningPage ? "top-0 w-14 gap-1 px-1 py-2 xl:w-16" : "top-16 w-20 gap-2 px-2 py-3 2xl:hidden"}`}>
+        {isPlanningPage && <Button
+          ref={railMenuButton}
+          variant="outline"
+          size="icon"
+          onClick={() => setIsOpen(!isOpen)}
+          className="mx-auto mb-2 h-11 w-11 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+          aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
+        ><Menu className="h-5 w-5" /></Button>}
         {shortcuts.map(item => <Link key={item.label} href={item.href} aria-current={pathname === item.href ? "page" : undefined}
-          className={`flex min-h-[68px] flex-col items-center justify-center gap-1.5 rounded-xl px-1 text-[11px] font-medium active:bg-primary/15 ${pathname === item.href ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}>
+          className={`flex flex-col items-center justify-center rounded-xl px-1 font-medium active:bg-primary/15 ${isPlanningPage ? "min-h-14 gap-1 text-[10px]" : "min-h-[68px] gap-1.5 text-[11px]"} ${pathname === item.href ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}>
           <item.icon className="h-5 w-5" />{item.label}
         </Link>)}
       </nav>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent onCloseAutoFocus={event => { event.preventDefault(); menuButton.current?.focus({ preventScroll: true }) }} overlayClassName="data-[state=open]:animate-none data-[state=closed]:animate-none" className="inset-y-0 left-0 top-0 z-[60] h-dvh max-h-dvh w-[min(320px,calc(100vw-3rem))] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-l-0 p-0 data-[state=open]:animate-none data-[state=closed]:animate-none sm:max-w-none sm:p-0" >
+        <DialogContent onCloseAutoFocus={event => {
+          event.preventDefault()
+          const trigger = isPlanningPage && window.matchMedia("(min-width: 768px)").matches ? railMenuButton.current : menuButton.current
+          trigger?.focus({ preventScroll: true })
+        }} overlayClassName="data-[state=open]:animate-none data-[state=closed]:animate-none" className="inset-y-0 left-0 top-0 z-[60] h-dvh max-h-dvh w-[min(320px,calc(100vw-3rem))] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-l-0 p-0 data-[state=open]:animate-none data-[state=closed]:animate-none sm:max-w-none sm:p-0" >
           <DialogTitle className="sr-only">Menu de l’administration</DialogTitle>
           <DialogDescription className="sr-only">Choisissez la rubrique à ouvrir.</DialogDescription>
           {navigation}
@@ -157,7 +173,7 @@ export function AdminSidebar() {
       </Dialog>
       {/* Desktop navigation stays in its own scroll area; logout follows links. */}
       <aside
-        className="fixed inset-y-0 left-0 hidden h-dvh w-64 overflow-y-auto border-r bg-card 2xl:block"
+        className={`fixed inset-y-0 left-0 hidden h-dvh w-64 overflow-y-auto border-r bg-card ${isPlanningPage ? "" : "2xl:block"}`}
       >
         {navigation}
       </aside>

@@ -150,8 +150,7 @@ BEGIN
   END IF;
   members := p_staff_ids;
   SELECT * INTO actor FROM public.staff WHERE id=p_actor_id;
-  IF NOT FOUND OR actor.is_active IS DISTINCT FROM true OR actor.role NOT IN ('admin','manager','receptionist') OR
-     (actor.role<>'admin' AND actor.salon_id IS DISTINCT FROM p_salon_id) THEN
+  IF NOT FOUND OR actor.is_active IS DISTINCT FROM true THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='Ce compte ne peut pas déplacer les rendez-vous de ce salon.';
   END IF;
   PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('booking-calendar-write',0));

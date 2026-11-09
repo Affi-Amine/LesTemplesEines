@@ -90,7 +90,7 @@ function routeScenario({ existing, body, role = "admin", conflict = false, metho
         insert() { calls.writes++; return q },
         update(value) { calls.writes++; if (table === "appointments") calls.update = value; return q },
         delete() { if (table === "appointments") calls.deleted = true; else calls.writes++; return q },
-        then(resolve) { return Promise.resolve({ data: [], error: null }).then(resolve) },
+        then(resolve) { return Promise.resolve({ data: table === "staff" ? [{id:id(4),is_active:true},{id:id(6),is_active:true}] : [], error: null }).then(resolve) },
       }
       return q
     },
@@ -101,7 +101,7 @@ function routeScenario({ existing, body, role = "admin", conflict = false, metho
   const { SchedulingError } = load("lib/appointments/rules.ts", {}, cache)
   const route = load("app/api/appointments/[id]/route.ts", {
     "@/lib/supabase/admin": { createAdminClient: () => db },
-    "@/lib/auth/api-auth": { requireStaffAuth: (_request, roles) => roles.includes(role) ? { payload: { role } } : { response: { status: 403 } } },
+    "@/lib/auth/api-auth": { requireStaffAuth: (_request, roles) => roles.includes(role) ? { payload: { role, staffId:id(4) } } : { response: { status: 403 } } },
     "@/lib/appointments/create": {
       validateAppointmentScheduling: async (_db, data) => {
         calls.validation = data

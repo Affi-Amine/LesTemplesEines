@@ -174,9 +174,12 @@ export const TabletAgenda = memo(function TabletAgenda({
     return map
   }, [dayAppointments])
   const lanesByStaff = useMemo(() => new Map([...byStaff].map(([id, items]) => [id, layoutAppointmentLanes(items)])), [byStaff])
-  // A narrow phone must not squeeze ten columns, or overlapping bookings, into unreadable strips.
-  const columnWidths = visibleStaff.map(member => {
-    const lanes = Math.max(1, ...[...(lanesByStaff.get(member.id)?.values() || [])].map(lane => lane.lanes))
+  // Phones keep roomy, scrollable lanes. From tablet width onward, every staff
+  // column shares the available space without badge-based minimum widths.
+  const columnLaneCounts = visibleStaff.map(member => Math.max(1,
+    ...[...(lanesByStaff.get(member.id)?.values() || [])].map(lane => lane.lanes)))
+  const phoneColumnWidths = visibleStaff.map((member, index) => {
+    const lanes = columnLaneCounts[index]
     const bookings = byStaff.get(member.id) || []
     const laneWidth = appointmentMarkerLaneWidth(bookings)
     const hasShortBooking = bookings.some(appointment => appointment.status !== "blocked" && getAppointmentDurationMinutes(appointment) < 30)
@@ -185,16 +188,17 @@ export const TabletAgenda = memo(function TabletAgenda({
   })
   const columns = "var(--agenda-columns)"
   const columnStyle = {
-    "--agenda-columns-wide": `40px ${columnWidths.map(width => `minmax(${width}px, 1fr)`).join(" ") || "1fr"}`,
-    "--agenda-columns-phone": `40px ${columnWidths.map(width => `minmax(${Math.max(120, width)}px, 1fr)`).join(" ") || "1fr"}`,
-    "--agenda-min-width-wide": `${40 + columnWidths.reduce((sum, width) => sum + width, 0)}px`,
-    "--agenda-min-width-phone": `${40 + columnWidths.reduce((sum, width) => sum + Math.max(120, width), 0)}px`,
+    // More simultaneous appointments share more of the same fixed total width.
+    "--agenda-columns-wide": `40px ${columnLaneCounts.map(lanes => `minmax(0, ${lanes}fr)`).join(" ") || "minmax(0, 1fr)"}`,
+    "--agenda-columns-phone": `40px ${phoneColumnWidths.map(width => `minmax(${Math.max(120, width)}px, 1fr)`).join(" ") || "1fr"}`,
+    "--agenda-min-width-wide": "100%",
+    "--agenda-min-width-phone": `${40 + phoneColumnWidths.reduce((sum, width) => sum + Math.max(120, width), 0)}px`,
   } as CSSProperties
   const changeDate = (next: Date) => onDateChange(next)
   const selectClass = "h-11 min-w-0 rounded-lg border bg-card px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
   return <section ref={root} data-tablet-agenda style={columnStyle} aria-label={`Agenda de ${salonName}`} className="min-w-0 bg-background">
-    <div data-agenda-toolbar className="sticky top-16 z-30 border-b bg-card">
+    <div data-agenda-toolbar className="sticky top-16 z-30 border-b bg-card md:top-0">
       <div className="flex min-h-14 items-center justify-between gap-3 px-3 py-2 sm:px-5">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Les Temples · Agenda</p>
@@ -221,7 +225,7 @@ export const TabletAgenda = memo(function TabletAgenda({
       </div>
 
       {view === "grid" && (moveModePolicy === "salon-admin" || movingAppointment) && <div role="status" className="flex flex-wrap items-center justify-between gap-3 border-t bg-primary/5 px-3 py-1 text-xs sm:px-5">
-        <p className="min-w-0 flex-1 basis-full sm:basis-0">{moveModePolicy === "salon-admin" ? "Maintenez un rendez-vous puis glissez-le. Les chevauchements sont autorisés et chaque déplacement est enregistré dans le journal." : "Déposez le rendez-vous sur le nouvel horaire. Les zones rouges sont indisponibles."}</p>
+        <p className="min-w-0 flex-1 basis-full sm:basis-0">{moveModePolicy === "salon-admin" ? "Maintenez, glissez puis relâchez pour enregistrer. Chevauchements autorisés ; chaque déplacement est journalisé." : "Relâchez pour enregistrer sur le nouvel horaire. Les zones rouges sont indisponibles."}</p>
         {moveModePolicy === "salon-admin" && <Button variant="outline" aria-pressed={showAllHours} onClick={() => setShowAllHours(value => !value)} className="h-11 shrink-0 px-2 text-xs">{showAllHours ? "Horaires du salon" : "Afficher les 24 h"}</Button>}
       </div>}
 
@@ -253,8 +257,8 @@ export const TabletAgenda = memo(function TabletAgenda({
 
       {view === "grid" && <div ref={teamScroll} className="overflow-x-hidden"><div data-agenda-team className="grid min-w-[var(--agenda-min-width)] border-t bg-card" style={{ gridTemplateColumns: columns }}>
         <div className="sticky left-0 z-20 flex items-center justify-center self-stretch bg-card text-[10px] font-medium text-muted-foreground">Heure</div>
-        {visibleStaff.map(member => <div key={member.id} className="flex min-h-14 min-w-0 items-center gap-1 border-l px-1 py-2 sm:px-2">
-          <div className="min-w-0"><p className="truncate text-[10px] font-semibold sm:text-sm">{getStaffDisplayName(member)}</p><p className="text-[10px] text-muted-foreground">{byStaff.get(member.id)?.filter(appointment => isBookedAppointment(appointment.status)).length || 0} prestations</p></div>
+        {visibleStaff.map(member => <div key={member.id} title={getStaffDisplayName(member)} className="@container flex min-h-14 min-w-0 items-center gap-1 border-l px-1 py-2">
+          <div className="min-w-0"><p className="truncate text-[10px] font-semibold @min-[72px]:text-sm">{getStaffDisplayName(member)}</p><p className="break-words text-[10px] text-muted-foreground">{byStaff.get(member.id)?.filter(appointment => isBookedAppointment(appointment.status)).length || 0}<span className="hidden @min-[72px]:inline"> prestations</span><span className="@min-[72px]:hidden"> RDV</span></p></div>
         </div>)}
       </div></div>}
     </div>

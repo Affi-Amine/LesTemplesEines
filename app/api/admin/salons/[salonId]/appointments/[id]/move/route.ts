@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { z } from "zod"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { authorizeSalonMove, SALON_MOVE_ROLES } from "@/lib/appointments/salon-moves"
+import { authorizeSalonMove } from "@/lib/appointments/salon-moves"
 import { syncAfterBookingChange } from "@/lib/sync/trigger"
 
 export const dynamic = "force-dynamic"
@@ -17,7 +17,7 @@ const Move = z.object({
 }).strict()
 
 export async function POST(request: NextRequest, context: { params: Promise<{ salonId: string; id: string }> }) {
-  const auth = requireStaffAuth(request, [...SALON_MOVE_ROLES])
+  const auth = requireStaffAuth(request)
   if ("response" in auth) return auth.response
   const params = Params.safeParse(await context.params)
   const parsed = Move.safeParse(await request.json().catch(() => null))

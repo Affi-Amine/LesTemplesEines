@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { z } from "zod"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { authorizeSalonMove, SALON_MOVE_ACTION, SALON_MOVE_ROLES } from "@/lib/appointments/salon-moves"
+import { authorizeSalonMove, SALON_MOVE_ACTION } from "@/lib/appointments/salon-moves"
 
 export const dynamic = "force-dynamic"
 
@@ -14,7 +14,7 @@ const Query = z.object({
 const Cursor = z.object({ at: z.string().datetime({ offset: true }), id: z.string().uuid() })
 
 export async function GET(request: NextRequest, context: { params: Promise<{ salonId: string }> }) {
-  const auth = requireStaffAuth(request, [...SALON_MOVE_ROLES])
+  const auth = requireStaffAuth(request)
   if ("response" in auth) return auth.response
   const salonId = z.string().uuid().safeParse((await context.params).salonId)
   const parsed = Query.safeParse(Object.fromEntries(request.nextUrl.searchParams))

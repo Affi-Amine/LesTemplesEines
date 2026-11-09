@@ -16,15 +16,71 @@ export function useAppointmentMove<T extends MovableAppointment>({ appointments,
   salonId?: string
 }) {
   const [activeAppointment, setActiveAppointment] = useState<T | null>(null)
-  const [pendingMove, setPendingMove] = useState<AppointmentMove | null>(null)
   const [isMovingAppointment, setIsMovingAppointment] = useState(false)
   const [moveError, setMoveError] = useState("")
   const saving = useRef(false)
-  const attemptedRequestId = useRef<string | null>(null)
+  const current = useRef({ appointments, staff, openingHours, onRefresh, mode, salonId })
+  current.current = { appointments, staff, openingHours, onRefresh, mode, salonId }
+
   const validate = (appointment: MovableAppointment, destination: MoveDestination) => {
-    if (mode === "salon-admin" && salonId && appointment.salon_id !== salonId) throw new Error("Ce rendez-vous n’appartient pas au salon affiché. Actualisez le planning.")
-    return planAppointmentMove({ appointment, destination, appointments, staff, openingHours, mode })
+    const context = current.current
+    if (context.mode === "salon-admin" && context.salonId && appointment.salon_id !== context.salonId) throw new Error("Ce rendez-vous n’appartient pas au salon affiché. Actualisez le planning.")
+    return planAppointmentMove({ appointment, destination, appointments: context.appointments, staff: context.staff, openingHours: context.openingHours, mode: context.mode })
   }
+
+  const saveMove = async (planned: AppointmentMove, retry = false) => {
+    if (saving.current) return
+    saving.current = true
+    setIsMovingAppointment(true)
+    setMoveError("")
+    let recoverable = false
+    try {
+      const context = current.current
+      if (planned.mode !== context.mode || (context.salonId && planned.appointment.salon_id !== context.salonId)) throw new Error("Le salon affiché a changé. Recommencez le déplacement depuis son planning.")
+      const latest = context.appointments.find(item => item.id === planned.appointment.id)
+      if (!retry && (!latest || appointmentMoveVersion(latest) !== appointmentMoveVersion(planned.appointment))) throw new Error("Ce rendez-vous a été modifié depuis votre sélection. Actualisez le planning puis réessayez.")
+      // A retry reuses the original version and request ID: the server may already have committed it.
+      const move = retry ? planned : validate(latest!, planned.destination)
+      if (!move) return
+      const salonMove = planned.mode === "salon-admin"
+      if (salonMove && (!planned.requestId || !(context.salonId || move.appointment.salon_id))) throw new Error("Recommencez le déplacement depuis le planning du salon.")
+      if (salonMove && (!move.appointment.updated_at || !Number.isFinite(Date.parse(move.appointment.updated_at)))) throw new Error("Actualisez le planning pour récupérer la version du rendez-vous avant de le déplacer.")
+      let response: Response
+      try {
+        response = await fetch(salonMove
+          ? `/api/admin/salons/${context.salonId || move.appointment.salon_id}/appointments/${move.appointment.id}/move`
+          : `/api/appointments/${move.appointment.id}`, {
+          method: salonMove ? "POST" : "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(salonMove
+            ? { start_time: move.start.toISOString(), staff_ids: move.staffIds, expected_updated_at: move.appointment.updated_at, request_id: planned.requestId }
+            : { start_time: move.start.toISOString(), staff_id: move.staffIds[0], staff_ids: move.staffIds, expected_updated_at: move.appointment.updated_at || undefined }),
+        })
+      } catch (error) {
+        recoverable = salonMove
+        throw error
+      }
+      if (!response.ok) {
+        recoverable = salonMove && response.status >= 500
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error || "Le déplacement n’a pas pu être enregistré.")
+      }
+      toast.success("Rendez-vous déplacé", { description: `${formatInTimeZone(move.start, "Europe/Paris", "dd/MM/yyyy HH:mm")}–${formatInTimeZone(move.end, "Europe/Paris", "HH:mm")}` })
+    } catch (error) {
+      const message = error instanceof TypeError
+        ? "La réponse du serveur n’a pas été reçue. Le planning va être actualisé."
+        : error instanceof Error ? error.message : "Impossible de déplacer ce rendez-vous."
+      setMoveError(message)
+      toast.error(recoverable ? "Résultat du déplacement à vérifier" : "Déplacement impossible", {
+        description: message,
+        ...(recoverable ? { action: { label: "Réessayer", onClick: () => { void saveMove(planned, true) } } } : {}),
+      })
+    } finally {
+      saving.current = false
+      setIsMovingAppointment(false)
+      void Promise.resolve(current.current.onRefresh()).catch(() => {})
+    }
+  }
+
   const handleDragStart = (event: DragStartEvent) => {
     const appointment = event.active.data.current?.appointment as T | undefined
     if (!saving.current && appointment && canMoveAppointment(appointment, mode)) {
@@ -33,68 +89,24 @@ export function useAppointmentMove<T extends MovableAppointment>({ appointments,
     }
   }
   const handleDragCancel = () => setActiveAppointment(null)
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     setActiveAppointment(null)
-    if (saving.current || pendingMove || !event.over) return
+    if (saving.current || !event.over) return
     const appointment = event.active.data.current?.appointment as T | undefined
     const destination = event.over.data.current as MoveDestination | undefined
     if (!appointment || !destination) return
     try {
-      setMoveError("")
       const move = validate(appointment, destination)
-      attemptedRequestId.current = null
-      setPendingMove(move && mode === "salon-admin" ? { ...move, requestId: crypto.randomUUID() } : move)
-    }
-    catch (error) { toast.error("Déplacement impossible", { description: error instanceof Error ? error.message : "Actualisez le planning puis réessayez." }) }
-  }
-  const cancelMove = () => { if (!saving.current) { setPendingMove(null); setMoveError(""); attemptedRequestId.current = null } }
-  const confirmMove = async () => {
-    if (saving.current || !pendingMove) return
-    saving.current = true
-    setIsMovingAppointment(true)
-    setMoveError("")
-    try {
-      // After an ambiguous network failure, replay the original request. The server may
-      // already have committed it; changing its snapshot or ID would defeat idempotency.
-      const retry = mode === "salon-admin" && Boolean(pendingMove.requestId) && attemptedRequestId.current === pendingMove.requestId
-      const latest = appointments.find(item => item.id === pendingMove.appointment.id)
-      if (!retry && (!latest || appointmentMoveVersion(latest) !== appointmentMoveVersion(pendingMove.appointment))) throw new Error("Ce rendez-vous a été modifié depuis votre sélection. Fermez cette fenêtre et actualisez le planning.")
-      const move = retry ? pendingMove : validate(latest!, pendingMove.destination)
-      if (!move) { setPendingMove(null); return }
-      const salonMove = mode === "salon-admin"
-      if (salonMove && (!pendingMove.requestId || !(salonId || move.appointment.salon_id))) throw new Error("Fermez cette fenêtre, puis recommencez le déplacement depuis le planning du salon.")
-      if (salonMove && (!move.appointment.updated_at || !Number.isFinite(Date.parse(move.appointment.updated_at)))) throw new Error("Actualisez le planning pour récupérer la version du rendez-vous avant de le déplacer.")
-      if (salonMove) attemptedRequestId.current = pendingMove.requestId!
-      const response = await fetch(salonMove
-        ? `/api/admin/salons/${salonId || move.appointment.salon_id}/appointments/${move.appointment.id}/move`
-        : `/api/appointments/${move.appointment.id}`, {
-        method: salonMove ? "POST" : "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(salonMove
-          ? { start_time: move.start.toISOString(), staff_ids: move.staffIds, expected_updated_at: move.appointment.updated_at, request_id: pendingMove.requestId }
-          : { start_time: move.start.toISOString(), staff_id: move.staffIds[0], staff_ids: move.staffIds, expected_updated_at: move.appointment.updated_at || undefined }),
-      })
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error || "Le créneau n’a pas pu être réservé. Aucun déplacement n’est affiché sans confirmation du serveur.")
-      }
-      setPendingMove(null)
-      attemptedRequestId.current = null
-      toast.success("Rendez-vous déplacé", { description: `${formatInTimeZone(move.start, "Europe/Paris", "dd/MM/yyyy HH:mm")}–${formatInTimeZone(move.end, "Europe/Paris", "HH:mm")}` })
+      if (move) await saveMove(mode === "salon-admin" ? { ...move, requestId: crypto.randomUUID() } : move)
     } catch (error) {
-      setMoveError(error instanceof TypeError
-        ? mode === "salon-admin" ? "La confirmation n’a pas été reçue. Réessayez pour vérifier le résultat du déplacement." : "La confirmation du déplacement n’a pas été reçue. Actualisez le planning avant de réessayer."
-        : error instanceof Error ? error.message : "Impossible de déplacer ce rendez-vous.")
-    } finally {
-      saving.current = false
-      setIsMovingAppointment(false)
-      // Reconcile with the server on success AND on a concurrent conflict.
-      void Promise.resolve(onRefresh()).catch(() => {})
+      toast.error("Déplacement impossible", { description: error instanceof Error ? error.message : "Actualisez le planning puis réessayez." })
     }
   }
+  const cancelMove = () => { if (!saving.current) setMoveError("") }
   const isInvalidDestination = (destination: MoveDestination) => {
     if (!activeAppointment) return false
     try { validate(activeAppointment, destination); return false } catch { return true }
   }
-  return { activeAppointment, setActiveAppointment, pendingMove, setPendingMove, isMovingAppointment, moveError,
-    handleDragStart, handleDragEnd, handleDragCancel, confirmMove, cancelMove, isInvalidDestination }
+  return { activeAppointment, setActiveAppointment, isMovingAppointment, moveError,
+    handleDragStart, handleDragEnd, handleDragCancel, cancelMove, isInvalidDestination }
 }

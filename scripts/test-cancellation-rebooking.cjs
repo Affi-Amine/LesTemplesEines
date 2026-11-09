@@ -80,7 +80,14 @@ function from(table) {
   }
   return q
 }
-const db = { from }
+const db = { from, async rpc(name,payload) {
+  assert.equal(name,'admin_checkout_appointment_atomic')
+  const current=tables.appointments.find(row=>row.id===payload.p_appointment_id)
+  if(current.payment_status==='paid') return {data:null,error:{code:'40001',message:'Already paid'}}
+  const received=payload.p_payments.reduce((sum,line)=>sum+line.amount_cents,0)
+  Object.assign(current,{payment_status:'paid',payment_method:payload.p_payments[0].method,amount_paid_cents:(current.amount_paid_cents||0)+received})
+  return {data:{...current},error:null}
+} }
 const modules = new Map()
 function load(relative) {
   const filename = path.join(root, relative)
@@ -98,7 +105,7 @@ function load(relative) {
         return { id: 'checkout-test', url: 'https://checkout.example.test/session' }
       } } } }) }
       if (name === '@/lib/gift-cards') return { getBaseUrl: () => 'https://example.test' }
-      if (name === '@/lib/auth/api-auth') return { requireStaffAuth: () => authDenied ? { response: { status: 401 } } : { payload: { role: 'admin' } } }
+      if (name === '@/lib/auth/api-auth') return { requireStaffAuth: () => authDenied ? { response: { status: 401 } } : { payload: { role: 'admin',staffId:staffIds[0] } } }
       // Keep the production booking rules while isolating external post-response synchronization.
       if (name === '@/lib/sync/trigger') return { syncAfterBookingChange() {}, loadRemoteCopies: async () => [], cancelRemoteCopiesAfterDelete() {} }
       if (name === '@/lib/client-auth') return { findClientByEmail() { throw new Error('Unexpected client lookup') }, findClientByPhone() { throw new Error('Unexpected client lookup') } }
@@ -228,6 +235,7 @@ async function main() {
   const originalTimes={start:old.start_time,end:old.end_time}
   const same=await change({salon_id:salonId,service_id:serviceId,start_time:old.start_time,staff_ids:[staffIds[0]],internal_notes:'Note ajoutée sans déplacer'})
   assert.equal(same.status,200,'Saving unchanged scheduling fields must not reject a historical out-of-hours booking')
+  Object.assign(old,{payment_status:'unpaid',payment_method:'on_site',amount_paid_cents:0,updated_at:'2026-11-09T10:00:00Z'})
   assert.equal((await change({payment_status:'paid',payment_method:'cash',amount_paid_cents:10000})).status,200)
   assert.equal((await change({status:'completed'})).status,200)
   assert.equal(old.start_time,originalTimes.start)

@@ -138,33 +138,26 @@ async function main() {
     for (const auth of [{ noCookie: true }, { token: 'invalid-session' }]) {
       seed(); assert.equal((await call(kind, { request: auth })).status, 401); noMutation(); assert.equal(state.clients, 0)
     }
-    for (const role of ['therapist', 'assistant', 'owner']) {
-      seed(); state.payload.role = role
-      assert.equal((await call(kind)).status, 403); noMutation(); assert.equal(state.clients, 0)
-    }
-    for (const actor of [null,
-      { id: actorId, salon_id: salonId, role: 'admin', is_active: false },
-      { id: actorId, salon_id: salonId, role: 'therapist', is_active: true },
-      { id: actorId, salon_id: id(999), role: 'manager', is_active: true },
-      { id: actorId, salon_id: id(999), role: 'receptionist', is_active: true },
-    ]) {
+    for (const actor of [null, { id: actorId, salon_id: salonId, role: 'admin', is_active: false }]) {
       seed({ actor })
-      assert.equal((await call(kind)).status, 403, `${kind} must recheck the actor's current database role and salon`)
+      assert.equal((await call(kind)).status, 403, kind + ' rechecks that the session still belongs to an active staff account')
       noMutation()
       assert.deepEqual(state.queries[0].filters, [['id', actorId]])
     }
-    for (const role of ['manager', 'receptionist']) {
-      seed(); state.payload.role = role; state.actor.role = role
-      assert.equal((await call(kind)).status, 200, `${role} can access their own salon`)
+    for (const role of ['admin', 'manager', 'receptionist', 'assistant', 'therapist']) {
+      for (const actorSalon of [salonId,id(999)]) {
+        seed(); state.payload.role = role; state.actor.role = role; state.actor.salon_id = actorSalon
+        assert.equal((await call(kind)).status, 200, role + ' has the same access to every displayed salon planning')
+      }
     }
-    seed(); state.actor.salon_id = id(999); state.payload.salonId = id(999)
-    assert.equal((await call(kind)).status, 200, 'A current admin can manage another salon')
+    seed({payload:{clientId:id(999),role:'client'},actor:null})
+    assert.equal((await call(kind)).status,403);noMutation()
     seed({ staffError: { message: 'Database access failed' } })
     assert.equal((await call(kind)).status, 500); noMutation()
   }
   seed(); assert.equal(await helper.authorizeSalonMove(db, state.payload, salonId), true)
   state.actor.id = id(999); assert.equal(await helper.authorizeSalonMove(db, state.payload, salonId), false)
-  console.log('PASS: real auth and current staff authorization protect both routes; revoked roles, disabled actors and foreign salons cannot mutate or read logs')
+  console.log('PASS: every active authenticated staff role has planning access; anonymous, client, missing and inactive staff accounts cannot move or read the journal')
 
   const forbidden = {
     service_id: id(40), status: 'cancelled', payment_status: 'paid', payment_method: 'cash', amount_paid_cents: 0,

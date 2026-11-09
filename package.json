@@ -21,6 +21,8 @@
     "test:management": "node scripts/test-booking-management-api.cjs && node scripts/test-booking-management-sql.cjs && node scripts/test-booking-management-notifications.cjs && node scripts/test-booking-notifications.cjs",
     "test:sync": "node scripts/test-platform-sync.cjs",
     "test:cash-sheet": "node scripts/test-cash-sheet.cjs",
+    "test:checkout": "node scripts/test-appointment-checkout.cjs && node scripts/test-appointment-checkout-api.cjs && node scripts/test-admin-checkout-sql.cjs",
+    "qa:planning": "node scripts/qa-planning-fit.cjs && node scripts/qa-planning-interactions.cjs",
     "test:connect": "node scripts/test-treatwell-session.cjs"
   },
   "dependencies": {

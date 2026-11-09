@@ -14,6 +14,7 @@ export default function AdminLayout({
   const pathname = usePathname()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const isLoginPage = pathname === "/admin/login"
+  const isPlanningPage = pathname === "/admin/calendrier" || /^\/admin\/salons\/[^/]+\/dashboard(?:\/|$)/.test(pathname)
   const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
@@ -60,9 +61,11 @@ export default function AdminLayout({
 
   // Authenticated - show sidebar and content
   return (
-    <div data-admin-shell className="min-h-dvh bg-background">
+    <div data-admin-shell data-planning-workspace={isPlanningPage || undefined} className="min-h-dvh bg-background">
       <AdminSidebar />
-      <main id="admin-content" className="min-w-0 pt-16 md:ml-20 2xl:ml-64 2xl:pt-0">{children}</main>
+      <main id="admin-content" className={isPlanningPage
+        ? "min-w-0 pt-16 md:ml-14 md:pt-0 xl:ml-16"
+        : "min-w-0 pt-16 md:ml-20 2xl:ml-64 2xl:pt-0"}>{children}</main>
     </div>
   )
 }

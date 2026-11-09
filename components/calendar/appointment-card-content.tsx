@@ -5,6 +5,9 @@ import { AppointmentStaffChoiceMarker } from "@/components/calendar/appointment-
 import { AppointmentServiceStars } from "@/components/calendar/appointment-service-stars"
 import { getAppointmentStaffIds, isReleasedAppointment } from "@/lib/calendar/scheduling"
 import { getStatusLabel } from "@/lib/utils"
+import type { CSSProperties } from "react"
+import { appointmentMarkerCount } from "@/lib/calendar/marker-layout"
+import { getAppointmentPayment } from "@/lib/appointments/payment-presentation"
 
 /**
  * Cancelled/absent cards stay on the planning as see-through ghosts. Clicks go
@@ -24,7 +27,7 @@ export function AppointmentCardContent({ appointment, height }: { appointment: a
   const end = formatInTimeZone(appointment.end_time, "Europe/Paris", "HH:mm")
   const initials = blocked ? "B" : [appointment.client?.first_name, appointment.client?.last_name].filter(Boolean).map(value => value[0]).join("") || "C"
   const blockNote = blocked && appointment.client_notes ? ` · ${appointment.client_notes}` : ""
-  if (blocked) return <div className="@container relative min-w-0 space-y-0.5 leading-4" title={`${start}–${end} · ${name}${blockNote}`}>
+  if (blocked) return <div className="agenda-card-content @container relative min-w-0 space-y-0.5 leading-4" title={`${start}–${end} · ${name}${blockNote}`}>
     <div className="flex min-w-0 flex-wrap items-center gap-0.5 text-[8px] font-semibold @min-[38px]:text-[10px] @min-[100px]:text-xs">
       <span className="shrink-0 tabular-nums"><span className="@min-[20px]:hidden" aria-hidden="true">{start.slice(0, 2)}<br />{start.slice(2)}</span><span className="hidden @min-[20px]:inline">{start}</span></span>
       {height < 48 && <span className="hidden min-w-0 truncate @min-[90px]:inline">{name}</span>}
@@ -36,7 +39,21 @@ export function AppointmentCardContent({ appointment, height }: { appointment: a
   </div>
   const presence = appointment.status === "in_progress" ? "Arrivé" : appointment.status === "completed" ? "Effectué"
     : released ? getStatusLabel(appointment.status) : "Attendu"
-  return <div className="@container relative min-w-0 space-y-0.5 leading-4" title={`${start}–${end} · ${name} · ${appointment.service?.name || "Massage"} · ${presence}`}>
+  const markerCount = appointmentMarkerCount(appointment)
+  const markerRows = markerCount > 9 ? 3 : markerCount > 4 ? 2 : 1
+  const textSpace = height < 44 ? 0 : height >= 110 ? 70 : height >= 84 ? 52 : height >= 64 ? 28 : 14
+  const markerStyle = {
+    "--card-marker-count": Math.max(1, markerCount),
+    "--card-marker-columns": Math.max(1, Math.ceil(markerCount / markerRows)),
+    "--card-marker-max": `${Math.max(6, Math.min(20, Math.floor((height - textSpace - 10) / markerRows)))}px`,
+    "--card-marker-single-max": `${Math.max(6, Math.min(20, height - textSpace - 10))}px`,
+    "--card-short-max": `${Math.min(20, height - 2)}px`,
+    "--card-short-wrap-columns": Math.max(1, Math.ceil(markerCount / 2)),
+    "--card-short-wrap-max": `${Math.max(5, Math.min(20, Math.floor((height - 3) / 2)))}px`,
+  } as CSSProperties
+  const label = `${start}–${end} · ${name} · ${appointment.service?.name || "Massage"} · ${presence} · ${getAppointmentPayment(appointment)?.label || ""}`
+  return <div className="agenda-card-content @container relative min-w-0 space-y-0.5 leading-4" data-card-short={height < 44 || undefined}
+    data-marker-count={markerCount} style={markerStyle} role="group" aria-label={label} title={label}>
     <div data-appointment-markers className={`flex min-w-0 items-center gap-0.5 ${height < 44 ? "flex-nowrap" : "flex-wrap"}`}>
     <AppointmentPaymentMarker appointment={appointment} inline />
     <AppointmentServiceStars appointment={appointment} />
@@ -47,16 +64,16 @@ export function AppointmentCardContent({ appointment, height }: { appointment: a
       className="pointer-events-auto inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full border border-dashed border-current bg-white/80">
       <Ban aria-hidden="true" className="h-2.5 w-2.5" />
     </span>}
-    {height < 44 && <span className="min-w-0 flex-1 truncate text-right text-[9px] font-semibold tabular-nums">{start}</span>}
+    {height < 44 && <span data-card-inline-time className="min-w-0 flex-1 truncate text-right text-[9px] font-semibold tabular-nums">{start}</span>}
     </div>
-    {height >= 44 && <div className="flex min-w-0 items-center gap-1 text-[10px] font-semibold leading-3.5 @min-[100px]:text-xs">
+    {height >= 44 && <div data-card-time className="flex min-w-0 items-center gap-1 text-[10px] font-semibold leading-3.5 @min-[100px]:text-xs">
       <span className="shrink-0 tabular-nums">{start}</span>
       {height < 64 && <span className={`min-w-0 truncate ${released ? "line-through" : ""}`}>{name}</span>}
       {height >= 110 && <span className="hidden truncate font-normal opacity-80 @min-[100px]:inline">– {end}</span>}
     </div>}
-    {height >= 64 && <p className={`truncate text-[11px] font-semibold leading-3.5 @min-[100px]:text-xs ${released ? "line-through" : ""}`}><span className="@min-[45px]:hidden" aria-hidden="true">{initials}</span><span className="hidden @min-[45px]:inline">{name}</span></p>}
+    {height >= 64 && <p data-card-name className={`truncate text-[11px] font-semibold leading-3.5 @min-[100px]:text-xs ${released ? "line-through" : ""}`}><span className="@min-[45px]:hidden" aria-hidden="true">{initials}</span><span className="hidden @min-[45px]:inline">{name}</span></p>}
     {height >= 84 && <p data-care-state={appointment.status} className="truncate text-[10px] font-semibold leading-3.5">{presence}</p>}
-    {height >= 84 && !released && <p className="hidden text-[10px] leading-3.5 opacity-85 @min-[65px]:block @min-[100px]:text-[11px]"><span className={height >= 110 ? "line-clamp-2" : "block truncate"}>{appointment.service?.name || "Massage"}</span></p>}
+    {height >= 84 && !released && <p data-card-service className="hidden text-[10px] leading-3.5 opacity-85 @min-[65px]:block @min-[100px]:text-[11px]"><span className={height >= 110 ? "line-clamp-2" : "block truncate"}>{appointment.service?.name || "Massage"}</span></p>}
     <span className="sr-only">{name} · {start}–{end} · {presence}</span>
   </div>
 }

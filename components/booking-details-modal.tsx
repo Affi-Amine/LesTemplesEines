@@ -41,6 +41,8 @@ interface BookingDetailsModalProps {
     updated_at?: string | null
     payment_status?: string | null
     payment_method?: string | null
+    amount_paid_cents?: number | null
+    service_items?: { name?: string | null; price_cents?: number | null }[] | null
     client_notes?: string
     salon_id?: string
     service_id?: string
@@ -65,6 +67,7 @@ interface BookingDetailsModalProps {
       name: string
       duration?: number
       price?: number
+      price_cents?: number | null
     }
     salon?: {
       id?: string
@@ -189,7 +192,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
   // Nothing to cash in for a blocked slot, a released booking, or one already settled.
   const currentStatus = liveStatus || appointment.status
   const canCheckout = !["blocked", "cancelled", "no_show"].includes(currentStatus) &&
-    appointment.payment_status !== "paid" && amountDueCents(appointment as never) > 0
+    appointment.payment_status !== "paid" && amountDueCents(appointment) > 0
 
   const handleEdit = () => {
     setIsEditMode(true)
@@ -472,7 +475,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
           {canCheckout && (
             <Button type="button" className="w-full" onClick={() => setCheckoutOpen(true)}>
               <Wallet className="mr-2 h-4 w-4" />
-              Encaisser {amountDueCents(appointment as never) > 0 ? `${(amountDueCents(appointment as never) / 100).toFixed(2)} €` : ""}
+              Encaisser {amountDueCents(appointment) > 0 ? `${(amountDueCents(appointment) / 100).toFixed(2)} €` : ""}
             </Button>
           )}
           <AppointmentManagementLinkButton appointment={appointment} />
@@ -649,7 +652,7 @@ export function BookingDetailsModal({ isOpen, onClose, onRefetch, appointment, s
         />
       )}
       <AppointmentCheckoutDialog
-        appointment={appointment as never}
+        appointment={appointment}
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
         onPaid={() => onRefetch?.()}

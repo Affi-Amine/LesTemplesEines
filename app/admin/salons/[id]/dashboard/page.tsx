@@ -4,7 +4,7 @@ import { AppointmentManagementLinkButton } from "@/components/appointment-manage
 import { BookingDetailsModal } from "@/components/booking-details-modal"
 
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useTabletWorkspace } from "@/lib/hooks/use-tablet-workspace"
 import { TabletAgenda } from "@/components/calendar/tablet-agenda"
@@ -12,9 +12,7 @@ import { SalonSwitcher } from "@/components/calendar/salon-switcher"
 import { appointmentCollisionDetection } from "@/lib/calendar/drag-collision"
 import { useAppointmentMove } from "@/lib/hooks/use-appointment-move"
 import { canMoveAppointment } from "@/lib/calendar/appointment-move"
-import { AppointmentMoveDialog } from "@/components/calendar/appointment-move-dialog"
 import { SalonMoveJournal } from "@/components/calendar/salon-move-journal"
-import { appointmentMarkerLaneWidth } from "@/lib/calendar/marker-layout"
 import { AppointmentServiceColorKey } from "@/components/calendar/appointment-service-stars"
 import { useScheduleHourHeight } from "@/lib/hooks/use-schedule-hour-height"
 import { AppointmentPaymentBadge, AppointmentPaymentLegend } from "@/components/appointment-payment-badge"
@@ -67,8 +65,7 @@ import {
 
 import { useRouter } from "next/navigation"
 
-const STAFF_COLUMN_MIN_WIDTH = 152
-const TIME_COLUMN_WIDTH = 84
+const TIME_COLUMN_WIDTH = 44
 const MOBILE_TIME_COLUMN_WIDTH = 42
 
 export default function SalonDashboardPage() {
@@ -79,13 +76,8 @@ export default function SalonDashboardPage() {
   const searchParams = useSearchParams()
   const salonId = params.id as string
   const queryClient = useQueryClient()
-  const [canUseFreeMoves, setCanUseFreeMoves] = useState(false)
   const [showAllHours, setShowAllHours] = useState(false)
-  useEffect(() => {
-    try { setCanUseFreeMoves(["admin", "manager", "receptionist"].includes(JSON.parse(localStorage.getItem("adminUser") || "{}").role)) }
-    catch { setCanUseFreeMoves(false) }
-  }, [])
-  const moveModePolicy = canUseFreeMoves ? "salon-admin" : "strict"
+  const moveModePolicy = "salon-admin" as const
   const [date, setDate] = useState<Date | undefined>(() => {
     const value = searchParams.get("date")
     const selected = value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseISO(value) : null
@@ -159,7 +151,7 @@ export default function SalonDashboardPage() {
   }, [staff, allStaff, salonId])
   const selectedOpeningHours = salon?.opening_hours || null
   const selectedDayHours = date ? resolveOpeningHoursForDate(selectedOpeningHours, date) : null
-  const scheduleHours = date ? canUseFreeMoves && showAllHours ? Array.from({ length: 24 }, (_, hour) => hour) : getScheduleHoursIncludingAppointments(selectedOpeningHours, date, appointments || []) : []
+  const scheduleHours = date ? showAllHours ? Array.from({ length: 24 }, (_, hour) => hour) : getScheduleHoursIncludingAppointments(selectedOpeningHours, date, appointments || []) : []
   const dayAppointments = appointments || []
   const sortedDayAppointments = [...dayAppointments].sort(
     (a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
@@ -172,11 +164,10 @@ export default function SalonDashboardPage() {
   const bookedAppointments = dayAppointments.filter((apt: any) => isBookedAppointment(apt.status))
   const staffLanes = new Map(bookableStaff.map((member) => [member.id,
     layoutAppointmentLanes(dayAppointments.filter((apt: any) => getAppointmentStaffIds(apt).includes(member.id)))]))
-  const staffColumnWidths = new Map(bookableStaff.map(member => {
-    const laneWidth = appointmentMarkerLaneWidth(dayAppointments.filter((apt: any) => getAppointmentStaffIds(apt).includes(member.id)))
-    return [member.id, Math.max(STAFF_COLUMN_MIN_WIDTH, ...[...(staffLanes.get(member.id)?.values() || [])].map(lane => lane.lanes * laneWidth))] as const
-  }))
-  const scheduleMinWidth = TIME_COLUMN_WIDTH + (bookableStaff.length ? [...staffColumnWidths.values()].reduce((sum, width) => sum + width, 0) : STAFF_COLUMN_MIN_WIDTH)
+  const scheduleColumns = `${TIME_COLUMN_WIDTH}px ${bookableStaff.map(member => {
+    const lanes = Math.max(1, ...[...(staffLanes.get(member.id)?.values() || [])].map(lane => lane.lanes))
+    return `minmax(0, ${lanes}fr)`
+  }).join(" ")}`
   const confirmedAppointments = dayAppointments.filter((apt: any) => apt.status === "confirmed" || apt.status === "pending")
   const inProgressAppointments = dayAppointments.filter((apt: any) => apt.status === "in_progress")
   const completedAppointments = dayAppointments.filter((apt: any) => apt.status === "completed")
@@ -381,8 +372,8 @@ export default function SalonDashboardPage() {
     setIsQuickCreateOpen(true)
   }
 
-  const { activeAppointment, pendingMove, isMovingAppointment, moveError, handleDragStart, handleDragEnd,
-    handleDragCancel, confirmMove, cancelMove, isInvalidDestination } = useAppointmentMove({
+  const { activeAppointment, handleDragStart, handleDragEnd,
+    handleDragCancel, isInvalidDestination } = useAppointmentMove({
       appointments: appointments || [], staff: dashboardStaff, openingHours: selectedOpeningHours,
       mode: moveModePolicy, salonId,
       onRefresh: () => Promise.all([refetchAppointments(), queryClient.invalidateQueries({ queryKey: ["salon-move-log", salonId] })]),
@@ -482,7 +473,7 @@ export default function SalonDashboardPage() {
           isInvalidDestination={isInvalidDestination}
           onResize={handleResizeAppointment}
           moveModePolicy={moveModePolicy}
-          toolbarAction={canUseFreeMoves ? <SalonMoveJournal salonId={salonId} /> : undefined}
+          toolbarAction={<SalonMoveJournal salonId={salonId} />}
           summary={<>
           <div className="grid grid-cols-3 gap-3">
             <Card className="gap-2 rounded-lg border-l-4 border-l-blue-200 p-3 shadow-sm sm:p-4">
@@ -519,13 +510,13 @@ export default function SalonDashboardPage() {
           title={`Tableau de bord - ${salon?.name || "Chargement..."}`}
           description="Gestion opérationnelle du salon"
         />
-        <div className="space-y-3 px-3 pt-3 sm:px-6">
-          {canUseFreeMoves && <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-muted-foreground">Déplacements libres dans ce salon · chaque modification est journalisée.</p><div className="flex gap-2"><Button variant="outline" className="h-11" aria-pressed={showAllHours} onClick={() => setShowAllHours(value => !value)}>{showAllHours ? "Horaires du salon" : "Afficher les 24 h"}</Button><SalonMoveJournal salonId={salonId} /></div></div>}
+        <div className="space-y-3 px-2 pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-muted-foreground">Déplacements libres dans ce salon · chaque modification est journalisée.</p><div className="flex gap-2"><Button variant="outline" className="h-11" aria-pressed={showAllHours} onClick={() => setShowAllHours(value => !value)}>{showAllHours ? "Horaires du salon" : "Afficher les 24 h"}</Button><SalonMoveJournal salonId={salonId} /></div></div>
           <AppointmentPaymentLegend />
           <AppointmentServiceColorKey appointments={dayAppointments} />
         </div>
 
-        <div className="container mx-auto space-y-5 p-4 md:p-6">
+        <div className="w-full min-w-0 space-y-5 px-2 py-4">
           <PrestationCounts appointments={dayAppointments} />
           <div className="grid grid-cols-3 gap-3">
             <Card className="gap-2 rounded-lg border-l-4 border-l-blue-200 p-3 shadow-sm sm:p-4">
@@ -654,7 +645,7 @@ export default function SalonDashboardPage() {
                       </div>
                     </div>
                     <p className="border-b px-3 py-2 text-xs text-muted-foreground">Toutes les masseuses sont visibles. Touchez un rendez-vous pour voir les détails.</p>
-                    <div className="overflow-x-auto bg-[#f6f8f7]">
+                    <div className="min-w-0 bg-[#f6f8f7]">
                       <div className="w-full min-w-0">
                         <div
                           className="sticky top-0 z-20 grid border-b border-[#b8c0bd] bg-card/95 backdrop-blur"
@@ -756,14 +747,14 @@ export default function SalonDashboardPage() {
                   </Card>
 
                   <Card className="hidden min-h-[600px] rounded-lg border-border/80 shadow-sm md:block">
-                    <div className="overflow-x-auto p-2 sm:p-4">
-                    <div style={{ minWidth: scheduleMinWidth }}>
+                    <div className="min-w-0 px-1 py-2">
+                    <div data-planning-grid="salon" className="w-full min-w-0">
                       {/* Header: Staff names */}
-                      <div className="sticky top-0 z-20 mb-3 flex border-b border-border bg-card/95 pb-2 backdrop-blur">
-                        <div className="shrink-0" style={{ width: TIME_COLUMN_WIDTH }}></div>
+                      <div data-planning-header style={{ gridTemplateColumns: scheduleColumns }} className="sticky top-0 z-20 mb-3 grid border-b border-border bg-card/95 pb-2 backdrop-blur">
+                        <div />
                         {bookableStaff.map(s => (
-                          <div key={s.id} style={{ minWidth: staffColumnWidths.get(s.id) }} className="min-w-[152px] flex-1 border-l border-border px-2 text-center">
-                            <div className="truncate text-sm font-semibold sm:text-base">{getStaffDisplayName(s)}</div>
+                          <div key={s.id} data-planning-staff-id={s.id} title={getStaffDisplayName(s)} className="min-w-0 border-l border-border px-1 text-center">
+                            <div className="truncate text-xs font-semibold xl:text-sm">{getStaffDisplayName(s)}</div>
                             <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Masseuse</div>
                           </div>
                         ))}
@@ -781,8 +772,8 @@ export default function SalonDashboardPage() {
                           </div>
                         ) : scheduleHours.map((hour) => {
                           return (
-                            <div key={hour} className="relative flex border-t border-border" style={{ height: hourHeight }}>
-                              <div className="shrink-0 bg-card pr-3 pt-1 text-right text-sm font-medium text-muted-foreground" style={{ width: TIME_COLUMN_WIDTH }}>
+                            <div key={hour} className="relative grid border-t border-border" style={{ height: hourHeight, gridTemplateColumns: scheduleColumns }}>
+                              <div className="min-w-0 bg-card pr-1 pt-1 text-right text-[11px] font-medium text-muted-foreground">
                                 <CalendarHourLabel hour={hour} date={date || new Date()} openingHours={selectedOpeningHours} />
                               </div>
                               {bookableStaff.map(s => {
@@ -795,7 +786,7 @@ export default function SalonDashboardPage() {
                                 const slotId = `slot-dashboard-${s.id}-${hour}`
 
                                 return (
-                                  <div key={`${s.id}-${hour}`} style={{ minWidth: staffColumnWidths.get(s.id) }} className="relative min-w-[152px] flex-1 border-l border-border bg-background/80">
+                                  <div key={`${s.id}-${hour}`} data-planning-cell-staff-id={s.id} className="relative min-w-0 border-l border-border bg-background/80">
                                     <CalendarClosedHours hour={hour} date={date || new Date()} openingHours={selectedOpeningHours} />
                                     <div className="absolute inset-0 grid grid-rows-4">
                                       {[0, 15, 30, 45].map((minute, idx) => (
@@ -808,7 +799,7 @@ export default function SalonDashboardPage() {
                                           date={date || new Date()}
                                           onEmptyClick={(data) => handleEmptySlotClick({ ...data, date: date || new Date() })}
                                           disabled={!isCalendarQuarterOpen(hour, minute, date || new Date(), selectedOpeningHours)}
-                                          dropDisabled={canUseFreeMoves ? false : !isCalendarQuarterOpen(hour, minute, date || new Date(), selectedOpeningHours)}
+                                          dropDisabled={false}
                                           isInvalidDrop={isInvalidSlotForActive(date || new Date(), s.id, hour, minute)}
                                           isDragActive={Boolean(activeAppointment)}
                                           className={`${idx < 3 ? "border-b border-dashed border-border/50" : ""} min-h-[19px]`}
@@ -898,7 +889,7 @@ export default function SalonDashboardPage() {
                             {!["blocked", "cancelled", "no_show"].includes(apt.status) && apt.payment_status !== "paid" && (
                               <Button size="sm" onClick={() => handleOpenPayment(apt)} className="cursor-pointer">
                                 <CheckCircle className="mr-2 h-4 w-4" />
-                                Présent / payer
+                                Encaisser
                               </Button>
                             )}
                             <Button size="sm" variant="outline" onClick={() => handleValidate(apt)} className="cursor-pointer">
@@ -1133,7 +1124,7 @@ export default function SalonDashboardPage() {
                 {selectedSlot.payment_status !== "paid" && !["cancelled", "no_show"].includes(selectedSlot.status) ? (
                   <Button onClick={() => handleOpenPayment(selectedSlot)} className="cursor-pointer">
                     <CheckCircle className="mr-2 h-4 w-4" />
-                    Présent / payer
+                    Encaisser
                   </Button>
                 ) : null}
               </div>
@@ -1254,8 +1245,6 @@ export default function SalonDashboardPage() {
           onSuccess={() => refetchAppointments()}
         />}
 
-        <AppointmentMoveDialog move={pendingMove} staff={dashboardStaff} saving={isMovingAppointment}
-          error={moveError} onCancel={cancelMove} onConfirm={() => void confirmMove()} />
         <BlockedSlotDialog slot={blockedSlot} open={Boolean(blockedSlot)}
           onOpenChange={open => { if (!open) setBlockedSlot(null) }} onChanged={() => refetchAppointments()} />
         </div>

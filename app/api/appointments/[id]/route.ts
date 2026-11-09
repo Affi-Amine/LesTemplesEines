@@ -87,6 +87,46 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Ce rendez-vous a été modifié. Actualisez le planning avant de réessayer." }, { status: 409 })
     }
 
+    // Money has its own atomic path. Never combine an encaissement with a care,
+    // team or time change, and never fall back to separate parent/ledger writes.
+    const paymentKeys = new Set(["payment_status", "payment_method", "amount_paid_cents", "paid_at", "payments"])
+    if (Object.keys(updates).some(key => paymentKeys.has(key))) {
+      if (dry_run || Object.keys(updates).some(key => !paymentKeys.has(key)) || updates.payment_status !== "paid") {
+        return NextResponse.json({ error: "Enregistrez le règlement séparément des autres modifications du rendez-vous." }, { status: 400 })
+      }
+      let payments = updates.payments
+      // Compatibility for older clients that sent a cumulative amount and a
+      // single method without ledger rows. The RPC still checks the exact due.
+      if (!payments?.length && updates.payment_method && updates.amount_paid_cents !== undefined) {
+        const recorded = existing.amount_paid_cents ?? 0
+        payments = [{ method: updates.payment_method as NonNullable<typeof updates.payments>[number]["method"], amount_cents: updates.amount_paid_cents - recorded }]
+      }
+      const allowedMethods = ["stripe", "gift_card", "pack", "on_site", "cash", "card", "check", "other", "treatwell", "loyalty"]
+      if (!payments?.length || payments.some(payment => !allowedMethods.includes(payment.method) || !Number.isSafeInteger(payment.amount_cents) || payment.amount_cents <= 0)
+        || (updates.amount_paid_cents !== undefined && (!Number.isSafeInteger(updates.amount_paid_cents) || updates.amount_paid_cents < 0))) {
+        return NextResponse.json({ error: "Chaque règlement doit avoir un moyen valide et un montant positif en centimes entiers." }, { status: 400 })
+      }
+      const version = expected_updated_at || existing.updated_at
+      if (!version || !Number.isFinite(Date.parse(version))) {
+        return NextResponse.json({ error: "Actualisez le rendez-vous avant d’enregistrer son règlement." }, { status: 409 })
+      }
+      const { data, error } = await supabase.rpc("admin_checkout_appointment_atomic", {
+        p_appointment_id: id,
+        p_expected_updated_at: version,
+        p_payments: payments,
+      })
+      if (error) {
+        const status = ["40001", "23514", "23P01"].includes(error.code || "") ? 409
+          : ["42883", "PGRST202"].includes(error.code || "") ? 503
+          : error.code === "P0002" ? 404 : error.code === "42501" ? 403 : 400
+        return NextResponse.json({ error: status === 503
+          ? "La mise à jour de l’encaissement doit être installée. Aucun règlement n’a été enregistré."
+          : error.message || "L’encaissement n’a pas pu être enregistré." }, { status })
+      }
+      syncAfterBookingChange("admin-checkout", existing.start_time, data?.start_time || existing.start_time)
+      return NextResponse.json(presentAppointmentServices(data))
+    }
+
     // Prepare update object
     const updateData: any = {
       updated_at: new Date().toISOString(),
@@ -149,6 +189,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       (updates.end_time && Date.parse(updates.end_time) !== Date.parse(existing.end_time)) ||
       (staffIdsToUpdate && [...new Set(targetStaffIds)].sort().join() !== [...new Set(existingStaffIds)].sort().join())
     )
+
+    const strictMoveKeys = new Set(["start_time", "end_time", "staff_id", "staff_ids"])
+    if (schedulingChanged && Object.keys(updates).every(key => strictMoveKeys.has(key))) {
+      const team = Array.from(new Set(targetStaffIds))
+      const actorId = auth.payload.staffId
+      if (!actorId) return NextResponse.json({ error: "Session équipe invalide. Reconnectez-vous." }, { status: 403 })
+      const { data: members, error: teamError } = await supabase.from("staff").select("id, is_active").in("id", Array.from(new Set([actorId, ...team])))
+      if (teamError) throw teamError
+      if (!members?.some((member: { id: string; is_active?: boolean }) => member.id === actorId && member.is_active === true)) {
+        return NextResponse.json({ error: "Ce compte équipe n’est plus actif. Reconnectez-vous." }, { status: 403 })
+      }
+      if (!team.length || team.some(staffId => !members?.some((member: { id: string; is_active?: boolean }) => member.id === staffId && member.is_active === true))) {
+        return NextResponse.json({ error: "Une masseuse choisie n’est plus active. Actualisez le planning." }, { status: 400 })
+      }
+    }
 
     const reactivating = !blocksAppointmentSchedule(existing.status) &&
       blocksAppointmentSchedule(updates.status || existing.status)
@@ -355,22 +410,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         ? "Invalid status value for appointment"
         : error.message
       return NextResponse.json({ error: message || "Failed to update appointment" }, { status: 400 })
-    }
-
-    if (updates.payments && updates.payments.length > 0) {
-      const paymentRecords = updates.payments.map(p => ({
-        appointment_id: id,
-        amount_cents: p.amount_cents,
-        method: p.method
-      }))
-
-      const { error: paymentsError } = await supabase
-        .from("payments")
-        .insert(paymentRecords)
-
-      if (paymentsError) {
-        throw new Error("Failed to record payments: " + paymentsError.message)
-      }
     }
 
     syncAfterBookingChange("admin-update", existing.start_time, data?.start_time)

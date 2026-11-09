@@ -77,6 +77,9 @@ async function bootstrap() {
     VALUES('migration_existing_log','appointment','{}') RETURNING id,created_at`)).rows[0]
   assert(initialLog.id && initialLog.created_at)
   await db.exec(sql)
+  const accessMigration = fs.readFileSync('database/migrations/20261109030636_salon_planning_staff_access.sql','utf8')
+  await db.exec(accessMigration)
+  await db.exec(accessMigration)
   assert.equal((await db.query('SELECT count(*)::int AS count FROM public.activity_logs WHERE id=$1',[initialLog.id])).rows[0].count,1)
   const journalAccess = (await db.query(`SELECT relrowsecurity AS rls,
     has_table_privilege('service_role','public.activity_logs','SELECT') AS server_read,
@@ -193,7 +196,7 @@ async function main() {
   console.log('PASS: invoker RPC is service-role-only and a spoofed client GUC cannot bypass the definer guards')
 
   for (const options of [
-    { actor:therapist }, { actor:inactiveAdmin }, { actor:otherManager }, { actor:id(999) },
+    { actor:inactiveAdmin }, { actor:id(999) },
     { salonId:otherSalon },
   ]) await rejectedWithoutMutation(options,'42501')
   for (const options of [
@@ -201,8 +204,8 @@ async function main() {
     { team:[] }, { team:[b,c] }, { team:[null] }, { expected:null }, { start:'2099-11-02T13:07Z' },
   ]) await rejectedWithoutMutation(options,'22023')
   await rejectedWithoutMutation({ appointmentId:id(998) },'P0002')
-  for (const actor of [manager,receptionist]) { await seed(); await move({ actor }); assert.equal((await snapshot()).logs,1) }
-  console.log('PASS: active front-desk roles and salon scope enforced; invalid IDs, members, cardinality, time and versions fail before mutation')
+  for (const actor of [admin,manager,receptionist,therapist,c,otherManager,outsider]) { await seed(); await move({ actor }); assert.equal((await snapshot()).logs,1) }
+  console.log('PASS: every active staff role can move in the displayed salon; inactive/missing actors, foreign booking/team, invalid times and versions stay protected')
 
   await seed({team:[a,b]}); await extra(a); await extra(b)
   await rejectedWithoutMutation({team:[a]},'22023')

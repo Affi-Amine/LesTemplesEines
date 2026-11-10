@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useStaff } from "@/lib/hooks/use-staff"
 import { useSalons } from "@/lib/hooks/use-salons"
-import { Plus, Edit, Trash2 } from "lucide-react"
+import { Plus, Edit, Trash2, CalendarOff } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
 import { useTranslations } from "@/lib/i18n/use-translations"
@@ -37,7 +37,12 @@ import type { Staff } from "@/lib/types/database"
 import { SalonFilter } from "@/components/salon-filter"
 import { useRoleProtection } from "@/lib/hooks/use-role-protection"
 import { useServices } from "@/lib/hooks/use-services"
-import { useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import type { StaffLeave } from "@/lib/staff/leaves"
+
+function formatLeaveDate(date: string) {
+  return new Date(`${date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+}
 
 export default function StaffPage() {
   const isAuthorized = useRoleProtection(["admin", "manager"])
@@ -54,6 +59,21 @@ export default function StaffPage() {
 
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Leaves ("congés"): while a member is on leave she takes no booking.
+  const [leaveStaff, setLeaveStaff] = useState<Staff | null>(null)
+  const [leaveForm, setLeaveForm] = useState({ start_date: "", end_date: "", reason: "" })
+  const [isSavingLeave, setIsSavingLeave] = useState(false)
+  const { data: leavesData, isLoading: leavesLoading } = useQuery({
+    queryKey: ["staff-leaves", leaveStaff?.id],
+    queryFn: async () => {
+      const response = await fetch(`/api/admin/staff-leaves?staff_id=${leaveStaff!.id}`)
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error || "Impossible de lister les congés")
+      return body.leaves as StaffLeave[]
+    },
+    enabled: Boolean(leaveStaff),
+  })
 
   // Form state
   const [formData, setFormData] = useState({
@@ -191,6 +211,69 @@ export default function StaffPage() {
     }
   }
 
+  const handleOpenLeaves = (member: Staff) => {
+    setLeaveForm({ start_date: "", end_date: "", reason: "" })
+    setLeaveStaff(member)
+  }
+
+  const handleAddLeave = async () => {
+    if (!leaveStaff) return
+    if (!leaveForm.start_date || !leaveForm.end_date) {
+      toast.error("Erreur", {
+        description: "Indiquez le premier et le dernier jour du congé",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+      return
+    }
+    setIsSavingLeave(true)
+    try {
+      const response = await fetch("/api/admin/staff-leaves", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          staff_id: leaveStaff.id,
+          start_date: leaveForm.start_date,
+          end_date: leaveForm.end_date,
+          reason: leaveForm.reason || undefined,
+        }),
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error || "Congé non enregistré")
+      toast.success("Congé enregistré", {
+        description: `${leaveStaff.first_name} ne prendra aucun rendez-vous sur cette période`,
+        icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
+      })
+      setLeaveForm({ start_date: "", end_date: "", reason: "" })
+      queryClient.invalidateQueries({ queryKey: ["staff-leaves", leaveStaff.id] })
+    } catch (error: any) {
+      toast.error("Erreur", {
+        description: error.message || "Impossible d'enregistrer le congé",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+    } finally {
+      setIsSavingLeave(false)
+    }
+  }
+
+  const handleDeleteLeave = async (leave: StaffLeave) => {
+    try {
+      const response = await fetch(`/api/admin/staff-leaves/${leave.id}`, { method: "DELETE" })
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || "Échec de la suppression")
+      }
+      toast.success("Congé supprimé", {
+        icon: <Icon icon="solar:check-circle-bold" className="w-5 h-5 text-green-500" />,
+      })
+      queryClient.invalidateQueries({ queryKey: ["staff-leaves", leave.staff_id] })
+    } catch (error: any) {
+      toast.error("Erreur", {
+        description: error.message || "Impossible de supprimer le congé",
+        icon: <Icon icon="solar:danger-bold" className="w-5 h-5 text-red-500" />,
+      })
+    }
+  }
+
   const handleDelete = async (member: Staff) => {
     if (!confirm(`Êtes-vous sûr de vouloir désactiver ${member.first_name} ${member.last_name} ?`)) return
 
@@ -304,6 +387,15 @@ export default function StaffPage() {
                     >
                       <Edit className="w-4 h-4 mr-2" />
                       Modifier
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenLeaves(emp)}
+                      className="cursor-pointer"
+                      title="Congés"
+                    >
+                      <CalendarOff className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="outline"
@@ -563,6 +655,109 @@ export default function StaffPage() {
             </Button>
             <Button onClick={handleSave} disabled={isSaving} className="cursor-pointer">
               {isSaving ? "Enregistrement..." : editingStaff ? "Mettre à jour" : "Créer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Leaves Dialog */}
+      <Dialog open={Boolean(leaveStaff)} onOpenChange={(open) => { if (!open) setLeaveStaff(null) }}>
+        <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Congés — {leaveStaff?.first_name} {leaveStaff?.last_name}
+            </DialogTitle>
+            <DialogDescription>
+              Pendant un congé, aucune réservation n&apos;est possible : les créneaux disparaissent
+              du site et le planning refuse tout rendez-vous sur la période.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="leave_start">
+                  Premier jour <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="leave_start"
+                  type="date"
+                  value={leaveForm.start_date}
+                  onChange={(e) => setLeaveForm({
+                    ...leaveForm,
+                    start_date: e.target.value,
+                    end_date: leaveForm.end_date && leaveForm.end_date < e.target.value ? e.target.value : leaveForm.end_date,
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="leave_end">
+                  Dernier jour <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="leave_end"
+                  type="date"
+                  min={leaveForm.start_date || undefined}
+                  value={leaveForm.end_date}
+                  onChange={(e) => setLeaveForm({ ...leaveForm, end_date: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="leave_reason">Motif (facultatif)</Label>
+              <Input
+                id="leave_reason"
+                value={leaveForm.reason}
+                onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
+                placeholder="Vacances, arrêt maladie…"
+              />
+            </div>
+            <Button onClick={handleAddLeave} disabled={isSavingLeave} className="w-full cursor-pointer">
+              <Plus className="w-4 h-4 mr-2" />
+              {isSavingLeave ? "Enregistrement..." : "Ajouter le congé"}
+            </Button>
+
+            <div className="space-y-2">
+              <Label>Congés enregistrés</Label>
+              {leavesLoading ? (
+                <p className="text-sm text-muted-foreground">Chargement…</p>
+              ) : leavesData && leavesData.length > 0 ? (
+                <div className="space-y-2">
+                  {leavesData.map((leave) => {
+                    const today = new Date().toISOString().slice(0, 10)
+                    const current = leave.start_date <= today && leave.end_date >= today
+                    return (
+                      <div key={leave.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">
+                            {leave.start_date === leave.end_date
+                              ? formatLeaveDate(leave.start_date)
+                              : `Du ${formatLeaveDate(leave.start_date)} au ${formatLeaveDate(leave.end_date)}`}
+                            {current && <Badge className="ml-2" variant="destructive">En cours</Badge>}
+                          </p>
+                          {leave.reason && <p className="text-xs text-muted-foreground truncate">{leave.reason}</p>}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteLeave(leave)}
+                          className="shrink-0 text-destructive hover:bg-destructive/10 cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Aucun congé à venir.</p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLeaveStaff(null)} className="cursor-pointer">
+              Fermer
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -6,6 +6,7 @@ import {
 import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { resolveOpeningHoursForDate } from "@/lib/calendar/scheduling"
+import { getStaffOnLeaveForDates } from "@/lib/staff/leaves"
 import { type NextRequest, NextResponse } from "next/server"
 import { addMinutes } from "date-fns"
 import { fromZonedTime } from "date-fns-tz"
@@ -62,6 +63,18 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     if (staffError || !staff) {
       return NextResponse.json({ error: "Staff member not found" }, { status: 404 })
+    }
+
+    // On leave that day: no slot, whoever asks.
+    const staffOnLeave = await getStaffOnLeaveForDates(supabase, [staff_id], dateParam)
+    if (staffOnLeave.has(staff_id)) {
+      return NextResponse.json({
+        staff_id,
+        date: dateParam,
+        available_slots: [],
+        total_slots: 0,
+        message: "Staff member is on leave on this date",
+      })
     }
 
     // Get service duration if provided

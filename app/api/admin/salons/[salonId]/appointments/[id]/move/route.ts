@@ -3,6 +3,7 @@ import { z } from "zod"
 import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { authorizeSalonMove } from "@/lib/appointments/salon-moves"
+import { getStaffOnLeave } from "@/lib/staff/leaves"
 import { syncAfterBookingChange } from "@/lib/sync/trigger"
 
 export const dynamic = "force-dynamic"
@@ -26,6 +27,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ sa
   try {
     const supabase = createAdminClient()
     if (!await authorizeSalonMove(supabase, auth.payload, salonId)) return NextResponse.json({ error: "Vous n’avez pas accès aux déplacements libres de ce salon." }, { status: 403 })
+    // The drag keeps the appointment's duration; a slot on a leave day is
+    // refused here because the atomic RPC only knows about booking conflicts.
+    const { data: moving } = await supabase.from("appointments").select("start_time, end_time").eq("id", id).single()
+    const movedEnd = moving
+      ? new Date(Date.parse(parsed.data.start_time) + (Date.parse(moving.end_time) - Date.parse(moving.start_time))).toISOString()
+      : parsed.data.start_time
+    const onLeave = await getStaffOnLeave(supabase, parsed.data.staff_ids, parsed.data.start_time, movedEnd)
+    if (onLeave.size > 0) return NextResponse.json({ error: "La masseuse est en congé à cette date." }, { status: 409 })
     const { data, error } = await supabase.rpc("salon_drag_appointment_atomic", {
       p_salon_id: salonId,
       p_appointment_id: id,

@@ -7,6 +7,7 @@ import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { resolveSalonGroup } from "@/lib/salons/resolve"
 import { assertAppointmentFitsSalonHours } from "@/lib/appointments/opening-hours"
 import { SchedulingError } from "@/lib/appointments/rules"
+import { getStaffOnLeave } from "@/lib/staff/leaves"
 
 import { ClientDataSchema } from "@/lib/appointments/client-data"
 
@@ -229,7 +230,7 @@ export async function validateAppointmentScheduling(
   return { endTime, service, serviceItems, allStaffIds }
 }
 
-/** Throws a 409 when any of the staff has a live booking or a blocked slot in [startTime, endTime). */
+/** Throws a 409 when any of the staff has a live booking, a blocked slot or a leave in [startTime, endTime). */
 export async function assertStaffAvailable(
   supabase: SupabaseClient,
   staffIds: string[],
@@ -237,6 +238,11 @@ export async function assertStaffAvailable(
   endTime: string,
   ignoreAppointmentId?: string
 ) {
+  const onLeave = await getStaffOnLeave(supabase, staffIds, startTime, endTime)
+  if (onLeave.size > 0) {
+    throw new SchedulingError("La masseuse est en congé à cette date", 409)
+  }
+
   for (const staffId of staffIds) {
     let conflictQuery = supabase
       .from("appointments")

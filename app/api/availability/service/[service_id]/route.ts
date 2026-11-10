@@ -11,6 +11,7 @@ import { addMinutes, format, areIntervalsOverlapping } from "date-fns"
 import { fromZonedTime } from "date-fns-tz"
 import { BOOKABLE_STAFF_ROLES, resolveOpeningHoursForDate } from "@/lib/calendar/scheduling"
 import { resolveSalonGroup } from "@/lib/salons/resolve"
+import { getStaffOnLeaveForDates } from "@/lib/staff/leaves"
 
 import { loadServiceBundle } from "@/lib/appointments/service-bundle"
 
@@ -157,7 +158,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
     for (const id of bundle?.ids || [service_id]) {
       qualifiedStaffIds = await resolveStaffIdsThatCanProvideService(supabase, qualifiedStaffIds, id)
     }
-    const allStaff = staffInSalon.filter((member) => qualifiedStaffIds.includes(member.id))
+    // A masseuse on leave that day takes no booking, whoever asks.
+    const staffOnLeave = await getStaffOnLeaveForDates(supabase, qualifiedStaffIds, dateParam)
+    const allStaff = staffInSalon.filter((member) => qualifiedStaffIds.includes(member.id) && !staffOnLeave.has(member.id))
 
     if (!allStaff || allStaff.length < requiredStaffCount) {
       return NextResponse.json({

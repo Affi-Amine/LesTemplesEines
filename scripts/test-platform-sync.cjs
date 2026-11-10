@@ -176,6 +176,7 @@ function createPlatform(platform, columns) {
     },
     async getBooking(ref) { return bookings.has(ref.id) ? view(bookings.get(ref.id)) : null },
     newBookingId: () => `${platform}-ours-${++counter}`,
+    pendingRef: (input) => ({ id: input.externalId }),
     async createBooking(input) {
       bookings.set(input.externalId, {
         externalId: input.externalId, venueId: input.venueId, start: input.start,
@@ -445,6 +446,87 @@ async function main() {
   assert.equal(planity.outside.find(at(2, 6)).serviceNames[0], "Réservé sur Treatwell : Soin signature 60 min (60.00 €) — client : Lina Walk")
   assert.equal(planity.outside.find(at(2, 6)).customer, null)
   console.log("PASS: a booking with no site prestation or client card reaches the other platform titled with its origin, prestation and client")
+
+  // Toui / Moui: two masseuses whose names differ by one letter. The exact
+  // name must win over the one-typo match instead of leaving both unpaired.
+  fresh()
+  tables.staff.push(
+    { id: id(5), salon_id: SALON, first_name: "Madame", last_name: "Toui", is_active: true },
+    { id: id(6), salon_id: SALON, first_name: "Madame", last_name: "Moui", is_active: true }
+  )
+  planity = createPlatform("planity", [{ id: "p-toui", name: "Toui" }, { id: "p-moui", name: "Moui" }])
+  treatwell = createPlatform("treatwell", [{ id: "t-toui", name: "Toui" }, { id: "t-moui", name: "Moui" }])
+  report = await sync()
+  for (const platform of ["planity", "treatwell"]) {
+    const pairs = Object.fromEntries(report.platforms[platform].mapping.staff.map((s) => [s.staff, s.column]))
+    assert.equal(pairs.Toui, "Toui", `${platform}: Toui`)
+    assert.equal(pairs.Moui, "Moui", `${platform}: Moui`)
+  }
+  console.log("PASS: Toui and Moui each pair with their exact column despite being one letter apart")
+
+  // A push that died between the remote write and its confirmation: the
+  // pending link's provisional ref finds the booking and adopts it.
+  fresh()
+  const ghost = bookOnSite(at(2, 7), ALICE, { first_name: "Mia", last_name: "Bernard", phone: "0633333333", email: null })
+  await planity.adapter.createBooking({
+    externalId: "planity-ghost", venueId: "planity-venue", start: ghost.start_time, durationMinutes: 60,
+    staff: ["p-alice"], serviceId: "planity-thai", title: "Massage Thai 60 min", priceCents: 6000, customer: null,
+  })
+  tables.appointment_platform_links.push({
+    id: id(sequence++), appointment_id: ghost.id, platform: "planity", external_id: "planity-ghost",
+    external_ref: { id: "planity-ghost" }, snapshot: null, origin: "pushed",
+    synced_at: now(), created_at: new Date(Date.now() - 3_600_000).toISOString(),
+  })
+  report = await sync()
+  assert.equal(planity.outside.active().filter((b) => Date.parse(b.start) === Date.parse(ghost.start_time)).length, 1, "adopted, not duplicated")
+  assert.ok(tables.appointment_platform_links.find((l) => l.external_id === "planity-ghost").snapshot, "pending link confirmed")
+  console.log("PASS: a push interrupted after the remote write is adopted, not duplicated")
+
+  // The same situation seen by a one-day run for ANOTHER day (immediate sync
+  // after a booking change): it cannot see that booking, so it must leave the
+  // link alone. The next full run frees it and the booking is pushed again.
+  fresh()
+  const lost = bookOnSite(at(2, 9), BEA, { first_name: "Lou", last_name: "Faure", phone: "0644444444", email: null })
+  tables.appointment_platform_links.push({
+    id: id(sequence++), appointment_id: lost.id, platform: "planity", external_id: "planity-lost",
+    external_ref: {}, snapshot: null, origin: "pushed",
+    synced_at: now(), created_at: new Date(Date.now() - 3_600_000).toISOString(),
+  })
+  const otherDay = at(0, 2).slice(0, 10)
+  await runPlatformSync({ mode: "live", window: { from: otherDay, to: otherDay } })
+  assert.ok(tables.appointment_platform_links.find((l) => l.external_id === "planity-lost"), "a narrow run leaves the link it cannot see")
+  report = await sync()
+  assert.ok(!tables.appointment_platform_links.find((l) => l.external_id === "planity-lost"), "the full run frees the unconfirmed link")
+  assert.equal(planity.outside.active().filter((b) => Date.parse(b.start) === Date.parse(lost.start_time)).length, 1, "and pushes the booking once")
+  console.log("PASS: an unverifiable pending link survives narrow runs and is retried by the full one")
+
+  // An orphan the sync created whose link row disappeared: relinked to its
+  // local twin instead of warning and letting step 3 duplicate it.
+  fresh()
+  bookOnSite(at(4, 8), ALICE, { first_name: "Emma", last_name: "Noel", phone: "0655555555", email: null })
+  await sync()
+  tables.appointment_platform_links = tables.appointment_platform_links.filter((l) => l.platform !== "planity")
+  report = await sync()
+  assert.deepEqual(counts(report, "planity"), { match: 1 })
+  assert.equal(planity.outside.active().length, 1, "no duplicate pushed")
+  assert.deepEqual(report.platforms.planity.warnings, [])
+  console.log("PASS: an orphan created by the sync is relinked to its local twin, not duplicated")
+
+  // A true duplicate from the lost-link era: an identical linked copy exists,
+  // so the orphan is cancelled on the platform automatically.
+  fresh()
+  const dup = bookOnSite(at(6, 8), BEA, { first_name: "Ava", last_name: "Henry", phone: "0666666666", email: null })
+  await sync()
+  await planity.adapter.createBooking({
+    externalId: "planity-dup", venueId: "planity-venue", start: dup.start_time, durationMinutes: 60,
+    staff: ["p-bea"], serviceId: "planity-thai", title: "Massage Thai 60 min", priceCents: 6000,
+    customer: { firstName: "Ava", lastName: "Henry", phone: "0666666666", email: null },
+  })
+  report = await sync()
+  assert.deepEqual(counts(report, "planity"), { cancel_remote: 1 })
+  assert.equal(planity.outside.active().filter((b) => Date.parse(b.start) === Date.parse(dup.start_time)).length, 1, "one copy left")
+  assert.equal(planity.outside.active().length + 0, 1)
+  console.log("PASS: a duplicate the engine once created is cancelled automatically")
 
   // Run lock.
   tables.platform_sync_runs.push({ id: id(9999), mode: "live", status: "running", started_at: now() })

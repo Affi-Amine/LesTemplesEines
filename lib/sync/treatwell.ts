@@ -307,10 +307,18 @@ export function createTreatwellAdapter(supabase: ReturnType<typeof createAdminCl
       }
       const { blocks = [] } = await calendar(ref.venueId, ref.day, ref.day)
       const ids = new Set(ref.blocks.map((b) => b.id))
-      return fromBlocks(ref.venueId, blocks.filter((b) => ids.has(String(b.id))))[0] || null
+      // A pending ref has no block ids yet (Treatwell assigns them): find the
+      // blocks by the [LT-<id>] tag carried in the name instead.
+      const tag = ids.size ? null : ref.name.match(TAG)?.[1]
+      const mine = ids.size ? blocks.filter((b) => ids.has(String(b.id))) : blocks.filter((b) => Boolean(tag) && b.name?.match(TAG)?.[1] === tag)
+      return fromBlocks(ref.venueId, mine)[0] || null
     },
 
     newBookingId: () => randomBytes(6).toString("hex"),
+
+    /** Where a push with this input will land: lets a later run verify a write whose confirmation was lost. */
+    pendingRef: (input) =>
+      ({ kind: "block", venueId: input.venueId, name: blockName(input), day: isoToParis(input.start).day, blocks: [] }) satisfies Ref,
 
     async createBooking(input) {
       const name = blockName(input)

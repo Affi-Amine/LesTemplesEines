@@ -67,6 +67,13 @@ export interface PlatformAdapter {
   getBooking(ref: Record<string, unknown>): Promise<ExternalBooking | null>
   /** Ids are reserved before the write so a crash can't leave an unlinked copy. */
   newBookingId(): string
+  /**
+   * The ref a push with this input will be readable at, before the write is
+   * confirmed. Stored on the reserved link so a run that died between the
+   * remote write and its confirmation can be settled later with getBooking,
+   * instead of guessing (a wrong guess re-pushed bookings and made duplicates).
+   */
+  pendingRef?(input: PushBookingInput): Record<string, unknown>
   createBooking(input: PushBookingInput): Promise<Record<string, unknown>>
   updateBooking(ref: Record<string, unknown>, next: BookingState): Promise<Record<string, unknown>>
   cancelBooking(ref: Record<string, unknown>): Promise<void>

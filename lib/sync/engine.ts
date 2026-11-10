@@ -12,6 +12,7 @@ import {
   type ExternalBooking,
   type Platform,
   type PlatformAdapter,
+  type PushBookingInput,
 } from "@/lib/sync/types"
 
 // Mirrors bookings between the site and each platform. Per platform, a run:
@@ -139,9 +140,24 @@ export async function runPlatformSync(options: {
   const { data: run, error: runError } = await supabase
     .from("platform_sync_runs")
     .insert({ mode: options.mode, ...(options.triggeredBy ? { triggered_by: options.triggeredBy } : {}) })
-    .select("id")
+    .select("id, started_at")
     .single()
   if (runError || !run) throw new Error(runError?.message || "Impossible d'enregistrer la synchronisation")
+
+  // The check above and the insert are not atomic: the cron and an event
+  // trigger can start together and both pass it, and two engines on the same
+  // bookings duplicate links and pushes. Re-check now that our row is visible;
+  // of two runs that see each other, the younger one (id as tiebreak) withdraws.
+  const { data: rivals } = await supabase
+    .from("platform_sync_runs")
+    .select("id, started_at")
+    .eq("status", "running")
+    .neq("id", run.id)
+    .gte("started_at", new Date(startedAt - LOCK_MINUTES * 60_000).toISOString())
+  if ((rivals || []).some((r) => r.started_at < run.started_at || (r.started_at === run.started_at && r.id < run.id))) {
+    await supabase.from("platform_sync_runs").delete().eq("id", run.id)
+    return { skipped: "Une synchronisation est déjà en cours." }
+  }
 
   const days = Number(process.env.PLATFORM_SYNC_DAYS) || DEFAULT_WINDOW_DAYS
   const report: SyncReport = {
@@ -287,10 +303,12 @@ async function reconcile(
     report.counts[kind] += 1
     if (report.actions.length < MAX_REPORTED_ACTIONS) report.actions.push({ kind, detail })
   }
+  /** Returned by a write to say a concurrent run already did the work: not an action, not a warning. */
+  const SKIP = Symbol("skip")
   /** Runs `write` in live mode only; failures become warnings so one bad booking never stops the run. */
-  const attempt = async (kind: ActionKind, detail: string, write: () => Promise<void>) => {
+  const attempt = async (kind: ActionKind, detail: string, write: () => Promise<unknown>) => {
     try {
-      if (live) await write()
+      if (live && (await write()) === SKIP) return false
       record(kind, detail)
       return true
     } catch (error) {
@@ -374,9 +392,24 @@ async function reconcile(
     let remote: ExternalBooking | null = external.get(link.external_id) || null
 
     if (!link.snapshot) {
-      // Push reserved but never confirmed: adopt it if it landed, else free it for a retry.
+      // Push reserved but never confirmed. The remote write may have landed
+      // anyway (crash or timeout after it), so ask the platform through the
+      // provisional ref before deciding: adopt the booking if it exists, and
+      // free the link for a retry only once its absence is confirmed — a blind
+      // delete here re-pushed bookings that did exist and created duplicates.
+      const hasRef = Boolean(link.external_ref && Object.keys(link.external_ref).length)
+      if (!remote && hasRef) {
+        try {
+          remote = await adapter.getBooking(link.external_ref)
+        } catch {
+          continue // can't verify right now: leave the link to a later run
+        }
+      }
       if (remote) await updateLink(link.id, { snapshot: remoteState(remote), external_ref: remote.ref })
-      else if (Date.parse(link.created_at) < now - PENDING_PUSH_MINUTES * 60_000 && live) {
+      else if ((hasRef || locals.has(link.appointment_id)) && Date.parse(link.created_at) < now - PENDING_PUSH_MINUTES * 60_000 && live) {
+        // Links from before provisional refs existed can only be checked
+        // against the listing, so those are freed only when this run's window
+        // covered their booking and the listing would have shown it.
         await supabase.from("appointment_platform_links").delete().eq("id", link.id)
         linkedLocal.delete(link.appointment_id)
       }
@@ -440,39 +473,64 @@ async function reconcile(
   let creates = 0
   const unlinkedLocals = () => [...locals.values()].filter((l) => !linkedLocal.has(l.id))
 
+  // The same booking on both sides? Same salon and start, then the same client
+  // when both sides have a phone, otherwise the same masseuse and the same
+  // end. Staff overlap alone would pair two different clients booked with the
+  // same masseuse (a double booking, not a twin).
+  const twinOf = (booking: ExternalBooking, salonId: string) => {
+    const phones = new Set(phoneVariants(booking.customer?.phone))
+    return unlinkedLocals().find((l) => {
+      if (l.salon_id !== salonId || l.status === "cancelled" || Date.parse(l.start_time) !== Date.parse(booking.start)) return false
+      const localPhones = phoneVariants(l.client?.phone)
+      if (phones.size && localPhones.length) return localPhones.some((p) => phones.has(p))
+      return Date.parse(l.end_time) === Date.parse(booking.end) && l.staffIds.some((id) => booking.staff.includes(mapping.staffToExternal.get(id) || ""))
+    })
+  }
+  const relink = async (booking: ExternalBooking, twin: LocalAppointment, detail: string) => {
+    record("match", detail)
+    linkedLocal.add(twin.id)
+    linkedExternal.add(booking.externalId)
+    if (live) {
+      const { error } = await supabase.from("appointment_platform_links").insert({
+        appointment_id: twin.id, platform, external_id: booking.externalId, external_ref: booking.ref, origin: "matched",
+        // Snapshot from our side: if the two differ, the next run carries the platform's version over.
+        snapshot: localState(twin, mappedOnly(booking.staff)),
+      })
+      // 23505: a concurrent run linked it first, which is just as good.
+      if (error && (error as { code?: string }).code !== "23505") report.warnings.push(`${detail} — ${error.message}`)
+    }
+  }
+
   for (const booking of external.values()) {
     if (linkedExternal.has(booking.externalId) || booking.status === "cancelled" || Date.parse(booking.end) < now) continue
     const salonId = mapping.salonByVenue.get(booking.venueId)
     if (!salonId) continue
     const detail = describe(booking.start, salonId, booking.staff, booking.serviceNames.join(" + "), booking.customer?.name || null)
     if (booking.isOurs) {
+      // Our own creation whose link row is gone (lost run, deleted link): take
+      // it back instead of leaving an orphan that step 3 would then duplicate.
+      const twin = twinOf(booking, salonId)
+      if (twin) {
+        await relink(booking, twin, `${detail} (recollé au rendez-vous du site)`)
+        continue
+      }
+      // No local twin, but an identical copy that IS linked: this one is a
+      // duplicate a lost link made the engine create. Remove it.
+      const double = [...external.values()].find((other) => other.externalId !== booking.externalId &&
+        other.isOurs && other.status === "active" && linkedExternal.has(other.externalId) && other.venueId === booking.venueId &&
+        Date.parse(other.start) === Date.parse(booking.start) && Date.parse(other.end) === Date.parse(booking.end) &&
+        remoteState(other).staff.join() === remoteState(booking).staff.join())
+      if (double) {
+        await attempt("cancel_remote", `${detail} (doublon créé par la synchro : annulé)`, () => adapter.cancelBooking(booking.ref))
+        continue
+      }
       report.warnings.push(`${detail} — créé par la synchro mais plus relié à un rendez-vous du site ; vérifiez qu'il n'est pas en double`)
       continue
     }
 
-    // Entered by hand on both sides already? Same salon and start, then the
-    // same client when both sides have a phone, otherwise the same masseuse
-    // and the same end. Staff overlap alone would pair two different clients
-    // booked with the same masseuse (a double booking, not a twin).
-    const phones = new Set(phoneVariants(booking.customer?.phone))
-    const twin = unlinkedLocals().find((l) => {
-      if (l.salon_id !== salonId || l.status === "cancelled" || Date.parse(l.start_time) !== Date.parse(booking.start)) return false
-      const localPhones = phoneVariants(l.client?.phone)
-      if (phones.size && localPhones.length) return localPhones.some((p) => phones.has(p))
-      return Date.parse(l.end_time) === Date.parse(booking.end) && l.staffIds.some((id) => booking.staff.includes(mapping.staffToExternal.get(id) || ""))
-    })
+    const twin = twinOf(booking, salonId)
     if (twin) {
-      record("match", detail)
-      linkedLocal.add(twin.id)
-      linkedExternal.add(booking.externalId)
-      if (live) {
-        const { error } = await supabase.from("appointment_platform_links").insert({
-          appointment_id: twin.id, platform, external_id: booking.externalId, external_ref: booking.ref, origin: "matched",
-          // Snapshot from our side: if the two differ, the next run carries the platform's version over.
-          snapshot: localState(twin, mappedOnly(booking.staff)),
-        })
-        if (error) report.warnings.push(`${detail} — ${error.message}`)
-      }
+      await relink(booking, twin, detail)
       continue
     }
 
@@ -579,39 +637,46 @@ async function reconcile(
     const mappedService = serviceIds.length === 1 ? mapping.serviceToExternal.get(`${venue.id}:${serviceIds[0]}`) || null : null
     const priceCents = local.service_items?.length ? local.service_items.reduce((sum, s) => sum + s.price_cents, 0) : local.service?.price_cents || 0
     const state = localState(local, [])
+    const input: PushBookingInput = {
+      externalId,
+      venueId: venue.id,
+      start: state.start,
+      durationMinutes: Math.round((Date.parse(state.end) - Date.parse(state.start)) / 60_000),
+      staff: state.staff,
+      serviceId: mappedService,
+      // A booking pulled from the other platform may have neither a site service nor a client
+      // card; its import note ("Réservé sur Treatwell : <prestation> (<prix>) — client : <nom>") says it all.
+      // With both an imported prestation snapshot and a client card, the clean prestation name is enough.
+      title: !local.service && local.internal_notes && (!local.client_id || !local.service_items?.length)
+        ? local.internal_notes.slice(0, 160)
+        : localServiceName(local),
+      priceCents,
+      customer: local.client
+        ? { firstName: local.client.first_name || "", lastName: local.client.last_name || "", phone: local.client.phone, email: local.client.email }
+        : null,
+    }
 
     await attempt("push", detail, async () => {
-      // Reserve the link first: if the process dies after the remote write, the next run adopts the booking instead of creating it twice.
+      // Reserve the link first, with the ref the booking will land at: if this
+      // run dies after the remote write, the next one can verify and adopt the
+      // booking instead of creating it twice.
       const { data: reserved, error: reserveError } = await supabase
         .from("appointment_platform_links")
-        .insert({ appointment_id: local.id, platform, external_id: externalId, origin: "pushed", snapshot: null })
+        .insert({ appointment_id: local.id, platform, external_id: externalId, origin: "pushed", snapshot: null, external_ref: adapter.pendingRef?.(input) || {} })
         .select("id")
         .single()
-      if (reserveError || !reserved) throw new Error(reserveError?.message || "Lien non réservé")
-      try {
-        const ref = await adapter.createBooking({
-          externalId,
-          venueId: venue.id,
-          start: state.start,
-          durationMinutes: Math.round((Date.parse(state.end) - Date.parse(state.start)) / 60_000),
-          staff: state.staff,
-          serviceId: mappedService,
-          // A booking pulled from the other platform may have neither a site service nor a client
-          // card; its import note ("Réservé sur Treatwell : <prestation> (<prix>) — client : <nom>") says it all.
-          // With both an imported prestation snapshot and a client card, the clean prestation name is enough.
-          title: !local.service && local.internal_notes && (!local.client_id || !local.service_items?.length)
-            ? local.internal_notes.slice(0, 160)
-            : localServiceName(local),
-          priceCents,
-          customer: local.client
-            ? { firstName: local.client.first_name || "", lastName: local.client.last_name || "", phone: local.client.phone, email: local.client.email }
-            : null,
-        })
-        await updateLink(reserved.id, { snapshot: state, external_ref: ref })
-      } catch (error) {
-        await supabase.from("appointment_platform_links").delete().eq("id", reserved.id)
-        throw error
+      if ((reserveError as { code?: string } | null)?.code === "23505") {
+        linkedLocal.add(local.id) // a concurrent run linked this booking first
+        return SKIP
       }
+      if (reserveError || !reserved) throw new Error(reserveError?.message || "Lien non réservé")
+      // On failure the pending link is kept, not deleted: the write may have
+      // landed despite the error (timeout), and the next runs settle it — adopt
+      // what exists, retry after PENDING_PUSH_MINUTES what provably doesn't.
+      const ref = await adapter.createBooking(input)
+      await updateLink(reserved.id, { snapshot: state, external_ref: ref })
+      linkedLocal.add(local.id)
+      linkedExternal.add(externalId)
     })
   }
 

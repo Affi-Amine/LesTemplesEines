@@ -81,7 +81,14 @@ export async function resolveMapping(supabase: SupabaseClient, platform: Platfor
 
   for (const [salonId, venue] of mapping.venueBySalon) {
     const team = staff.filter((s) => s.salon_id === salonId)
-    const autoStaff = pairUnique(team, venue.staff, (s, c) => (namesMatch(staffLabel(s), c.name) ? 1 : 0), 1)
+    // An exactly identical name outranks a one-typo match: "Toui" must pair
+    // with "Toui" even though "Moui" is only one letter away.
+    const autoStaff = pairUnique(
+      team,
+      venue.staff,
+      (s, c) => (nameKey(staffLabel(s)) === nameKey(c.name) ? 2 : namesMatch(staffLabel(s), c.name) ? 1 : 0),
+      1
+    )
     for (const member of team) {
       const manual = override("staff", member.id, venue.id)
       const column = manual ? venue.staff.find((c) => c.id === manual.external_id) : autoStaff.get(member)

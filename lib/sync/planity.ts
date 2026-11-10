@@ -305,8 +305,10 @@ export function createPlanityAdapter(supabase: ReturnType<typeof createAdminClie
       )
       const sequences = new Map<string, { id: string; vevent: Vevent }[]>()
       for (const [id, vevent] of byId) {
-        // Blocks with neither a service nor a customer are not bookings.
-        if (!vevent.se && (!vevent.cu || vevent.cu.d)) continue
+        // Blocks with neither a service nor a customer are not bookings —
+        // except ours: a pushed booking may carry only a title, and hiding it
+        // here would break pending-link adoption and duplicate detection.
+        if (!vevent.se && (!vevent.cu || vevent.cu.d) && vevent.cby !== PLANITY_AUTHOR) continue
         const key = vevent.sq || id
         sequences.set(key, [...(sequences.get(key) || []), { id, vevent }])
       }
@@ -325,6 +327,10 @@ export function createPlanityAdapter(supabase: ReturnType<typeof createAdminClie
     },
 
     newBookingId: () => pushId(),
+
+    /** Where a push with this input will land: lets a later run verify a write whose confirmation was lost. */
+    pendingRef: (input: PushBookingInput) =>
+      ({ businessId: input.venueId, customerId: null, vevents: [{ id: input.externalId, calendars: input.staff }] }) satisfies Ref,
 
     async createBooking(input: PushBookingInput) {
       const biz = await business(input.venueId)

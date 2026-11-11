@@ -81,12 +81,16 @@ function withEmbeds(table, row, columns) {
   }
 }
 
+/** PostgREST truncates every response to 1000 rows; the engine must paginate. */
+const SERVER_MAX_ROWS = 1000
+
 function from(table) {
   const filters = []
   let operation = "select"
   let values
   let columns = "*"
   let limit = Infinity
+  let slice = null
   const where = (check) => {
     filters.push(check)
     return query
@@ -125,7 +129,8 @@ function from(table) {
         if (table === "appointments") tables.appointment_platform_links = tables.appointment_platform_links.filter((l) => !rows.some((r) => r.id === l.appointment_id))
       }
     }
-    const data = rows.slice(0, limit).map((row) => withEmbeds(table, structuredClone(row), columns))
+    const page = slice ? rows.slice(slice[0], slice[1] + 1) : rows
+    const data = page.slice(0, Math.min(limit, SERVER_MAX_ROWS)).map((row) => withEmbeds(table, structuredClone(row), columns))
     if (mode === "single") return data.length === 1 ? { data: data[0], error: null } : { data: null, error: { message: `${data.length} rows` } }
     if (mode === "maybeSingle") return { data: data[0] || null, error: null }
     return { data, error: null }
@@ -147,6 +152,7 @@ function from(table) {
     ilike: (key, value) => where((row) => String(row[key] || "").toLowerCase() === String(value).toLowerCase()),
     order() { return query },
     limit(n) { limit = n; return query },
+    range(from, to) { slice = [from, to]; return query },
     single: async () => execute("single"),
     maybeSingle: async () => execute("maybeSingle"),
     then(resolve, reject) { return Promise.resolve(execute("many")).then(resolve, reject) },
@@ -527,6 +533,26 @@ async function main() {
   assert.equal(planity.outside.active().filter((b) => Date.parse(b.start) === Date.parse(dup.start_time)).length, 1, "one copy left")
   assert.equal(planity.outside.active().length + 0, 1)
   console.log("PASS: a duplicate the engine once created is cancelled automatically")
+
+  // More links than PostgREST returns in one response (what broke production
+  // on 11/11): the engine must still see every link, or linked bookings read
+  // as unlinked and are re-matched / re-pushed on every run.
+  fresh()
+  const past = new Date(Date.now() - 30 * DAY).toISOString()
+  for (let i = 0; i < 1150; i++) {
+    tables.appointment_platform_links.push({
+      id: id(sequence++), appointment_id: id(sequence++), platform: "planity", external_id: `planity-old-${i}`,
+      external_ref: {}, origin: "pushed", synced_at: past, created_at: past,
+      snapshot: { start: past, end: past, status: "cancelled", staff: [] },
+    })
+  }
+  bookOnSite(at(3, 10), ALICE, { first_name: "Noa", last_name: "Vidal", phone: "0677777777", email: null })
+  await sync()
+  report = await sync()
+  assert.deepEqual(counts(report, "planity"), {}, "nothing re-pushed or re-matched")
+  assert.deepEqual(report.platforms.planity.warnings, [])
+  assert.equal(planity.outside.active().length, 1)
+  console.log("PASS: with more links than one database page, every link is still honoured")
 
   // Run lock.
   tables.platform_sync_runs.push({ id: id(9999), mode: "live", status: "running", started_at: now() })

@@ -102,6 +102,26 @@ function toLocal(row: any): LocalAppointment {
 
 const iso = (value: string) => new Date(value).toISOString()
 
+/**
+ * PostgREST silently truncates results to 1000 rows. The links and the local
+ * bookings of a window both passed that size in production, and every run then
+ * saw an arbitrary subset: linked bookings looked unlinked, were re-matched or
+ * re-pushed, and flooded the report with duplicate-key warnings. Everything
+ * unbounded is read page by page instead, on a stable order.
+ */
+const PAGE_SIZE = 1000
+async function fetchAll<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const rows: T[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1)
+    if (error) throw new Error(error.message)
+    rows.push(...(data || []))
+    if (!data || data.length < PAGE_SIZE) return rows
+  }
+}
+
 function sameState(a: BookingState, b: BookingState) {
   return Date.parse(a.start) === Date.parse(b.start) &&
     Date.parse(a.end) === Date.parse(b.end) &&
@@ -261,27 +281,32 @@ async function reconcile(
   }
   report.fetched = external.size
 
-  const { data: linkRows, error: linkError } = await supabase
-    .from("appointment_platform_links")
-    .select("id, appointment_id, external_id, external_ref, snapshot, created_at")
-    .eq("platform", platform)
-  if (linkError) throw new Error(linkError.message)
-  const links = (linkRows || []) as LinkRow[]
+  const links = await fetchAll<LinkRow>((from, to) =>
+    supabase
+      .from("appointment_platform_links")
+      .select("id, appointment_id, external_id, external_ref, snapshot, created_at")
+      .eq("platform", platform)
+      .order("id")
+      .range(from, to)
+  )
   const linkedExternal = new Set(links.map((l) => l.external_id))
   const linkedLocal = new Set(links.map((l) => l.appointment_id))
 
   const locals = new Map<string, LocalAppointment>()
   const salonIds = [...mapping.venueBySalon.keys()]
   if (salonIds.length) {
-    const { data, error } = await supabase
-      .from("appointments")
-      .select(LOCAL_SELECT)
-      .in("salon_id", salonIds)
-      .gte("start_time", windowStart)
-      .lte("start_time", windowEnd)
-      .neq("status", "blocked")
-    if (error) throw new Error(error.message)
-    for (const row of (data || []) as unknown[]) {
+    const rows = await fetchAll<unknown>((from, to) =>
+      supabase
+        .from("appointments")
+        .select(LOCAL_SELECT)
+        .in("salon_id", salonIds)
+        .gte("start_time", windowStart)
+        .lte("start_time", windowEnd)
+        .neq("status", "blocked")
+        .order("id")
+        .range(from, to)
+    )
+    for (const row of rows) {
       const local = toLocal(row)
       locals.set(local.id, local)
     }

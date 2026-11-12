@@ -14,6 +14,13 @@ export interface BookingState {
   end: string
   status: "active" | "cancelled"
   staff: string[]
+  /**
+   * What the platform sold on this booking when the snapshot was taken. Not
+   * part of the compared state: it only tells a platform-side prestation
+   * change apart from a site-side one, so the former reaches the booking's
+   * card and the latter is never undone.
+   */
+  prestation?: { ids: string[]; price: number; names: string }
 }
 
 export interface ExternalCustomer {

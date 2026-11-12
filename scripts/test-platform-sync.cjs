@@ -453,6 +453,32 @@ async function main() {
   assert.equal(planity.outside.find(at(2, 6)).customer, null)
   console.log("PASS: a booking with no site prestation or client card reaches the other platform titled with its origin, prestation and client")
 
+  // The client then changes the program on the platform (1 h -> 30 min, other
+  // price): the time change was already pulled, but the card and the till must
+  // also show the new prestation and price.
+  Object.assign(treatwell.outside.find(at(2, 6)), {
+    serviceIds: ["treatwell-deluxe"], serviceNames: ["Soin deluxe 30 min"], priceCents: 4500,
+    end: new Date(Date.parse(at(2, 6)) + 1_800_000).toISOString(), updatedAt: Date.now(),
+  })
+  report = await sync()
+  assert.deepEqual(counts(report, "treatwell"), { update_local: 2 }, "times and prestation both pulled")
+  assert.equal(local(at(2, 6)).service_items[0].name, "Soin deluxe 30 min")
+  assert.equal(local(at(2, 6)).service_items[0].price_cents, 4500)
+  assert.equal(local(at(2, 6)).service_items[0].duration_minutes, 30)
+  report = await sync()
+  assert.deepEqual(counts(report, "treatwell"), {}, "the refreshed prestation does not bounce")
+  console.log("PASS: a prestation changed on the platform reaches the booking's card, price included")
+
+  // The reverse must never happen: a prestation chosen on the site is not
+  // overwritten by the platform's unmapped title echoing back.
+  const guarded = local(at(2, 6))
+  guarded.service_id = SERVICE
+  guarded.service_items = null
+  report = await sync()
+  assert.equal(local(at(2, 6)).service_id, SERVICE, "the site prestation stays")
+  assert.equal(local(at(2, 6)).service_items, null)
+  console.log("PASS: a prestation set on the site is never undone by the platform's echo")
+
   // Toui / Moui: two masseuses whose names differ by one letter. The exact
   // name must win over the one-typo match instead of leaving both unpaired.
   fresh()

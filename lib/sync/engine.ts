@@ -73,7 +73,7 @@ interface LocalAppointment {
   client_id: string | null
   staff_id: string | null
   service_id: string | null
-  service_items: { id: string; name: string; price_cents: number }[] | null
+  service_items: { id: string; name: string; price_cents: number; duration_minutes?: number; required_staff_count?: number }[] | null
   start_time: string
   end_time: string
   status: string
@@ -364,6 +364,40 @@ async function reconcile(
   const localServiceName = (local: LocalAppointment) =>
     local.service_items?.length ? local.service_items.map((s) => s.name).join(" + ") : local.service?.name || "Prestation"
 
+  /** What the platform currently sells on this booking, as remembered on the snapshot. */
+  const prestationOf = (booking: ExternalBooking): NonNullable<BookingState["prestation"]> => ({
+    ids: [...booking.serviceIds].sort(),
+    price: Math.round(booking.priceCents),
+    names: booking.serviceNames.join(" + "),
+  })
+  /**
+   * Columns to update when the platform's prestation changed, or null. A site
+   * prestation stays authoritative: it is only replaced by a platform service
+   * that maps to a site one, and the free-text snapshot (name + price shown on
+   * the card) is only refreshed on bookings imported from this platform that
+   * never got a real site prestation.
+   */
+  const prestationChanges = (local: LocalAppointment, remote: ExternalBooking): Record<string, unknown> | null => {
+    const mapped = remote.serviceIds.map((id) => mapping.externalToService.get(id)).find(Boolean) || null
+    if (mapped) {
+      if ((local.service_items?.length || 0) > 1) return null // a site forfait keeps its composition
+      return mapped !== local.service_id || local.service_items?.length ? { service_id: mapped, service_items: null } : null
+    }
+    if (local.source !== platform || local.service_id) return null
+    const durationMinutes = Math.round((Date.parse(remote.end) - Date.parse(remote.start)) / 60_000)
+    if (!(remote.priceCents > 0) || durationMinutes <= 0) return null
+    const item = {
+      id: remote.serviceIds[0] || remote.externalId,
+      name: remote.serviceNames.join(" + ") || "Prestation",
+      duration_minutes: durationMinutes,
+      price_cents: Math.round(remote.priceCents),
+      required_staff_count: Math.max(1, mappedOnly(remote.staff).length || local.staffIds.length),
+    }
+    const current = local.service_items?.length === 1 ? local.service_items[0] : null
+    if (current && current.name === item.name && current.price_cents === item.price_cents && current.duration_minutes === item.duration_minutes) return null
+    return { service_id: null, service_items: [item] }
+  }
+
   async function setAssignments(appointmentId: string, staffIds: string[]) {
     const { error: deleteError } = await supabase.from("appointment_assignments").delete().eq("appointment_id", appointmentId)
     if (deleteError) throw new Error(deleteError.message)
@@ -430,7 +464,7 @@ async function reconcile(
           continue // can't verify right now: leave the link to a later run
         }
       }
-      if (remote) await updateLink(link.id, { snapshot: remoteState(remote), external_ref: remote.ref })
+      if (remote) await updateLink(link.id, { snapshot: { ...remoteState(remote), prestation: prestationOf(remote) }, external_ref: remote.ref })
       else if ((hasRef || locals.has(link.appointment_id)) && Date.parse(link.created_at) < now - PENDING_PUSH_MINUTES * 60_000 && live) {
         // Links from before provisional refs existed can only be checked
         // against the listing, so those are freed only when this run's window
@@ -452,6 +486,35 @@ async function reconcile(
     const ref = remote?.ref || link.external_ref
     const mineChanged = !sameState(mine, snapshot)
     const theirsChanged = !sameState(theirs, snapshot)
+
+    // A prestation swapped on the platform (another program, another price)
+    // never shows in the compared state: carry it to the booking's card so the
+    // agenda and the till stop showing the old prestation. Only a change away
+    // from the snapshot's remembered prestation counts as platform-side; with
+    // nothing remembered yet, only a pure platform import is refreshed.
+    if (remote && theirs.status === "active" && local.status !== "cancelled") {
+      const current = prestationOf(remote)
+      const known = snapshot.prestation || null
+      const changed = known ? JSON.stringify(known) !== JSON.stringify(current) : local.source === platform && !local.service_id
+      const changes = changed ? prestationChanges(local, remote) : null
+      let applied = true
+      if (changes) {
+        const where = describe(theirs.start, local.salon_id, theirs.staff, current.names || "Prestation", local.client ? `${local.client.first_name} ${local.client.last_name}` : null)
+        applied = await attempt("update_local", `${where} (prestation modifiée sur ${label})`, async () => {
+          const { error } = await supabase.from("appointments").update(changes).eq("id", local.id)
+          if (error) throw new Error(error.message)
+        })
+      }
+      const remembered = applied ? current : known
+      if (remembered) {
+        // Later snapshot writes (mine or theirs) must keep the fingerprint.
+        mine.prestation = remembered
+        theirs.prestation = remembered
+        if (applied && JSON.stringify(known) !== JSON.stringify(current) && !mineChanged && !theirsChanged) {
+          await updateLink(link.id, { snapshot: { ...snapshot, prestation: current } })
+        }
+      }
+    }
 
     if (!mineChanged && !theirsChanged) {
       if (remote && JSON.stringify(remote.ref) !== JSON.stringify(link.external_ref)) await updateLink(link.id, { external_ref: remote.ref })
@@ -519,7 +582,7 @@ async function reconcile(
       const { error } = await supabase.from("appointment_platform_links").insert({
         appointment_id: twin.id, platform, external_id: booking.externalId, external_ref: booking.ref, origin: "matched",
         // Snapshot from our side: if the two differ, the next run carries the platform's version over.
-        snapshot: localState(twin, mappedOnly(booking.staff)),
+        snapshot: { ...localState(twin, mappedOnly(booking.staff)), prestation: prestationOf(booking) },
       })
       // 23505: a concurrent run linked it first, which is just as good.
       if (error && (error as { code?: string }).code !== "23505") report.warnings.push(`${detail} — ${error.message}`)
@@ -615,7 +678,7 @@ async function reconcile(
       try {
         await setAssignments(appointment.id, staffIds)
         const { error: linkInsertError } = await supabase.from("appointment_platform_links").insert({
-          appointment_id: appointment.id, platform, external_id: booking.externalId, external_ref: booking.ref, origin: "pulled", snapshot: remoteState(booking),
+          appointment_id: appointment.id, platform, external_id: booking.externalId, external_ref: booking.ref, origin: "pulled", snapshot: { ...remoteState(booking), prestation: prestationOf(booking) },
         })
         if (linkInsertError) throw new Error(linkInsertError.message)
         linkedExternal.add(booking.externalId)

@@ -207,27 +207,6 @@ export default function SalonDashboardPage() {
   const alreadyPaidCents = (appointment: any) => appointment?.payment_status === "partial" ? appointment.amount_paid_cents || 0 : 0
   const amountDue = (appointment: any) => Math.max(0, (appointment?.service?.price_cents || 0) - alreadyPaidCents(appointment)) / 100
 
-  // Card stretched on the planning: save the new end, keep the start where it is.
-  const handleResizeAppointment = async (appointment: any, endTime: string) => {
-    try {
-      const response = await fetch(`/api/appointments/${appointment.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ end_time: endTime, expected_updated_at: appointment.updated_at || undefined }),
-      })
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error || "Durée non enregistrée")
-      }
-      const minutes = Math.round((Date.parse(endTime) - Date.parse(appointment.start_time)) / 60_000)
-      toast.success(`Durée mise à jour : ${minutes} min`)
-      refetchAppointments()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Durée non enregistrée")
-      refetchAppointments()
-    }
-  }
-
   const handleOpenPayment = (appointment = selectedSlot) => {
     if (!appointment) return
     setSelectedSlot(appointment)
@@ -471,7 +450,6 @@ export default function SalonDashboardPage() {
           onBlock={handleBlockSlot}
           movingAppointment={activeAppointment}
           isInvalidDestination={isInvalidDestination}
-          onResize={handleResizeAppointment}
           moveModePolicy={moveModePolicy}
           toolbarAction={<SalonMoveJournal salonId={salonId} />}
           summary={<>

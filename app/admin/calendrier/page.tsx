@@ -511,27 +511,6 @@ export default function CalendrierPage() {
     fetchSalons()
   }, [])
 
-  // Card stretched on the planning: save the new end, keep the start where it is.
-  const handleResizeAppointment = async (appointment: any, endTime: string) => {
-    try {
-      const response = await fetch(`/api/appointments/${appointment.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ end_time: endTime, expected_updated_at: appointment.updated_at || undefined }),
-      })
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error || "Durée non enregistrée")
-      }
-      const minutes = Math.round((Date.parse(endTime) - Date.parse(appointment.start_time)) / 60_000)
-      toast.success(`Durée mise à jour : ${minutes} min`)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Durée non enregistrée")
-    } finally {
-      void fetchAppointments()
-    }
-  }
-
   const navigate = (direction: "prev" | "next") => {
     if (direction === "prev") {
       switch (viewMode) {
@@ -643,7 +622,6 @@ export default function CalendrierPage() {
             onCreate={handleOpenQuickCreate}
             movingAppointment={activeAppointment}
             isInvalidDestination={isInvalidDestination}
-            onResize={handleResizeAppointment}
             summary={<Button variant="outline" onClick={() => setShowOverview(true)}>Vue mois ou semaine</Button>}
             salonControl={<select aria-label="Salon du planning" value={selectedSalon} onChange={event => setSelectedSalon(event.target.value)} className="h-11 max-w-[180px] min-w-0 rounded-lg border bg-card px-2 text-sm">
               <option value="all">Tous les salons</option>

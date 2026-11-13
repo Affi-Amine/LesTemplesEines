@@ -43,8 +43,6 @@ interface TabletAgendaProps {
   isInvalidDestination?: (destination: MoveDestination) => boolean
   moveModePolicy?: AppointmentMoveMode
   toolbarAction?: ReactNode
-  /** Dragging a card's bottom grip sets a new end for that booking. */
-  onResize?: (appointment: Booking, endTime: string) => void
 }
 
 function getBookedServices(appointment: Booking) {
@@ -55,48 +53,6 @@ function getBookedServices(appointment: Booking) {
   const primaryId = appointment.service_id || appointment.service?.id
   if (primaryId && !services.has(primaryId)) services.set(primaryId, appointment.service?.name || "Prestation")
   return [...services].map(([id, name]) => ({ id, name }))
-}
-
-/** Grip under a booking: drag it to set how long the care actually lasts. */
-function ResizeHandle({ pxPerMinute, onPreview, onCommit }: {
-  pxPerMinute: number
-  onPreview: (deltaMinutes: number) => void
-  onCommit: (deltaMinutes: number) => void
-}) {
-  const quarters = (clientY: number, from: number) => Math.round((clientY - from) / pxPerMinute / 15) * 15
-  return <span
-    role="separator"
-    aria-label="Changer la durée du rendez-vous"
-    aria-orientation="horizontal"
-    className="absolute inset-x-0 bottom-0 z-20 h-3 cursor-ns-resize touch-none rounded-b-lg bg-current/10 after:absolute after:inset-x-0 after:bottom-[3px] after:mx-auto after:h-0.5 after:w-6 after:rounded-full after:bg-current/40 after:content-['']"
-    onClick={event => event.stopPropagation()}
-    onTouchStart={event => event.stopPropagation()}
-    onPointerDown={event => {
-      // The card above is draggable: this grip must not start a move.
-      event.preventDefault()
-      event.stopPropagation()
-      const handle = event.currentTarget
-      const from = event.clientY
-      handle.setPointerCapture(event.pointerId)
-      const move = (pointer: PointerEvent) => onPreview(quarters(pointer.clientY, from))
-      const done = (pointer: PointerEvent) => {
-        handle.releasePointerCapture(pointer.pointerId)
-        handle.removeEventListener("pointermove", move)
-        handle.removeEventListener("pointerup", done)
-        handle.removeEventListener("pointercancel", cancel)
-        onCommit(quarters(pointer.clientY, from))
-      }
-      const cancel = () => {
-        handle.removeEventListener("pointermove", move)
-        handle.removeEventListener("pointerup", done)
-        handle.removeEventListener("pointercancel", cancel)
-        onPreview(0)
-      }
-      handle.addEventListener("pointermove", move)
-      handle.addEventListener("pointerup", done)
-      handle.addEventListener("pointercancel", cancel)
-    }}
-  />
 }
 
 /** An empty quarter: tap it to book, or drop a booking on it to move it there. */
@@ -119,9 +75,8 @@ function AgendaSlot({ id, destination, invalid, closed, allowClosedDrop, height,
 export const TabletAgenda = memo(function TabletAgenda({
   salonName, date, onDateChange, staff, appointments, hours, openingHours, loading,
   onAppointmentClick, onEmptySlotClick, onCreate, onBlock, summary, salonControl, salonTitleControl, movingAppointment, isInvalidDestination,
-  moveModePolicy = "strict", toolbarAction, onResize,
+  moveModePolicy = "strict", toolbarAction,
 }: TabletAgendaProps) {
-  const [resizing, setResizing] = useState<{ id: string; delta: number } | null>(null)
   const [memberId, setMemberId] = useState("all")
   const [interval, setInterval] = useState<15 | 30>(30)
   const [view, setView] = useState<"grid" | "list">("grid")
@@ -280,29 +235,16 @@ export const TabletAgenda = memo(function TabletAgenda({
           {(byStaff.get(member.id) || []).map(appointment => {
             const startHour = Number(formatInTimeZone(appointment.start_time, "Europe/Paris", "H"))
             const minute = Number(formatInTimeZone(appointment.start_time, "Europe/Paris", "m"))
-            const bookedMinutes = getAppointmentDurationMinutes(appointment)
-            // While the grip is held, the card follows the pointer before anything is saved.
-            const previewMinutes = resizing?.id === appointment.id
-              ? Math.max(15, bookedMinutes + resizing.delta) : bookedMinutes
-            const height = Math.max(22, previewMinutes / 60 * hourHeight - 2)
+            const height = Math.max(22, getAppointmentDurationMinutes(appointment) / 60 * hourHeight - 2)
             const released = isReleasedAppointment(appointment.status)
             const box = getLaneBox(lanesByStaff.get(member.id)?.get(appointment.id), "var(--agenda-card-inset)")
             const padding = appointment.status === "blocked" ? "p-px sm:p-2" : height < 44 ? "p-0" : "p-px sm:p-1"
-            const commitResize = (delta: number) => {
-              setResizing(null)
-              const minutes = Math.max(15, bookedMinutes + delta)
-              if (!onResize || minutes === bookedMinutes) return
-              onResize(appointment, new Date(Date.parse(appointment.start_time) + minutes * 60_000).toISOString())
-            }
             // Held down then dragged, a booking moves; a plain tap still opens it.
             if (canMoveAppointment(appointment, moveModePolicy)) return <DraggableAppointment key={appointment.id} id={appointment.id} appointment={appointment}
               onClick={() => onAppointmentClick(appointment)}
               className={`absolute z-10 select-none overflow-hidden rounded-lg border border-l-2 text-left ${padding} ring-1 ring-primary/50 sm:border-l-[3px] ${getAppointmentColor(appointment)}`}
               style={{ top: (startHour - displayHours[0] + minute / 60) * hourHeight + 1, height, ...box, touchAction: "none", WebkitTouchCallout: "none" }}>
               <div className="pointer-events-none"><AppointmentCardContent appointment={appointment} height={height} /></div>
-              {onResize && <ResizeHandle pxPerMinute={hourHeight / 60}
-                onPreview={delta => setResizing({ id: appointment.id, delta })}
-                onCommit={commitResize} />}
             </DraggableAppointment>
             return <button key={appointment.id} type="button" data-appointment-id={appointment.id}
               onClick={() => onAppointmentClick(appointment)}

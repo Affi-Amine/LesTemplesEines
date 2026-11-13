@@ -1,7 +1,7 @@
 export const runtime = "nodejs"
 
 import { createAdminClient } from "@/lib/supabase/admin"
-import { getBaseUrl } from "@/lib/gift-cards"
+import { getBaseUrl, GIFT_CARD_INELIGIBLE_MESSAGE, isGiftCardEligible } from "@/lib/gift-cards"
 import { getStripeClient } from "@/lib/stripe"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
@@ -36,6 +36,11 @@ export async function POST(request: NextRequest) {
 
     if (serviceError || !service) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 })
+    }
+
+    // Checked here too: the gift page hides these, but the id can be posted directly.
+    if (!isGiftCardEligible(service)) {
+      return NextResponse.json({ error: GIFT_CARD_INELIGIBLE_MESSAGE }, { status: 400 })
     }
 
     const stripe = getStripeClient()

@@ -15,6 +15,7 @@
     "test:booking": "node scripts/test-appointment-cancellation.cjs && node scripts/test-cancellation-rebooking.cjs && node scripts/test-client-staff-choice.cjs",
     "test:calendar": "node scripts/test-appointment-moves.cjs && node scripts/test-admin-reschedule-api.cjs && node scripts/test-admin-reschedule-sql.cjs && node scripts/test-salon-drag-api.cjs && node scripts/test-salon-drag-sql.cjs",
     "test:planning": "node scripts/test-planning-rules.cjs",
+    "test:services": "node scripts/test-service-selection.cjs",
     "test:ui": "node scripts/test-slot-selection.cjs && node scripts/test-payment-presentation.cjs && node scripts/test-prestation-counts.cjs",
     "test:service-colors": "node scripts/test-service-planning-colors.cjs",
     "test:clients": "node scripts/test-client-profile.cjs",

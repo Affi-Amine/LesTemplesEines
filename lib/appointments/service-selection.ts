@@ -8,7 +8,8 @@ export interface SelectedService {
 
 export function combineServices<T extends SelectedService>(services: T[]) {
   if (!services.length || services.length > 8) throw new Error("Sélectionnez entre 1 et 8 prestations.")
-  if (new Set(services.map(service => service.id)).size !== services.length) throw new Error("Une prestation ne peut être ajoutée qu’une fois.")
+  // The same prestation may be repeated: two hours of the same massage is one
+  // booking of that prestation twice, solo or duo alike.
   const required = services[0].required_staff_count || 1
   if (services.some(service => (service.required_staff_count || 1) !== required)) {
     throw new Error("Combinez des prestations prévues pour le même nombre de masseuses.")
@@ -22,8 +23,13 @@ export function combineServices<T extends SelectedService>(services: T[]) {
 
 export function getSelectedServiceIds(primary: string, additional: string[] = []) {
   if (additional.length && !additional.includes(primary)) throw new Error("La prestation principale doit faire partie de la sélection.")
-  const ids = [primary, ...additional.filter(id => id !== primary)]
-  if (!primary || ids.length > 8 || new Set(additional).size !== additional.length) throw new Error("Sélection de prestations invalide.")
+  // `additional` is the whole selection and may hold the same prestation twice,
+  // so exactly one occurrence of the primary is taken out of the rest.
+  const rest = [...additional]
+  const first = rest.indexOf(primary)
+  if (first >= 0) rest.splice(first, 1)
+  const ids = additional.length ? [primary, ...rest] : [primary]
+  if (!primary || ids.length > 8) throw new Error("Sélection de prestations invalide.")
   return ids
 }
 

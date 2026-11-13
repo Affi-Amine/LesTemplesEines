@@ -166,13 +166,15 @@ function QuickCreateSession({
   const selectedService = bundle.service
   const selectedServiceRequiredStaffCount = selectedService?.required_staff_count || 1
 
-  const addService = (serviceId: string) => setForm(current => current.service_ids.includes(serviceId)
+  // The same prestation can be added again to chain it (two hours of the same
+  // massage), so occurrences are added and removed by position, not by id.
+  const addService = (serviceId: string) => setForm(current => current.service_ids.length >= 8
     ? current
     : { ...current, service_ids: [...current.service_ids, serviceId], client_pack_id: "",
         // A pack or a gift card covers a single prestation; a chained booking is settled on site or online.
         ...(current.service_ids.length ? { payment_method: "on_site" as QuickPaymentMethod, gift_card_code: "" } : {}) })
-  const removeService = (serviceId: string) => setForm(current => ({
-    ...current, service_ids: current.service_ids.filter(id => id !== serviceId), client_pack_id: "",
+  const removeService = (index: number) => setForm(current => ({
+    ...current, service_ids: current.service_ids.filter((_, position) => position !== index), client_pack_id: "",
   }))
   const eligibleStaff = useMemo(() => (staff || []).filter(member =>
     member.salon_id === salonId && canStaffTakeBookings(member)), [staff, salonId])
@@ -454,23 +456,24 @@ function QuickCreateSession({
               <Label htmlFor="quick-service" className="text-sm font-semibold">1. Les soins</Label>
 
               {chosenServices.length > 0 && <ol className="space-y-2">
-                {chosenServices.map((service, index) => <li key={service.id} className="flex min-w-0 items-start gap-2 rounded-lg border bg-muted/30 p-2">
+                {chosenServices.map((service, index) => <li key={`${service.id}-${index}`} className="flex min-w-0 items-start gap-2 rounded-lg border bg-muted/30 p-2">
                   <span className="mt-1 text-xs tabular-nums text-muted-foreground">{index + 1}.</span>
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-sm font-medium">{service.name}</p>
                     <p className="text-xs text-muted-foreground">{service.duration_minutes} min · {typeof service.price_cents === "number" ? `${(service.price_cents / 100).toFixed(2)} €` : "Prix non renseigné"}</p>
                   </div>
-                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={`Retirer ${service.name}`}
-                    onClick={() => removeService(service.id)}><X className="h-4 w-4" /></Button>
+                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={`Retirer ${service.name} (${index + 1})`}
+                    onClick={() => removeService(index)}><X className="h-4 w-4" /></Button>
                 </li>)}
               </ol>}
 
-              <Select value="" disabled={isSaving || servicesLoading || servicesError}
+              <Select value="" disabled={isSaving || servicesLoading || servicesError || form.service_ids.length >= 8}
                 onValueChange={value => addService(value)}>
                 <SelectTrigger id="quick-service">
-                  <SelectValue placeholder={servicesLoading ? "Chargement des soins…" : chosenServices.length ? "Ajouter un soin à la suite" : "Choisir un soin"} />
+                  <SelectValue placeholder={servicesLoading ? "Chargement des soins…" : chosenServices.length ? "Ajouter un soin à la suite (le même est possible)" : "Choisir un soin"} />
                 </SelectTrigger>
-                <SelectContent>{services?.filter(service => !form.service_ids.includes(service.id)).map(service => <SelectItem key={service.id} value={service.id}>
+                {/* The same prestation stays in the list: picking it again chains a second hour. */}
+                <SelectContent>{services?.map(service => <SelectItem key={service.id} value={service.id}>
                   {service.name} · {service.duration_minutes} min · {typeof service.price_cents === "number" ? `${(service.price_cents / 100).toFixed(2)} €` : "Prix non renseigné"}
                 </SelectItem>)}</SelectContent>
               </Select>

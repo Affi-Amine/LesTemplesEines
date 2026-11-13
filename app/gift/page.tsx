@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ServiceCatalog } from "@/components/service-catalog"
 import { useServices } from "@/lib/hooks/use-services"
 import { fetchAPI } from "@/lib/api/client"
-import { formatGiftCardCode } from "@/lib/gift-cards"
+import { formatGiftCardCode, isGiftCardEligible } from "@/lib/gift-cards"
 import { Mail, Gift } from "lucide-react"
 import { toast } from "sonner"
 
@@ -46,9 +46,16 @@ function GiftPageContent() {
     personal_message: "",
   })
 
+  // Limited-time offers are not sold as gift cards: they would be redeemed
+  // once the offer is over, at a price the salons no longer practise.
+  const giftableServices = useMemo(
+    () => (services || []).filter(isGiftCardEligible),
+    [services]
+  )
+
   const selectedService = useMemo(
-    () => services?.find((service) => service.id === selectedServiceId),
-    [services, selectedServiceId]
+    () => giftableServices.find((service) => service.id === selectedServiceId),
+    [giftableServices, selectedServiceId]
   )
 
   const { data: checkoutStatus } = useQuery({
@@ -123,7 +130,7 @@ function GiftPageContent() {
                 </div>
               ) : (
                 <ServiceCatalog
-                  services={services || []}
+                  services={giftableServices}
                   selectedServiceId={selectedServiceId}
                   onSelectService={setSelectedServiceId}
                   compact

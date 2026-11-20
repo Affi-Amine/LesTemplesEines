@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { fetchAPI } from "@/lib/api/client"
 import { formatGiftCardCode } from "@/lib/gift-cards"
-import { ArrowLeft, CheckCircle2, Clock3, Gift, Mail, ReceiptText, Sparkles, TriangleAlert } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Clock3, Gift, Mail, Package, ReceiptText, Sparkles, TriangleAlert } from "lucide-react"
 
 type GiftCheckoutStatus = {
   session_id: string
@@ -26,6 +26,14 @@ type GiftCheckoutStatus = {
     recipient_name: string | null
     personal_message: string | null
     service_id: string | null
+    addon?: {
+      name: string
+      quantity: number
+      price_cents: number
+      delivery_fee_cents: number
+      requires_shipping: boolean
+      shipping?: { name: string; line1: string; line2?: string | null; postal_code: string; city: string; country: string } | null
+    } | null
   } | null
   service: {
     id: string
@@ -37,6 +45,7 @@ type GiftCheckoutStatus = {
     code: string
     recipient_email: string | null
   } | null
+  addon_order?: { id: string; status: string } | null
 }
 
 function formatPrice(amountCents: number, currency: string) {
@@ -135,6 +144,23 @@ function GiftSuccessContent() {
                   <div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
                     <p className="text-sm text-muted-foreground">Message personnalisé</p>
                     <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{data.payload.personal_message}</p>
+                  </div>
+                )}
+
+                {data?.payload?.addon && (
+                  <div className="rounded-2xl border border-primary/15 bg-background/35 p-4">
+                    <p className="flex items-center gap-2 text-sm font-medium"><Package className="h-4 w-4 text-primary" />Cadeau physique</p>
+                    <p className="mt-2 font-semibold">
+                      {data.payload.addon.name}{data.payload.addon.quantity > 1 ? ` × ${data.payload.addon.quantity}` : ""}
+                      <span className="ml-2 font-normal text-muted-foreground">{formatPrice(data.payload.addon.price_cents * data.payload.addon.quantity, data.currency)}{data.payload.addon.delivery_fee_cents > 0 ? ` + livraison ${formatPrice(data.payload.addon.delivery_fee_cents, data.currency)}` : ""}</span>
+                    </p>
+                    {data.payload.addon.shipping ? (
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        Expédié à {data.payload.addon.shipping.name}, {data.payload.addon.shipping.line1}{data.payload.addon.shipping.line2 ? `, ${data.payload.addon.shipping.line2}` : ""}, {data.payload.addon.shipping.postal_code} {data.payload.addon.shipping.city}. Le salon vous prévient de l&apos;envoi.
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-sm text-muted-foreground">À retirer au salon : présentez l&apos;email de confirmation à l&apos;accueil.</p>
+                    )}
                   </div>
                 )}
               </div>

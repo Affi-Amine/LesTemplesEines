@@ -53,6 +53,7 @@ supabase db push
 | `2025-12-27_storage-buckets.sql` | _Pending_ | ⏳ Not Applied | Required for image uploads |
 | `2026-10-30_platform_sync.sql` | _Pending_ | ⏳ Not Applied | Planity / Treatwell sync tables (docs/platform-sync.md) |
 | `2026-11-01_platform_sync_admin.sql` | _Pending_ | ⏳ Not Applied | Sync credentials managed from the back office; run after the previous one |
+| `2026-11-20_gift_card_addons_and_design.sql` | _Pending_ | ⏳ Not Applied | Gift card design settings + physical extras (catalogue and orders). Without it: default card design, no extras offered |
 
 ---
 

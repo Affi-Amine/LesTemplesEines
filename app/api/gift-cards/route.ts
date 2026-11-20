@@ -3,6 +3,7 @@ import { requireStaffAuth } from "@/lib/auth/api-auth"
 import { generateGiftCardCode } from "@/lib/gift-cards"
 import { sendGiftCardEmails } from "@/lib/email/gift-cards"
 import { sendCounterSaleAdminEmail } from "@/lib/email/sale-notifications"
+import { loadGiftCardDesign } from "@/lib/gift-card-design-store"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -187,9 +188,11 @@ export async function POST(request: NextRequest) {
         personalMessage: giftCard.personal_message,
         serviceName: service.name,
         code: giftCard.code,
+        purchasedAt: giftCard.purchased_at,
         paymentMethod: payload.payment_method,
         purchaseSource: "counter",
         sendRecipientEmail: payload.send_recipient_email !== false,
+        design: await loadGiftCardDesign(supabase),
       })
     } catch (emailError) {
       console.error("[gift-cards] Counter sale email error:", emailError)

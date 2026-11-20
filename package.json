@@ -24,7 +24,8 @@
     "test:cash-sheet": "node scripts/test-cash-sheet.cjs",
     "test:checkout": "node scripts/test-appointment-checkout.cjs && node scripts/test-appointment-checkout-api.cjs && node scripts/test-admin-checkout-sql.cjs",
     "qa:planning": "node scripts/qa-planning-fit.cjs && node scripts/qa-planning-interactions.cjs",
-    "test:connect": "node scripts/test-treatwell-session.cjs"
+    "test:connect": "node scripts/test-treatwell-session.cjs",
+    "test:gift-cards": "node scripts/test-gift-card-addons.cjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

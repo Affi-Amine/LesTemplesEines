@@ -10,11 +10,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ServiceCatalog } from "@/components/service-catalog"
 import { useServices } from "@/lib/hooks/use-services"
 import { fetchAPI } from "@/lib/api/client"
 import { formatGiftCardCode, isGiftCardEligible } from "@/lib/gift-cards"
-import { Mail, Gift } from "lucide-react"
+import { formatEuros, MAX_ADDON_QUANTITY, priceGiftCardOrder } from "@/lib/gift-card-addons"
+import type { GiftCardAddon } from "@/lib/types/database"
+import { Mail, Gift, Package, Truck, Store, Minus, Plus, Check } from "lucide-react"
 import { toast } from "sonner"
 
 type CheckoutStatus = {
@@ -29,6 +32,8 @@ type CheckoutStatus = {
     recipient_email: string | null
   } | null
 }
+
+const EMPTY_SHIPPING = { name: "", phone: "", line1: "", line2: "", postal_code: "", city: "", country: "France" }
 
 function GiftPageContent() {
   const searchParams = useSearchParams()
@@ -46,6 +51,18 @@ function GiftPageContent() {
     personal_message: "",
   })
 
+  // Physical extras, offered in a dialog right before payment (gift cards only).
+  const { data: addons } = useQuery({
+    queryKey: ["gift-card-addons"],
+    queryFn: () => fetchAPI<GiftCardAddon[]>("/gift-card-addons"),
+    staleTime: 60_000,
+  })
+  const [extrasOpen, setExtrasOpen] = useState(false)
+  const [addonId, setAddonId] = useState<string | null>(null)
+  const [quantity, setQuantity] = useState(1)
+  const [shipping, setShipping] = useState(EMPTY_SHIPPING)
+  const [extraAnswers, setExtraAnswers] = useState<Record<string, string>>({})
+
   // Limited-time offers are not sold as gift cards: they would be redeemed
   // once the offer is over, at a price the salons no longer practise.
   const giftableServices = useMemo(
@@ -56,6 +73,11 @@ function GiftPageContent() {
   const selectedService = useMemo(
     () => giftableServices.find((service) => service.id === selectedServiceId),
     [giftableServices, selectedServiceId]
+  )
+  const selectedAddon = useMemo(() => (addons || []).find((addon) => addon.id === addonId) || null, [addons, addonId])
+  const priced = useMemo(
+    () => priceGiftCardOrder(selectedService?.price_cents || 0, selectedAddon, quantity),
+    [selectedService, selectedAddon, quantity]
   )
 
   const { data: checkoutStatus } = useQuery({
@@ -71,10 +93,32 @@ function GiftPageContent() {
     }
   }, [checkoutState])
 
-  const handlePurchase = async () => {
+  useEffect(() => {
+    // A new extra starts with its own answers; the address is kept between tries.
+    setExtraAnswers({})
+    setQuantity(1)
+  }, [addonId])
+
+  const canSubmit = Boolean(selectedService && form.buyer_name && form.buyer_email)
+
+  const startPayment = async (withAddon: boolean) => {
     if (!selectedService || !form.buyer_email) {
       toast.error("Veuillez choisir une prestation et renseigner le nom et l'email de l'offrant.")
       return
+    }
+    if (withAddon && selectedAddon) {
+      if (selectedAddon.requires_shipping) {
+        const missing = (["name", "phone", "line1", "postal_code", "city"] as const).find((key) => !shipping[key].trim())
+        if (missing) {
+          toast.error("Complétez l'adresse de livraison du cadeau physique.")
+          return
+        }
+      }
+      const unanswered = (selectedAddon.extra_fields || []).find((field) => field.required && !(extraAnswers[field.label] || "").trim())
+      if (unanswered) {
+        toast.error(`Précisez « ${unanswered.label} ».`)
+        return
+      }
     }
 
     setIsSubmitting(true)
@@ -88,15 +132,35 @@ function GiftPageContent() {
           recipient_email: form.recipient_email || undefined,
           recipient_name: form.recipient_name || undefined,
           personal_message: form.personal_message || undefined,
+          addon: withAddon && selectedAddon
+            ? {
+                addon_id: selectedAddon.id,
+                quantity,
+                shipping: selectedAddon.requires_shipping ? { ...shipping, line2: shipping.line2 || undefined } : undefined,
+                extra_answers: extraAnswers,
+              }
+            : undefined,
         }),
       })
 
       window.location.href = response.url
     } catch (error: any) {
       toast.error(error.message || "Impossible de générer la carte cadeau.")
-    } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handlePurchase = () => {
+    if (!canSubmit) {
+      toast.error("Veuillez choisir une prestation et renseigner le nom et l'email de l'offrant.")
+      return
+    }
+    // Nothing physical on offer: straight to payment, as before.
+    if (!addons?.length) {
+      void startPayment(false)
+      return
+    }
+    setExtrasOpen(true)
   }
 
   return (
@@ -112,6 +176,7 @@ function GiftPageContent() {
             <h1 className="text-2xl font-serif font-semibold leading-tight sm:text-4xl md:text-5xl md:font-bold">Offrir une expérience Les Temples</h1>
             <p className="max-w-2xl text-[0.82rem] leading-6 text-muted-foreground sm:mx-auto sm:text-base sm:leading-7">
               Choisissez une prestation, ajoutez un message, puis finalisez la carte cadeau en ligne.
+              {addons?.length ? " Vous pourrez y joindre un cadeau physique livré chez vous." : ""}
             </p>
           </div>
 
@@ -207,8 +272,8 @@ function GiftPageContent() {
                 />
               </div>
 
-              <Button onClick={handlePurchase} disabled={!selectedService || !form.buyer_name || !form.buyer_email || isSubmitting} className="w-full">
-                {isSubmitting ? "Redirection vers Stripe..." : "Payer"}
+              <Button onClick={handlePurchase} disabled={!canSubmit || isSubmitting} className="w-full">
+                {isSubmitting ? "Redirection vers Stripe..." : addons?.length ? "Continuer" : "Payer"}
               </Button>
 
               <p className="text-xs text-muted-foreground">
@@ -247,6 +312,115 @@ function GiftPageContent() {
         </div>
       </section>
       <Footer />
+
+      <Dialog open={extrasOpen} onOpenChange={(open) => { if (!isSubmitting) setExtrasOpen(open) }}>
+        <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Un petit plus avec votre carte cadeau ?</DialogTitle>
+            <DialogDescription>
+              La carte cadeau est envoyée par email dans tous les cas. Vous pouvez y joindre un cadeau physique, livré à l&apos;adresse de votre choix.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3">
+            <button
+              type="button"
+              onClick={() => setAddonId(null)}
+              aria-pressed={addonId === null}
+              className={`flex items-center gap-3 rounded-xl border p-3 text-left transition ${addonId === null ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/40"}`}
+            >
+              <Mail className="h-5 w-5 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">Carte cadeau par email uniquement</p>
+                <p className="text-sm text-muted-foreground">Sans supplément</p>
+              </div>
+              {addonId === null && <Check className="h-5 w-5 text-primary" />}
+            </button>
+
+            {(addons || []).map((addon) => {
+              const active = addonId === addon.id
+              return (
+                <button
+                  key={addon.id}
+                  type="button"
+                  onClick={() => setAddonId(addon.id)}
+                  aria-pressed={active}
+                  className={`flex gap-3 rounded-xl border p-3 text-left transition ${active ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/40"}`}
+                >
+                  {addon.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={addon.image_url} alt="" className="h-20 w-20 shrink-0 rounded-lg object-cover" />
+                  ) : (
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-muted"><Package className="h-7 w-7 text-muted-foreground" /></div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                      <p className="font-medium">{addon.name}</p>
+                      <p className="font-semibold text-primary">{formatEuros(addon.price_cents)}</p>
+                    </div>
+                    {addon.description && <p className="mt-1 text-sm text-muted-foreground">{addon.description}</p>}
+                    <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      {addon.requires_shipping ? <><Truck className="h-3.5 w-3.5" />Livraison {addon.delivery_fee_cents > 0 ? formatEuros(addon.delivery_fee_cents) : "offerte"}</> : <><Store className="h-3.5 w-3.5" />À retirer au salon</>}
+                    </p>
+                  </div>
+                  {active && <Check className="h-5 w-5 shrink-0 text-primary" />}
+                </button>
+              )
+            })}
+          </div>
+
+          {selectedAddon && (
+            <div className="space-y-4 rounded-xl border border-primary/10 bg-background/40 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <Label>Quantité</Label>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="icon" className="h-9 w-9" aria-label="Moins" disabled={quantity <= 1} onClick={() => setQuantity((value) => Math.max(1, value - 1))}><Minus className="h-4 w-4" /></Button>
+                  <span className="w-8 text-center font-medium tabular-nums">{quantity}</span>
+                  <Button type="button" variant="outline" size="icon" className="h-9 w-9" aria-label="Plus" disabled={quantity >= MAX_ADDON_QUANTITY} onClick={() => setQuantity((value) => Math.min(MAX_ADDON_QUANTITY, value + 1))}><Plus className="h-4 w-4" /></Button>
+                </div>
+              </div>
+
+              {(selectedAddon.extra_fields || []).map((field) => (
+                <div key={field.label} className="space-y-2">
+                  <Label htmlFor={`extra-${field.label}`}>{field.label}{field.required ? " *" : ""}</Label>
+                  <Input id={`extra-${field.label}`} value={extraAnswers[field.label] || ""} onChange={(e) => setExtraAnswers((current) => ({ ...current, [field.label]: e.target.value }))} />
+                </div>
+              ))}
+
+              {selectedAddon.requires_shipping && (
+                <div className="space-y-3">
+                  <p className="flex items-center gap-2 text-sm font-medium"><Truck className="h-4 w-4 text-primary" />Adresse de livraison</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5"><Label htmlFor="ship-name">Nom complet *</Label><Input id="ship-name" autoComplete="name" value={shipping.name} onChange={(e) => setShipping({ ...shipping, name: e.target.value })} /></div>
+                    <div className="space-y-1.5"><Label htmlFor="ship-phone">Téléphone *</Label><Input id="ship-phone" type="tel" autoComplete="tel" value={shipping.phone} onChange={(e) => setShipping({ ...shipping, phone: e.target.value })} /></div>
+                  </div>
+                  <div className="space-y-1.5"><Label htmlFor="ship-line1">Adresse *</Label><Input id="ship-line1" autoComplete="address-line1" value={shipping.line1} onChange={(e) => setShipping({ ...shipping, line1: e.target.value })} /></div>
+                  <div className="space-y-1.5"><Label htmlFor="ship-line2">Complément</Label><Input id="ship-line2" autoComplete="address-line2" value={shipping.line2} onChange={(e) => setShipping({ ...shipping, line2: e.target.value })} /></div>
+                  <div className="grid gap-3 sm:grid-cols-[140px_1fr_1fr]">
+                    <div className="space-y-1.5"><Label htmlFor="ship-postal">Code postal *</Label><Input id="ship-postal" autoComplete="postal-code" value={shipping.postal_code} onChange={(e) => setShipping({ ...shipping, postal_code: e.target.value })} /></div>
+                    <div className="space-y-1.5"><Label htmlFor="ship-city">Ville *</Label><Input id="ship-city" autoComplete="address-level2" value={shipping.city} onChange={(e) => setShipping({ ...shipping, city: e.target.value })} /></div>
+                    <div className="space-y-1.5"><Label htmlFor="ship-country">Pays</Label><Input id="ship-country" autoComplete="country-name" value={shipping.country} onChange={(e) => setShipping({ ...shipping, country: e.target.value })} /></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-1 rounded-xl bg-muted/40 p-4 text-sm">
+            <div className="flex justify-between"><span>Carte cadeau — {selectedService?.name}</span><span>{formatEuros(priced.service_cents)}</span></div>
+            {selectedAddon && <div className="flex justify-between"><span>{selectedAddon.name}{quantity > 1 ? ` × ${quantity}` : ""}</span><span>{formatEuros(priced.addon_cents)}</span></div>}
+            {selectedAddon?.requires_shipping && <div className="flex justify-between"><span>Livraison</span><span>{priced.delivery_cents > 0 ? formatEuros(priced.delivery_cents) : "Offerte"}</span></div>}
+            <div className="flex justify-between border-t pt-2 text-base font-semibold"><span>Total</span><span>{formatEuros(priced.total_cents)}</span></div>
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => setExtrasOpen(false)}>Retour</Button>
+            <Button type="button" disabled={isSubmitting} onClick={() => void startPayment(Boolean(selectedAddon))}>
+              {isSubmitting ? "Redirection vers Stripe..." : `Payer ${formatEuros(priced.total_cents)}`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }

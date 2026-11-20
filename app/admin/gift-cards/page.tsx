@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { AdminHeader } from "@/components/admin-header"
+import { GiftCardsSubnav } from "@/components/admin/gift-cards-subnav"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -15,7 +16,7 @@ import { useServices } from "@/lib/hooks/use-services"
 import { fetchAPI } from "@/lib/api/client"
 import { formatGiftCardCode } from "@/lib/gift-cards"
 import { getPaymentMethodLabel } from "@/lib/payments"
-import { Ban, CalendarDays, CheckCircle2, Clock3, Gift, Mail, Plus, Search } from "lucide-react"
+import { Ban, CalendarDays, CheckCircle2, Clock3, Download, Eye, Gift, Mail, Plus, Search } from "lucide-react"
 import { toast } from "sonner"
 
 type GiftCardRow = {
@@ -168,7 +169,8 @@ export default function AdminGiftCardsPage() {
       <AdminHeader title="Cartes cadeaux" description="Suivi des cartes cadeaux achetées et utilisées" />
 
       <div className="space-y-4 p-3 sm:p-6 md:space-y-6">
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <GiftCardsSubnav />
           <Button onClick={() => setSaleOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Vendre une carte cadeau
@@ -314,6 +316,20 @@ export default function AdminGiftCardsPage() {
                         </p>
                       </div>
                     )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button asChild variant="outline" size="sm">
+                        <a href={`/api/gift-cards/${giftCard.id}/card`} download>
+                          <Download className="mr-2 h-4 w-4" />
+                          Télécharger la carte
+                        </a>
+                      </Button>
+                      <Button asChild variant="ghost" size="sm">
+                        <a href={`/api/gift-cards/${giftCard.id}/card?inline=1`} target="_blank" rel="noreferrer">
+                          <Eye className="mr-2 h-4 w-4" />
+                          Aperçu
+                        </a>
+                      </Button>
+                    </div>
                     {giftCard.used_at ? (
                       <div className="text-sm">
                         <p className="text-muted-foreground">Utilisée le</p>

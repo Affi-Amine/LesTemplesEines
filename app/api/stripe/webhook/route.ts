@@ -9,6 +9,9 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { getStripeClient, stripeWebhookSecret } from "@/lib/stripe"
 import { generateGiftCardCode } from "@/lib/gift-cards"
 import { sendGiftCardEmails } from "@/lib/email/gift-cards"
+import { sendGiftAddonOrderAdminEmail } from "@/lib/email/sale-notifications"
+import { loadGiftCardDesign } from "@/lib/gift-card-design-store"
+import { ShippingAddressSchema } from "@/lib/gift-card-addons"
 import { createBookableAppointment } from "@/lib/appointments/create"
 import { sendAppointmentBookedEmails } from "@/lib/email/notifications"
 import { ensureClientAuthUser } from "@/lib/client-auth"
@@ -17,6 +20,18 @@ import { sendPackPaymentFailedAdminEmail } from "@/lib/email/pack-alerts"
 import { formatClientPackCode, getPackPaymentStatus } from "@/lib/packs"
 import { getInvoiceSubscriptionId, getPaidPackInvoices, protectPackSubscription, reconcilePackBilling } from "@/lib/stripe-pack-billing"
 
+// The physical extra as the purchase route stored it: priced from the catalogue at that time.
+const StoredAddonSchema = z.object({
+  addon_id: z.string().uuid(),
+  name: z.string().min(1),
+  quantity: z.number().int().min(1),
+  price_cents: z.number().int().min(0),
+  delivery_fee_cents: z.number().int().min(0),
+  requires_shipping: z.boolean(),
+  shipping: ShippingAddressSchema.nullable().optional(),
+  extra_answers: z.record(z.string()).default({}),
+})
+
 const GiftCardPayloadSchema = z.object({
   service_id: z.string().uuid(),
   buyer_name: z.string().min(1),
@@ -24,6 +39,7 @@ const GiftCardPayloadSchema = z.object({
   recipient_email: z.string().email().optional(),
   recipient_name: z.string().optional(),
   personal_message: z.string().optional(),
+  addon: StoredAddonSchema.optional().nullable(),
 })
 
 const PackPayloadSchema = z.object({
@@ -115,6 +131,45 @@ async function handleGiftCardCheckout(
     throw new Error(insertError?.message || "Failed to create gift card")
   }
 
+  // The physical extra bought with the card becomes an order to prepare. The
+  // payment is already taken, so a failure here is logged for a manual entry
+  // and the emails still describe the extra.
+  let addonOrderId: string | null = null
+  if (payload.addon) {
+    const { data: order, error: orderError } = await supabase
+      .from("gift_card_addon_orders")
+      .insert([{
+        gift_card_id: giftCard.id,
+        addon_id: payload.addon.addon_id,
+        addon_name: payload.addon.name,
+        quantity: payload.addon.quantity,
+        addon_price_cents: payload.addon.price_cents,
+        delivery_fee_cents: payload.addon.delivery_fee_cents,
+        shipping: payload.addon.shipping || null,
+        extra_answers: payload.addon.extra_answers,
+        status: "a_preparer",
+        stripe_checkout_session_id: checkoutSession.id,
+      }])
+      .select("id")
+      .single()
+    if (orderError || !order) {
+      console.error("[stripe] Physical gift order NOT recorded for gift card", giftCard.id, orderError?.message)
+    } else {
+      addonOrderId = order.id
+    }
+  }
+
+  const physicalGift = payload.addon
+    ? {
+        name: payload.addon.name,
+        quantity: payload.addon.quantity,
+        priceCents: payload.addon.price_cents,
+        deliveryFeeCents: payload.addon.delivery_fee_cents,
+        shipping: payload.addon.shipping || null,
+        extraAnswers: payload.addon.extra_answers,
+      }
+    : null
+
   try {
     await sendGiftCardEmails({
       buyerName: payload.buyer_name,
@@ -124,10 +179,28 @@ async function handleGiftCardCheckout(
       personalMessage: giftCard.personal_message,
       serviceName: service.name,
       code: giftCard.code,
+      purchasedAt: giftCard.purchased_at,
       paymentMethod: "stripe",
+      design: await loadGiftCardDesign(supabase),
+      physicalGift,
     })
   } catch (emailError) {
     console.error("[stripe] Failed to send gift card emails:", emailError)
+  }
+
+  if (physicalGift) {
+    try {
+      await sendGiftAddonOrderAdminEmail({
+        giftCardCode: giftCard.code,
+        buyerName: payload.buyer_name,
+        buyerEmail: giftCard.buyer_email,
+        serviceName: service.name,
+        gift: physicalGift,
+        recorded: Boolean(addonOrderId),
+      })
+    } catch (emailError) {
+      console.error("[stripe] Failed to send physical gift admin email:", emailError)
+    }
   }
 
   if (typeof checkoutSession.payment_intent === "string") {

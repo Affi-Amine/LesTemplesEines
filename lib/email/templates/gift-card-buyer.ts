@@ -1,4 +1,5 @@
 import { formatGiftCardCode, getBaseUrl } from "@/lib/gift-cards"
+import { formatEuros } from "@/lib/gift-card-addons"
 
 function escapeHtml(value?: string | null) {
   return (value || "")
@@ -9,8 +10,40 @@ function escapeHtml(value?: string | null) {
     .replace(/'/g, "&#39;")
 }
 
+/** What the buyer is told about the physical extra ordered with the card. */
+export type PhysicalGiftSummary = {
+  name: string
+  quantity: number
+  priceCents: number
+  deliveryFeeCents: number
+  shipping: { name: string; phone?: string | null; line1: string; line2?: string | null; postal_code: string; city: string; country: string } | null
+  extraAnswers?: Record<string, string> | null
+}
+
 export function giftCardBuyerSubject(params: { serviceName: string }) {
   return `Votre cadeau Les Temples est prêt - ${params.serviceName}`
+}
+
+export function physicalGiftHtml(gift: PhysicalGiftSummary) {
+  const total = gift.priceCents * gift.quantity + gift.deliveryFeeCents
+  const answers = Object.entries(gift.extraAnswers || {}).filter(([, value]) => value)
+  const address = gift.shipping
+    ? [gift.shipping.name, gift.shipping.line1, gift.shipping.line2, `${gift.shipping.postal_code} ${gift.shipping.city}`, gift.shipping.country]
+        .filter(Boolean)
+        .map((line) => escapeHtml(line))
+        .join("<br/>")
+    : null
+  return `
+        <div style="margin:0 0 24px; padding:22px; border-radius:20px; border:1px solid #ecdcc3; background:#fff;">
+          <div style="font-size:12px; letter-spacing:0.14em; text-transform:uppercase; color:#8b6b46; margin-bottom:10px;">Votre cadeau physique</div>
+          <p style="margin:0 0 8px; font-size:18px;"><strong>${escapeHtml(gift.name)}</strong>${gift.quantity > 1 ? ` × ${gift.quantity}` : ""} — ${escapeHtml(formatEuros(gift.priceCents * gift.quantity))}</p>
+          ${gift.deliveryFeeCents > 0 ? `<p style="margin:0 0 8px; font-size:16px; color:#5f4a36;">Livraison : ${escapeHtml(formatEuros(gift.deliveryFeeCents))} — total cadeau physique ${escapeHtml(formatEuros(total))}</p>` : ""}
+          ${answers.length ? `<p style="margin:0 0 8px; font-size:16px; color:#5f4a36;">${answers.map(([label, value]) => `${escapeHtml(label)} : ${escapeHtml(value)}`).join("<br/>")}</p>` : ""}
+          ${address
+            ? `<p style="margin:8px 0 0; font-size:16px; line-height:1.6; color:#5f4a36;"><strong>Expédié à :</strong><br/>${address}</p>
+          <p style="margin:10px 0 0; font-size:14px; color:#8b6b46;">Le salon prépare votre colis et vous prévient de son envoi.</p>`
+            : `<p style="margin:8px 0 0; font-size:16px; color:#5f4a36;">À retirer au salon : présentez cet email à l'accueil.</p>`}
+        </div>`
 }
 
 export function giftCardBuyerHtml(params: {
@@ -21,6 +54,7 @@ export function giftCardBuyerHtml(params: {
   recipientEmail?: string | null
   paymentMethodLabel?: string | null
   purchaseSource?: "online" | "counter"
+  physicalGift?: PhysicalGiftSummary | null
 }) {
   const code = formatGiftCardCode(params.code)
   const giftUrl = `${getBaseUrl()}/jai-une-carte-cadeau`
@@ -31,16 +65,25 @@ export function giftCardBuyerHtml(params: {
   const paymentMethodLabel = escapeHtml(params.paymentMethodLabel)
   const sourceSentence =
     params.purchaseSource === "counter"
-      ? "Votre carte cadeau a bien ete achetee au comptoir et peut maintenant etre transmise a la personne de votre choix."
-      : "Votre carte cadeau a bien ete preparee et peut maintenant etre transmise a la personne de votre choix."
+      ? "Votre carte cadeau a bien été achetée au comptoir et peut maintenant être transmise à la personne de votre choix."
+      : "Votre carte cadeau a bien été préparée et peut maintenant être transmise à la personne de votre choix."
 
   return `
   <div style="margin:0; padding:32px 20px; background:#f7f1e8; font-family:Georgia, 'Times New Roman', serif; color:#20150e;">
     <div style="max-width:680px; margin:0 auto; background:#fffaf4; border:1px solid #ead8bc; border-radius:28px; overflow:hidden; box-shadow:0 18px 60px rgba(71,42,18,0.10);">
       <div style="padding:28px 32px; background:linear-gradient(135deg,#23160f 0%,#5f4327 60%,#c49a5b 100%); color:#fff7ec;">
-        <div style="font-size:12px; letter-spacing:0.28em; text-transform:uppercase; opacity:0.78;">Les Temples</div>
-        <h1 style="margin:18px 0 10px; font-size:34px; line-height:1.15;">Votre cadeau est prêt</h1>
-        <p style="margin:0; font-size:17px; line-height:1.6; color:rgba(255,247,236,0.88);">
+        <table role="presentation" style="width:100%; border-collapse:collapse;">
+          <tr>
+            <td style="vertical-align:middle; width:64px; padding-right:18px;">
+              <img src="cid:les-temples-logo" alt="Les Temples" width="56" style="display:block; width:56px; height:auto;" />
+            </td>
+            <td style="vertical-align:middle;">
+              <div style="font-size:12px; letter-spacing:0.28em; text-transform:uppercase; opacity:0.78;">Les Temples Thaïlande</div>
+              <h1 style="margin:10px 0 0; font-size:32px; line-height:1.15;">Votre cadeau est prêt</h1>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:18px 0 0; font-size:17px; line-height:1.6; color:rgba(255,247,236,0.88);">
           Merci ${buyerName}. ${sourceSentence}
         </p>
       </div>
@@ -55,6 +98,8 @@ export function giftCardBuyerHtml(params: {
         <div style="margin:0 0 24px;">
           <img src="cid:gift-card-preview" alt="Carte cadeau Les Temples" style="display:block; width:100%; max-width:560px; border-radius:22px; margin:0 auto;" />
         </div>
+
+        ${params.physicalGift ? physicalGiftHtml(params.physicalGift) : ""}
 
         <table role="presentation" style="width:100%; border-collapse:collapse; margin:0 0 24px;">
           <tr>

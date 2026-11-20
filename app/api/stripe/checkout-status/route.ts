@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
 
     let appointment = null
     let giftCard = null
+    let addonOrder = null
     let clientPack = null
     let service = null
     let pack = null
@@ -83,6 +84,15 @@ export async function GET(request: NextRequest) {
         giftCardId: checkoutSession.gift_card_id,
         durationMs: Date.now() - giftCardLookupStartedAt,
       })
+      // The physical extra ordered with it, once the webhook has recorded it.
+      const { data: order } = await supabase
+        .from("gift_card_addon_orders")
+        .select("*")
+        .eq("gift_card_id", checkoutSession.gift_card_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      addonOrder = order || null
     }
 
     if (checkoutSession.client_pack_id) {
@@ -197,11 +207,14 @@ export async function GET(request: NextRequest) {
           typeof payload?.account_mode === "string" && (payload.account_mode === "existing" || payload.account_mode === "new")
             ? payload.account_mode
             : null,
+        // The physical extra as bought, shown while the webhook is still running.
+        addon: payload?.addon && typeof payload.addon === "object" ? payload.addon : null,
       } : null,
       service,
       pack,
       appointment,
       gift_card: giftCard,
+      addon_order: addonOrder,
       client_pack: clientPack,
     })
   } catch (error) {

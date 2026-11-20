@@ -224,3 +224,53 @@ export interface ClientPackUsage {
   created_at?: string
   appointment?: Appointment | null
 }
+
+export interface GiftCardAddonExtraField {
+  label: string
+  required: boolean
+}
+
+/** A physical extra sold with an online gift card (Administration › Cartes cadeaux › Cadeaux physiques). */
+export interface GiftCardAddon {
+  id: string
+  name: string
+  description: string | null
+  image_url: string | null
+  price_cents: number
+  delivery_fee_cents: number
+  requires_shipping: boolean
+  extra_fields: GiftCardAddonExtraField[]
+  is_active: boolean
+  sort_order: number
+  created_at: string
+  updated_at?: string
+}
+
+export interface GiftCardShippingAddress {
+  name: string
+  phone: string
+  line1: string
+  line2?: string
+  postal_code: string
+  city: string
+  country: string
+}
+
+export interface GiftCardAddonOrder {
+  id: string
+  gift_card_id: string
+  addon_id: string | null
+  addon_name: string
+  quantity: number
+  addon_price_cents: number
+  delivery_fee_cents: number
+  shipping: GiftCardShippingAddress | null
+  extra_answers: Record<string, string>
+  status: "a_preparer" | "expedie" | "livre" | "annule"
+  notes: string | null
+  stripe_checkout_session_id: string | null
+  shipped_at: string | null
+  created_at: string
+  updated_at?: string
+  gift_card?: Pick<GiftCard, "id" | "code" | "buyer_name" | "buyer_email" | "recipient_name" | "amount_cents" | "purchased_at"> & { service?: Pick<Service, "id" | "name"> | null } | null
+}

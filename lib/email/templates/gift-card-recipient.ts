@@ -31,9 +31,18 @@ export function giftCardRecipientHtml(params: {
   <div style="margin:0; padding:32px 20px; background:#f7f1e8; font-family:Georgia, 'Times New Roman', serif; color:#20150e;">
     <div style="max-width:680px; margin:0 auto; background:#fffaf4; border:1px solid #ead8bc; border-radius:28px; overflow:hidden; box-shadow:0 18px 60px rgba(71,42,18,0.10);">
       <div style="padding:28px 32px; background:linear-gradient(135deg,#23160f 0%,#5f4327 60%,#c49a5b 100%); color:#fff7ec;">
-        <div style="font-size:12px; letter-spacing:0.28em; text-transform:uppercase; opacity:0.78;">Les Temples</div>
-        <h1 style="margin:18px 0 10px; font-size:34px; line-height:1.15;">Un cadeau vous attend</h1>
-        <p style="margin:0; font-size:17px; line-height:1.6; color:rgba(255,247,236,0.88);">
+        <table role="presentation" style="width:100%; border-collapse:collapse;">
+          <tr>
+            <td style="vertical-align:middle; width:64px; padding-right:18px;">
+              <img src="cid:les-temples-logo" alt="Les Temples" width="56" style="display:block; width:56px; height:auto;" />
+            </td>
+            <td style="vertical-align:middle;">
+              <div style="font-size:12px; letter-spacing:0.28em; text-transform:uppercase; opacity:0.78;">Les Temples Thaïlande</div>
+              <h1 style="margin:10px 0 0; font-size:32px; line-height:1.15;">Un cadeau vous attend</h1>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:18px 0 0; font-size:17px; line-height:1.6; color:rgba(255,247,236,0.88);">
           ${recipientName ? `Bonjour ${recipientName},` : "Bonjour,"} ${buyerName} a le plaisir de vous offrir un moment chez Les Temples.
         </p>
       </div>

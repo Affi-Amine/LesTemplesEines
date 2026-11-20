@@ -4,12 +4,16 @@ import { createClientAccountWithPassword, findAuthUserByEmail, findClientByEmail
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getBaseUrl } from "@/lib/gift-cards"
 import { eurosToCents, getInstallmentAmounts, PackPurchaseSchema } from "@/lib/packs"
-import { getStripeClient } from "@/lib/stripe"
+import { getStripeClient, isStripeEnabled } from "@/lib/stripe"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 export async function POST(request: NextRequest) {
   try {
+    // Said plainly rather than as a generic 500: on an environment without Stripe keys (the demo) nothing else is wrong.
+    if (!isStripeEnabled) {
+      return NextResponse.json({ error: "Le paiement en ligne n'est pas configuré sur ce site (clé Stripe absente) : le pack ne peut pas être acheté ici." }, { status: 503 })
+    }
     const body = await request.json()
     const payload = PackPurchaseSchema.parse(body)
     // Emergency containment: no new open-ended monthly subscriptions.

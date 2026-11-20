@@ -3,7 +3,7 @@ export const runtime = "nodejs"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getBaseUrl, GIFT_CARD_INELIGIBLE_MESSAGE, isGiftCardEligible } from "@/lib/gift-cards"
 import { AddonSelectionSchema, buildGiftCardLineItems, priceGiftCardOrder, validateAddonSelection } from "@/lib/gift-card-addons"
-import { getStripeClient } from "@/lib/stripe"
+import { getStripeClient, isStripeEnabled } from "@/lib/stripe"
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -20,6 +20,10 @@ const PurchaseGiftCardSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Said plainly rather than as a generic 500: on an environment without Stripe keys (the demo) nothing else is wrong.
+    if (!isStripeEnabled) {
+      return NextResponse.json({ error: "Le paiement en ligne n'est pas configuré sur ce site (clé Stripe absente) : la carte cadeau ne peut pas être achetée ici." }, { status: 503 })
+    }
     const body = await request.json()
     const payload = PurchaseGiftCardSchema.parse(body)
     const supabase = createAdminClient()

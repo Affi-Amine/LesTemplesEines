@@ -38,6 +38,21 @@ const PENDING_PUSH_MINUTES = 15
 const MAX_REPORTED_ACTIONS = 300
 const ACTIVE_LOCAL = ["confirmed", "pending", "in_progress"]
 
+/**
+ * The masseuses a booking keeps when a platform changes its columns from
+ * `before` to `after` (all local staff ids). Swaps are followed one for one;
+ * masseuses the platform dropped without a replacement stay, so a duo never
+ * shrinks to a solo from the platform side.
+ */
+export function keptTeam(team: string[], before: string[], after: string[]) {
+  if (!after.length) return [...team]
+  const dropped = before.filter((id) => !after.includes(id))
+  const kept = [...team.filter((id) => !dropped.includes(id)), ...after.filter((id) => !team.includes(id))]
+  const next = [...new Set(kept)]
+  for (const id of dropped) if (next.length < team.length && !next.includes(id)) next.push(id)
+  return next
+}
+
 export type SyncMode = "dry-run" | "live"
 type ActionKind = "import" | "match" | "push" | "update_local" | "update_remote" | "cancel_local" | "cancel_remote"
 
@@ -65,6 +80,7 @@ interface LinkRow {
   external_ref: Record<string, unknown>
   snapshot: BookingState | null
   created_at: string
+  origin?: string | null
 }
 
 interface LocalAppointment {
@@ -284,7 +300,7 @@ async function reconcile(
   const links = await fetchAll<LinkRow>((from, to) =>
     supabase
       .from("appointment_platform_links")
-      .select("id, appointment_id, external_id, external_ref, snapshot, created_at")
+      .select("id, appointment_id, external_id, external_ref, snapshot, created_at, origin")
       .eq("platform", platform)
       .order("id")
       .range(from, to)
@@ -405,9 +421,20 @@ async function reconcile(
     if (error) throw new Error(error.message)
   }
 
-  async function applyToLocal(local: LocalAppointment, next: BookingState) {
-    const staffIds = next.staff.map((id) => mapping.externalToStaff.get(id)).filter((id): id is string => Boolean(id))
-    const staffChanged = staffIds.length > 0 && staffIds.sort().join() !== [...local.staffIds].sort().join()
+  const toLocalStaff = (columns: string[]) => columns.map((id) => mapping.externalToStaff.get(id)).filter((id): id is string => Boolean(id))
+
+  /**
+   * Applies a platform change to a local booking and returns the masseuses it
+   * keeps. With `keepTeam`, the platform may move or swap masseuses but never
+   * drop one: Planity's form edits a booking we pushed without a Planity
+   * prestation as a single column, so a site duo moved there came back with one
+   * masseuse, turned into a solo here and freed the second masseuse online.
+   * A masseuse dropped without a replacement stays on the booking.
+   */
+  async function applyToLocal(local: LocalAppointment, next: BookingState, previous: string[], keepTeam: boolean) {
+    const after = toLocalStaff(next.staff)
+    const staffIds = after.length ? (keepTeam ? keptTeam(local.staffIds, toLocalStaff(previous), after) : after) : [...local.staffIds]
+    const staffChanged = staffIds.length > 0 && [...staffIds].sort().join() !== [...local.staffIds].sort().join()
     const { error } = await supabase
       .from("appointments")
       .update({
@@ -419,6 +446,7 @@ async function reconcile(
       .eq("id", local.id)
     if (error) throw new Error(error.message)
     if (staffChanged) await setAssignments(local.id, staffIds)
+    return staffIds
   }
 
   /** Null when the platform customer has no phone: clients.phone is required and unique. */
@@ -533,13 +561,28 @@ async function reconcile(
     const detail = describe(pull ? theirs.start : mine.start, local.salon_id, pull ? theirs.staff : mine.staff, localServiceName(local), local.client ? `${local.client.first_name} ${local.client.last_name}` : null)
 
     if (pull) {
+      // Only a booking the site pushed keeps its team: a platform's own booking is theirs to staff.
+      const keepTeam = link.origin === "pushed"
+      let team = keepTeam ? keptTeam(local.staffIds, toLocalStaff(snapshot.staff), toLocalStaff(theirs.staff)) : toLocalStaff(theirs.staff)
       const ok = theirs.status === "cancelled"
         ? await attempt("cancel_local", `${detail} (annulé sur ${label})`, async () => {
             const { error } = await supabase.from("appointments").update({ status: "cancelled" }).eq("id", local.id)
             if (error) throw new Error(error.message)
           })
-        : await attempt("update_local", `${detail} (modifié sur ${label})`, () => applyToLocal(local, theirs))
+        : await attempt("update_local", `${detail} (modifié sur ${label})`, async () => { team = await applyToLocal(local, theirs, snapshot.staff, keepTeam) })
       if (ok) await updateLink(link.id, { snapshot: theirs, external_ref: ref })
+      // The platform dropped a masseuse the booking kept: put her column back
+      // there at once, so the platform stops offering her slot.
+      const keptColumns = team.map((id) => mapping.staffToExternal.get(id)).filter((id): id is string => Boolean(id)).sort()
+      if (ok && keepTeam && theirs.status === "active" && keptColumns.length > theirs.staff.length) {
+        const restored: BookingState = { ...theirs, staff: keptColumns }
+        const otherColumns = (remote?.staff || []).filter((id) => !mapping.externalToStaff.has(id))
+        let nextRef = ref
+        const where = describe(theirs.start, local.salon_id, keptColumns, localServiceName(local), local.client ? `${local.client.first_name} ${local.client.last_name}` : null)
+        if (await attempt("update_remote", `${where} (${keptColumns.length} masseuses remises sur ${label})`, async () => {
+          nextRef = await adapter.updateBooking(ref, { ...restored, staff: [...keptColumns, ...otherColumns].sort() })
+        })) await updateLink(link.id, { snapshot: restored, external_ref: nextRef })
+      }
     } else if (mine.status === "cancelled") {
       if (await attempt("cancel_remote", detail, () => adapter.cancelBooking(ref))) await updateLink(link.id, { snapshot: mine })
     } else if (theirs.status === "cancelled") {

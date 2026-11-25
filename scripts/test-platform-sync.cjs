@@ -560,6 +560,39 @@ async function main() {
   assert.equal(planity.outside.active().length + 0, 1)
   console.log("PASS: a duplicate the engine once created is cancelled automatically")
 
+  // A site duo pushed to Planity, then moved there: Planity's form keeps one
+  // column for a booking without a Planity prestation, so it came back with a
+  // single masseuse, became a solo on the site and freed the second masseuse
+  // (Nuad, 22/11). The duo keeps both masseuses and Planity gets both columns back.
+  fresh()
+  const duo = bookOnSite(at(5, 12), ALICE, { first_name: "Rayene", last_name: "Duo", phone: "0611111111", email: null })
+  tables.appointment_assignments.push({ appointment_id: duo.id, staff_id: BEA })
+  await sync()
+  const pushedDuo = planity.outside.find(at(5, 12))
+  assert.deepEqual(pushedDuo.staff, ["p-alice", "p-bea"])
+  planity.outside.move(pushedDuo.externalId, at(6, 12), "p-bea")
+  report = await sync()
+  assert.equal(local(at(6, 12))?.id, duo.id, "the move itself is followed")
+  assert.deepEqual([...staffOf(duo)].sort(), [ALICE, BEA].sort(), "both masseuses stay on the site booking")
+  assert.deepEqual(planity.outside.find(at(6, 12)).staff, ["p-alice", "p-bea"], "Planity gets the second column back at once")
+  assert.ok(report.platforms.planity.actions.some((a) => a.kind === "update_remote" && /2 masseuses remises sur Planity/.test(a.detail)))
+  report = await sync()
+  assert.deepEqual(counts(report, "planity"), {}, "settled: nothing left to sync")
+  assert.deepEqual(report.platforms.planity.warnings, [])
+  console.log("PASS: a site duo moved on Planity keeps both masseuses on both sides")
+
+  // A duo booked on Planity itself stays Planity's to staff: reduced there, it is reduced here.
+  fresh()
+  const nativeDuo = planity.outside.book(at(7, 12), "p-alice", { name: "Nadia Duo", phone: "+33622222222", email: null })
+  planity.outside.find(at(7, 12)).staff = ["p-alice", "p-bea"]
+  await sync()
+  assert.deepEqual([...staffOf(local(at(7, 12)))].sort(), [ALICE, BEA].sort())
+  planity.outside.move(nativeDuo, at(7, 12), "p-bea")
+  await sync()
+  assert.deepEqual([...staffOf(local(at(7, 12)))], [BEA])
+  assert.deepEqual(planity.outside.find(at(7, 12)).staff, ["p-bea"])
+  console.log("PASS: a Planity duo reduced on Planity follows Planity")
+
   // More links than PostgREST returns in one response (what broke production
   // on 11/11): the engine must still see every link, or linked bookings read
   // as unlinked and are re-matched / re-pushed on every run.

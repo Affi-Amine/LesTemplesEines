@@ -75,6 +75,16 @@ const hours = scheduling.getScheduleHoursIncludingAppointments({ monday: { open:
 assert.equal(hours[0], 8)
 console.log("PASS: a cancelled booking stays visible beside the one that rebooked its slot, never blocks it, and keeps its hour on screen")
 
+// A booking paid at arrival is marked "Effectué" while the massage still runs:
+// its masseuse stays busy until the end time, online and at the front desk.
+const status = load("lib/appointments/status.ts")
+assert.ok(status.BLOCKING_APPOINTMENT_STATUSES.includes("completed"))
+for (const freed of ["cancelled", "no_show"]) assert.ok(!status.BLOCKING_APPOINTMENT_STATUSES.includes(freed))
+for (const busy of ["confirmed", "pending", "blocked", "in_progress", "completed"]) assert.equal(status.blocksAppointmentSchedule(busy), true)
+const paidAtArrival = { id: "paid", status: "completed", staff_id: "a", start_time: at(11), end_time: at(13) }
+assert.equal(scheduling.findOverlappingAppointment({ appointments: [paidAtArrival], staffId: "a", start: new Date(at(11, 45)), end: new Date(at(12, 45)) })?.id, "paid")
+console.log("PASS: a booking marked Effectué keeps its masseuse busy until its end time")
+
 // ---- PATCH / DELETE route ---------------------------------------------------
 
 function routeScenario({ existing, body, role = "admin", conflict = false, method = "PATCH", servicePriceCents = 6500, packServices = null, clientExists = true }) {

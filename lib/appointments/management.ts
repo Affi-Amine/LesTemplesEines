@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto"
+import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getBaseUrl } from "@/lib/gift-cards"
 import { getAppointmentStaffIds, canStaffTakeBookings } from "@/lib/calendar/scheduling"
@@ -72,10 +73,10 @@ export async function managedSlots(session: Awaited<ReturnType<typeof loadManage
     supabase.from("staff").select("id,salon_id,is_active,role").in("id", ids),
     supabase.from("staff_availability").select("staff_id,is_recurring,day_of_week,specific_date,start_time,end_time").in("staff_id", ids),
     supabase.from("appointments").select("id,staff_id,start_time,end_time,status").in("staff_id", ids)
-      .in("status", ["confirmed","pending","blocked","in_progress"]).neq("id", appointment.id)
+      .in("status", BLOCKING_APPOINTMENT_STATUSES).neq("id", appointment.id)
       .lt("start_time", fromZonedTime(`${date}T23:59:59.999`, "Europe/Paris").toISOString()).gt("end_time", fromZonedTime(`${date}T00:00:00`, "Europe/Paris").toISOString()),
     supabase.from("appointment_assignments").select("staff_id,appointment:appointments!inner(id,start_time,end_time,status)").in("staff_id", ids)
-      .filter("appointment.status", "in", '("confirmed","pending","blocked","in_progress")').neq("appointment.id", appointment.id)
+      .filter("appointment.status", "in", `(${BLOCKING_APPOINTMENT_STATUSES.map((status) => `"${status}"`).join(",")})`).neq("appointment.id", appointment.id)
       .lt("appointment.start_time", fromZonedTime(`${date}T23:59:59.999`, "Europe/Paris").toISOString()).gt("appointment.end_time", fromZonedTime(`${date}T00:00:00`, "Europe/Paris").toISOString()),
   ])
   for (const result of [members, shifts, bookings, assignments]) if (result.error) throw new ManagementError("Impossible de vérifier les disponibilités. Réessayez.", 503)

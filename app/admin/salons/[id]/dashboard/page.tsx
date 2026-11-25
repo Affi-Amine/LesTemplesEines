@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { CalendarClosedHours, CalendarHourLabel, isCalendarQuarterOpen } from "@/components/calendar/closed-hours"
 import { getScheduleHoursIncludingAppointments } from "@/lib/calendar/scheduling"
+import { BLOCKING_APPOINTMENT_STATUSES } from "@/lib/appointments/status"
 import { AppointmentCardContent, RELEASED_CARD_CLASS } from "@/components/calendar/appointment-card-content"
 import { Calendar } from "@/components/ui/calendar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -374,7 +375,7 @@ export default function SalonDashboardPage() {
     const busyRanges = appointments
       .filter(apt =>
         (staffIds.includes(apt.staff_id) || apt.assignments?.some((a: any) => staffIds.includes(a.staff?.id))) &&
-        ['confirmed', 'pending', 'blocked', 'in_progress'].includes(apt.status)
+        (BLOCKING_APPOINTMENT_STATUSES as readonly string[]).includes(apt.status)
       )
       .map(apt => {
         const start = new Date(apt.start_time);

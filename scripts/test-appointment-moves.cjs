@@ -38,10 +38,10 @@ assert.throws(()=>move({appointment:duo,destination:{date:date(),hour:14,staffId
 const other={...booking,id:'other',staff_id:'b',start_time:'2099-11-02T13:15Z',end_time:'2099-11-02T14:00Z'}
 assert.throws(()=>move({appointment:duo,appointments:[duo,other]}),/chevauche/)
 console.log('PASS: duo keeps both distinct practitioners and checks conflicts for the entire team')
-for(const status of ['confirmed','pending','in_progress','blocked']){
+for(const status of ['confirmed','pending','in_progress','blocked','completed']){
  assert.throws(()=>move({appointments:[booking,{...other,staff_id:'a',status}]}),/chevauche/)
 }
-for(const status of ['cancelled','no_show','completed'])assert.ok(move({appointments:[booking,{...other,staff_id:'a',status}]}))
+for(const status of ['cancelled','no_show'])assert.ok(move({appointments:[booking,{...other,staff_id:'a',status}]}))
 assert.ok(move({appointments:[booking,{...other,staff_id:'a',start_time:'2099-11-02T14:30Z',end_time:'2099-11-02T15:00Z'}]}))
 console.log('PASS: blocking statuses reject overlap; released slots and exact adjacency remain available')
 assert.ok(move({destination:{date:date(),hour:19,minute:30,staffId:'a'}}))
